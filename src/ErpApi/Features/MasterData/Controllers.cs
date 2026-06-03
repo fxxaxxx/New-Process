@@ -57,3 +57,27 @@ public sealed class MaterialController(
     MasterCrudService<物料资料> s, IPermissionService p, IAuditLogger a, ISqlConnectionFactory f)
     : MasterCrudController<物料资料>(s, p, a, f)
 { protected override string Menu => "物料资料"; protected override string TableName => "物料资料"; }
+
+[Route("api/master/departments")]
+public sealed class DepartmentController(
+    MasterCrudService<部门信息> s, IPermissionService p, IAuditLogger a, ISqlConnectionFactory f)
+    : MasterCrudController<部门信息>(s, p, a, f)
+{ protected override string Menu => "部门信息"; protected override string TableName => "部门信息"; }
+
+[Route("api/master/employees")]
+public sealed class EmployeeController(
+    MasterCrudService<人事档案> s, IPermissionService p, IAuditLogger a, ISqlConnectionFactory f)
+    : MasterCrudController<人事档案>(s, p, a, f)
+{ protected override string Menu => "人事档案"; protected override string TableName => "人事档案"; }
+
+[Route("api/master/quote-categories")]
+public sealed class QuoteCategoryController(
+    MasterCrudService<报价类别> s, IPermissionService p, IAuditLogger a, ISqlConnectionFactory f)
+    : MasterCrudController<报价类别>(s, p, a, f)
+{ protected override string Menu => "报价类别"; protected override string TableName => "报价类别"; }
+
+[Route("api/master/quotes")]
+public sealed class QuoteController(
+    MasterCrudService<报价资料> s, IPermissionService p, IAuditLogger a, ISqlConnectionFactory f)
+    : MasterCrudController<报价资料>(s, p, a, f)
+{ protected override string Menu => "报价资料"; protected override string TableName => "报价资料"; }
