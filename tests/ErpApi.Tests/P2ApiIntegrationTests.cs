@@ -142,6 +142,7 @@ public class P2ApiIntegrationTests(DbFixture fx)
         Assert.Equal(JsonValueKind.Null, row.GetProperty("金额").ValueKind);
 
         var detail = await viewer.GetFromJsonAsync<JsonElement>($"/api/orders/{单号}");
+        Assert.Equal(JsonValueKind.Null, detail.GetProperty("订货单").GetProperty("金额").ValueKind);
         Assert.Equal(JsonValueKind.Null, detail.GetProperty("总表").GetProperty("单价").ValueKind);
         Assert.Equal(JsonValueKind.Null, detail.GetProperty("明细")[0].GetProperty("金额").ValueKind);
 
