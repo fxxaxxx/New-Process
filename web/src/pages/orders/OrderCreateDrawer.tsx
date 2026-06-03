@@ -39,6 +39,8 @@ export default function OrderCreateDrawer({ open, onClose, onCreated }: {
         ]);
         setCustomers(cs.items as Record<string, unknown>[]);
         setStyles(ss.items as Record<string, unknown>[]);
+        if (cs.total > 200 || ss.total > 200)
+          message.warning("下拉数据超过200条，仅显示前200条");
       } catch { message.error("加载客户/款号数据失败"); }
     })();
     form.resetFields(); set颜色s([]); set尺码s([]); setQty({});

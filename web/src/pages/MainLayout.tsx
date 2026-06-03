@@ -4,6 +4,7 @@ import {
   TeamOutlined, ShopOutlined, ToolOutlined, AppstoreOutlined,
   ApartmentOutlined, IdcardOutlined, TagsOutlined, ProfileOutlined,
   DatabaseOutlined, SkinOutlined, ShoppingCartOutlined, FileTextOutlined,
+  BuildOutlined,
 } from "@ant-design/icons";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { can } from "../auth/permissions";
@@ -38,6 +39,8 @@ export default function MainLayout() {
   const bizChildren = [
     ...(can(perms, "成品客户订货单", "打开")
       ? [{ key: "/orders", label: "客户订单", icon: <ShoppingCartOutlined /> }] : []),
+    ...(can(perms, "生产制单", "打开")
+      ? [{ key: "/production", label: "生产制单", icon: <BuildOutlined /> }] : []),
   ];
   const items = [
     { key: "base", label: "基础资料", icon: <DatabaseOutlined />, children },
@@ -96,6 +99,7 @@ export default function MainLayout() {
         >
           <span style={{ fontSize: 15, fontWeight: 700, color: theme.headerColor }}>
             {loc.pathname.startsWith("/orders") ? "客户订单"
+              : loc.pathname.startsWith("/production") ? "生产制单"
               : loc.pathname.startsWith("/styles") ? "款式详情"
               : "基础资料"}
           </span>
