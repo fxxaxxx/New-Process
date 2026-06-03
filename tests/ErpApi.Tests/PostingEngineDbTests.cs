@@ -55,6 +55,8 @@ public class PostingEngineDbTests(DbFixture fx)
         Assert.Equal("tester", c.ExecuteScalar<string>(
             "SELECT [审核人] FROM [生产制单] WHERE [生产单号]='P2POST01'"));
 
+        Assert.False(await engine.ApproveAsync("生产制单", "P2POST01", "tester")); // 已是1，重复审核返回false
+
         Assert.True(await engine.UnapproveAsync("生产制单", "P2POST01", "tester"));
         Assert.Equal("0", c.ExecuteScalar<string>(
             "SELECT [审核] FROM [生产制单] WHERE [生产单号]='P2POST01'"));
