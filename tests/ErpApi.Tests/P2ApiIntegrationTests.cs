@@ -186,9 +186,13 @@ public class P2ApiIntegrationTests(DbFixture fx)
         Assert.Equal(2, detail.GetProperty("工序").GetArrayLength());
         Assert.Equal(2, detail.GetProperty("物料").GetArrayLength());
 
-        // 审核 → 反审核 → 删除
+        // 审核 → 重复审核409 → 已审核删除409 → 反审核 → 删除
         Assert.Equal(HttpStatusCode.NoContent,
             (await client.PostAsync($"/api/production/{生产单号}/approve", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict,
+            (await client.PostAsync($"/api/production/{生产单号}/approve", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict,
+            (await client.DeleteAsync($"/api/production/{生产单号}")).StatusCode);
         Assert.Equal(HttpStatusCode.NoContent,
             (await client.PostAsync($"/api/production/{生产单号}/unapprove", null)).StatusCode);
         Assert.Equal(HttpStatusCode.NoContent,
@@ -221,6 +225,35 @@ public class P2ApiIntegrationTests(DbFixture fx)
         var detail = await viewer.GetFromJsonAsync<JsonElement>($"/api/production/{生产单号}");
         Assert.Equal(JsonValueKind.Null, detail.GetProperty("工序")[0].GetProperty("单价").ValueKind);
         Assert.Equal(JsonValueKind.Null, detail.GetProperty("物料")[0].GetProperty("预算单价").ValueKind);
+        Assert.Equal(JsonValueKind.Null, detail.GetProperty("物料")[0].GetProperty("金额").ValueKind);
+
+        // 有"单价"权限者能看到价格(正向断言)
+        var detail2 = await editor.GetFromJsonAsync<JsonElement>($"/api/production/{生产单号}");
+        Assert.Equal(120m, detail2.GetProperty("单头").GetProperty("出货单价").GetDecimal());
+
+        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P2TestData.Cleanup(c); }
+    }
+
+    [SkippableFact]
+    public async Task Production_forbidden_without_permissions()
+    {
+        using var app = Factory();
+        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P2TestData.Seed(c); }
+
+        // 只有打开权限：创建应403
+        SeedPerms("p2prodviewer2", "生产制单", open: true, save: false);
+        var viewer = Client(app, "p2prodviewer2");
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await viewer.PostAsJsonAsync("/api/production", ProductionBody())).StatusCode);
+
+        // 有保存无审核：创建可以,审核应403
+        SeedPerms("p2prodsaver", "生产制单", open: true, save: true, approve: false);
+        var saver = Client(app, "p2prodsaver");
+        var create = await saver.PostAsJsonAsync("/api/production", ProductionBody());
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+        var 生产单号 = (await create.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("生产单号").GetString()!;
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await saver.PostAsync($"/api/production/{生产单号}/approve", null)).StatusCode);
 
         using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P2TestData.Cleanup(c); }
     }

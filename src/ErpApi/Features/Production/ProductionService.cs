@@ -5,7 +5,6 @@ using ErpApi.Infrastructure.Db;
 using Microsoft.Data.SqlClient;
 namespace ErpApi.Features.Production;
 
-
 public sealed class ProductionService(ISqlConnectionFactory factory, IDocumentNumberGenerator docNo)
 {
     public const string DocType = "生产制单";
