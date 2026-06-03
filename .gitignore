@@ -1,0 +1,21 @@
+# .NET build artifacts
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+*.user
+
+# Rider / VS
+.idea/
+.vs/
+
+# Node (frontend, added later)
+node_modules/
+
+# Environment / secrets
+*.env
+.env
+
+# OS
+Thumbs.db
+.DS_Store
