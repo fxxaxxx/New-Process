@@ -22,7 +22,7 @@ using (var master = new SqlConnection(masterCs))
 {
     master.Open();
     using var cmd = new SqlCommand(
-        "DECLARE @sql nvarchar(300) = N'CREATE DATABASE ' + QUOTENAME(@n); IF DB_ID(@n) IS NULL EXEC(@sql);", master);
+        "DECLARE @sql nvarchar(300) = N'CREATE DATABASE ' + QUOTENAME(@n) + N' COLLATE Chinese_PRC_CI_AS'; IF DB_ID(@n) IS NULL EXEC(@sql);", master);
     cmd.Parameters.AddWithValue("@n", dbName);
     cmd.ExecuteNonQuery();
     Console.WriteLine($"数据库 [{dbName}] 就绪");
