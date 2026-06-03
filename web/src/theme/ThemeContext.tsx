@@ -1,6 +1,6 @@
 import { ConfigProvider } from "antd";
 import zhCN from "antd/locale/zh_CN";
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { DEFAULT_THEME, THEMES, type ErpTheme } from "./themes";
 
 interface ThemeCtx {
@@ -14,11 +14,16 @@ export const useTheme = () => useContext(Ctx);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [themeKey, setKey] = useState(() => localStorage.getItem("erp_theme") || DEFAULT_THEME);
+  const theme = THEMES[themeKey] ?? THEMES[DEFAULT_THEME];
+
+  useEffect(() => {
+    document.body.dataset.erpTheme = theme.attr;
+  }, [theme.attr]);
+
   const setThemeKey = (k: string) => {
     localStorage.setItem("erp_theme", k);
     setKey(k);
   };
-  const theme = THEMES[themeKey] ?? THEMES[DEFAULT_THEME];
 
   return (
     <Ctx.Provider value={{ themeKey, setThemeKey, theme }}>

@@ -28,7 +28,13 @@ export default function MasterDataPage({ cfg }: { cfg: MasterCfg }) {
   useEffect(() => { load(); }, [load]);
 
   const columns = [
-    ...fields.map(f => ({ title: f.label, dataIndex: f.name, key: f.name })),
+    ...fields.map(f => {
+      const mono = /编号|号|价|手机/.test(f.name);
+      return {
+        title: f.label, dataIndex: f.name, key: f.name,
+        render: mono ? (v: unknown) => <span className="erp-mono">{v == null ? "" : String(v)}</span> : undefined,
+      };
+    }),
     {
       title: "操作", key: "_op", render: (_: unknown, row: Row) => (
         <Space>

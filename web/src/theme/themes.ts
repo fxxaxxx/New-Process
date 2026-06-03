@@ -1,77 +1,120 @@
 import { theme as antdTheme, type ThemeConfig } from "antd";
 
+const SANS = "'Manrope','PingFang SC','Microsoft YaHei',system-ui,sans-serif";
+
 export interface ErpTheme {
   key: string;
   name: string;
+  attr: string; // body[data-erp-theme]
   antd: ThemeConfig;
-  siderTheme: "light" | "dark";
   siderBg: string;
-  brandColor: string;
-  brandBg: string;
+  siderText: string;
+  brand: string; // 牌名颜色
+  brandFont: string;
+  tagline: string;
+  taglineColor: string;
+  menuTheme: "light" | "dark";
   headerBg: string;
   headerColor: string;
+  headerBorder: string;
   loginBg: string;
+  loginCardBg: string;
+  loginInk: string;
 }
 
 export const THEMES: Record<string, ErpTheme> = {
-  indigo: {
-    key: "indigo",
-    name: "靛蓝商务",
+  // ───────── 素笺 · 浅色编辑风 ─────────
+  paper: {
+    key: "paper",
+    name: "素笺",
+    attr: "paper",
     antd: {
-      token: { colorPrimary: "#4f46e5", colorInfo: "#4f46e5", borderRadius: 8, colorBgLayout: "#f3f4fb" },
+      token: {
+        colorPrimary: "#b23a2e",
+        colorInfo: "#b23a2e",
+        colorLink: "#b23a2e",
+        borderRadius: 4,
+        fontFamily: SANS,
+        colorBgLayout: "transparent",
+        colorBgContainer: "#faf6ec",
+        colorText: "#211d17",
+        colorTextSecondary: "#5b5345",
+        colorBorderSecondary: "#e7ddc8",
+      },
+      components: {
+        Layout: { bodyBg: "transparent", headerBg: "#faf6ec" },
+        Card: { colorBgContainer: "#faf6ec" },
+        Table: { headerBg: "transparent", rowHoverBg: "#f4eee0" },
+        Menu: {
+          darkItemBg: "transparent",
+          darkSubMenuItemBg: "transparent",
+          darkItemColor: "rgba(243,236,222,0.72)",
+          darkItemHoverColor: "#fff",
+          darkItemSelectedBg: "rgba(224,122,95,0.20)",
+          darkItemSelectedColor: "#f0b9aa",
+        },
+      },
     },
-    siderTheme: "light",
-    siderBg: "#ffffff",
-    brandColor: "#4f46e5",
-    brandBg: "#f5f5ff",
-    headerBg: "#ffffff",
-    headerColor: "rgba(0,0,0,0.85)",
-    loginBg: "linear-gradient(135deg,#4338ca 0%,#6366f1 55%,#818cf8 100%)",
+    siderBg: "#231f1a",
+    siderText: "#f3ecde",
+    brand: "#f0e9da",
+    brandFont: "'Fraunces',Georgia,serif",
+    tagline: "服装 · 塑胶 工坊台账",
+    taglineColor: "#c9a25f",
+    menuTheme: "dark",
+    headerBg: "#faf6ec",
+    headerColor: "#3a3328",
+    headerBorder: "1px solid #e7ddc8",
+    loginBg:
+      "radial-gradient(1000px 500px at 20% -10%, rgba(178,58,46,0.18), transparent), #efe9dd",
+    loginCardBg: "#faf6ec",
+    loginInk: "#211d17",
   },
-  dark: {
-    key: "dark",
-    name: "深色科技",
+
+  // ───────── 玄铁 · 深色工业风 ─────────
+  iron: {
+    key: "iron",
+    name: "玄铁",
+    attr: "iron",
     antd: {
       algorithm: antdTheme.darkAlgorithm,
-      token: { colorPrimary: "#22d3ee", borderRadius: 8, colorBgLayout: "#0b0f17" },
+      token: {
+        colorPrimary: "#f6a609",
+        colorInfo: "#f6a609",
+        colorLink: "#f6a609",
+        borderRadius: 2,
+        fontFamily: SANS,
+        colorBgLayout: "transparent",
+        colorBgContainer: "#16181d",
+        colorBorderSecondary: "#262a31",
+      },
+      components: {
+        Layout: { bodyBg: "transparent", headerBg: "#101216" },
+        Card: { colorBgContainer: "#16181d" },
+        Table: { headerBg: "#101216", rowHoverBg: "#1b1e24" },
+        Menu: {
+          darkItemBg: "transparent",
+          darkSubMenuItemBg: "transparent",
+          darkItemSelectedBg: "rgba(246,166,9,0.16)",
+          darkItemSelectedColor: "#f6a609",
+        },
+      },
     },
-    siderTheme: "dark",
-    siderBg: "#0b0f17",
-    brandColor: "#22d3ee",
-    brandBg: "rgba(34,211,238,0.08)",
-    headerBg: "#111722",
-    headerColor: "rgba(255,255,255,0.88)",
+    siderBg: "#0a0b0e",
+    siderText: "#c7ccd6",
+    brand: "#f6a609",
+    brandFont: "'JetBrains Mono',ui-monospace,monospace",
+    tagline: "GARMENT · POLYMER ERP",
+    taglineColor: "#6b7280",
+    menuTheme: "dark",
+    headerBg: "#101216",
+    headerColor: "rgba(255,255,255,0.85)",
+    headerBorder: "1px solid #1f232a",
     loginBg:
-      "radial-gradient(1200px 600px at 70% -10%, rgba(34,211,238,0.28), transparent), linear-gradient(135deg,#0b0f17 0%,#11203a 100%)",
-  },
-  amber: {
-    key: "amber",
-    name: "暖陶纺织",
-    antd: {
-      token: { colorPrimary: "#c2410c", colorInfo: "#c2410c", borderRadius: 10, colorBgLayout: "#f6f1e9", colorBgContainer: "#fffdf8" },
-    },
-    siderTheme: "dark",
-    siderBg: "#2b2723",
-    brandColor: "#f59e0b",
-    brandBg: "rgba(245,158,11,0.10)",
-    headerBg: "#fffdf8",
-    headerColor: "#3a2c1d",
-    loginBg: "linear-gradient(135deg,#7c2d12 0%,#b45309 55%,#d97706 100%)",
-  },
-  emerald: {
-    key: "emerald",
-    name: "翡翠清新",
-    antd: {
-      token: { colorPrimary: "#059669", colorInfo: "#059669", borderRadius: 8, colorBgLayout: "#edf4f0" },
-    },
-    siderTheme: "dark",
-    siderBg: "#06342c",
-    brandColor: "#34d399",
-    brandBg: "rgba(52,211,153,0.10)",
-    headerBg: "#ffffff",
-    headerColor: "rgba(0,0,0,0.85)",
-    loginBg: "linear-gradient(135deg,#064e3b 0%,#047857 55%,#10b981 100%)",
+      "radial-gradient(900px 500px at 75% -15%, rgba(246,166,9,0.20), transparent), linear-gradient(140deg,#0c0d10,#141821)",
+    loginCardBg: "#16181d",
+    loginInk: "#e6e7ea",
   },
 };
 
-export const DEFAULT_THEME = "indigo";
+export const DEFAULT_THEME = "paper";

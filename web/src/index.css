@@ -1,20 +1,49 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
 * { box-sizing: border-box; }
-
-html, body, #root {
-  height: 100%;
-  margin: 0;
-  padding: 0;
-}
-
+html, body, #root { height: 100%; margin: 0; padding: 0; }
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
-    "Microsoft YaHei", Roboto, Helvetica, Arial, sans-serif;
+  font-family: 'Manrope', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
   font-size: 14px;
-  line-height: 1.5715;
-  color: rgba(0, 0, 0, 0.88);
-  background: #f0f2f5;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
-
 a { text-decoration: none; }
+
+/* ============ 素笺 · 浅色编辑风 ============ */
+body[data-erp-theme="paper"] {
+  background-color: #efe9dd;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");
+}
+[data-erp-theme="paper"] .ant-table-thead > tr > th {
+  background: transparent !important;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  font-size: 11px;
+  font-weight: 700;
+  color: #9a8f78 !important;
+  border-bottom: 1px solid #ddd3bf !important;
+}
+[data-erp-theme="paper"] .ant-table-tbody > tr > td { border-bottom: 1px solid #ece4d2 !important; }
+[data-erp-theme="paper"] .ant-table-tbody > tr:hover > td { background: #f4eee0 !important; }
+[data-erp-theme="paper"] .ant-card { box-shadow: 0 1px 0 #e7ddc8, 0 12px 30px -18px rgba(60,46,20,.25) !important; }
+
+/* ============ 玄铁 · 深色工业风 ============ */
+body[data-erp-theme="iron"] {
+  background-color: #0e0f12;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
+  background-size: 30px 30px;
+}
+[data-erp-theme="iron"] .ant-table-thead > tr > th {
+  text-transform: uppercase;
+  letter-spacing: .14em;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  color: #8a8f99 !important;
+}
+[data-erp-theme="iron"] .ant-card { border: 1px solid #23262d !important; }
+[data-erp-theme="iron"] .ant-layout-sider { border-right: 1px solid #1c1f25; }
+
+/* 编号 / 价格等"数字位"用等宽字,两套通用 */
+.erp-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; letter-spacing: .02em; }
