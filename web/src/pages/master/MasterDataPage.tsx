@@ -32,7 +32,7 @@ export default function MasterDataPage({ cfg }: { cfg: MasterCfg }) {
       const mono = /编号|号|价|手机/.test(f.name);
       return {
         title: f.label, dataIndex: f.name, key: f.name,
-        render: mono ? (v: unknown) => <span className="erp-mono">{v == null ? "" : String(v)}</span> : undefined,
+        render: mono ? (v: unknown) => <span className="erp-num">{v == null ? "" : String(v)}</span> : undefined,
       };
     }),
     {
