@@ -1860,7 +1860,7 @@ Create `README.md`:
 - `ERP_TEST_DB`：（可选）集成测试数据库连接串；不设则 DB 测试跳过
 
 ## 启动
-1. 建库：`./db/run-db.ps1 -Server localhost -Database erp`
+1. 建库：`./db/run-db.ps1 -ConnectionString $env:ERP_DB`（再对 `$env:ERP_TEST_DB` 跑一次建测试库）
 2. 后端：`dotnet run --project src/ErpApi`
 3. 前端：`cd web; npm run dev`
 
