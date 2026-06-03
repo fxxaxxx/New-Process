@@ -5,7 +5,7 @@ import { hidePrice } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
 import type { MasterCfg } from "./configs";
 
-type Row = Record<string, unknown> & { ID: number };
+type Row = Record<string, unknown> & { id: number };
 
 export default function MasterDataPage({ cfg }: { cfg: MasterCfg }) {
   const perms = usePerms();
@@ -33,7 +33,7 @@ export default function MasterDataPage({ cfg }: { cfg: MasterCfg }) {
       title: "操作", key: "_op", render: (_: unknown, row: Row) => (
         <Space>
           <a onClick={() => { setEditing(row); form.setFieldsValue(row); }}>编辑</a>
-          <Popconfirm title="确认删除?" onConfirm={async () => { await api.remove(row.ID); message.success("已删除"); load(); }}>
+          <Popconfirm title="确认删除?" onConfirm={async () => { await api.remove(row.id); message.success("已删除"); load(); }}>
             <a>删除</a>
           </Popconfirm>
         </Space>
@@ -43,7 +43,7 @@ export default function MasterDataPage({ cfg }: { cfg: MasterCfg }) {
 
   const onSave = async () => {
     const v = await form.validateFields();
-    if (editing && editing.ID) await api.update(editing.ID, v);
+    if (editing && editing.id) await api.update(editing.id, v);
     else await api.create(v);
     message.success("已保存"); setEditing(null); form.resetFields(); load();
   };
@@ -52,9 +52,9 @@ export default function MasterDataPage({ cfg }: { cfg: MasterCfg }) {
     <div>
       <Space style={{ marginBottom: 12 }}>
         <Input.Search placeholder="搜索" allowClear onSearch={v => { setPage(1); setKeyword(v); }} style={{ width: 240 }} />
-        <Button type="primary" onClick={() => { setEditing({ ID: 0 } as Row); form.resetFields(); }}>新增</Button>
+        <Button type="primary" onClick={() => { setEditing({ id: 0 } as Row); form.resetFields(); }}>新增</Button>
       </Space>
-      <Table rowKey="ID" dataSource={rows} columns={columns}
+      <Table rowKey="id" dataSource={rows} columns={columns}
         pagination={{ current: page, pageSize: 10, total, onChange: setPage }} />
       <Modal open={!!editing} title={cfg.title} onOk={onSave} onCancel={() => { setEditing(null); form.resetFields(); }} destroyOnHidden>
         <Form form={form} layout="vertical">
