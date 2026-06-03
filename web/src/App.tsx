@@ -6,6 +6,7 @@ import MainLayout from "./pages/MainLayout";
 import MasterRouter from "./pages/master/MasterRouter";
 import Dashboard from "./pages/Dashboard";
 import StyleDetailPage from "./pages/styles/StyleDetailPage";
+import OrdersPage from "./pages/orders/OrdersPage";
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
           <Route index element={<Dashboard />} />
           <Route path="master/:menu" element={<MasterRouter />} />
           <Route path="styles/:styleNo" element={<StyleDetailPage />} />
+          <Route path="orders" element={<OrdersPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
