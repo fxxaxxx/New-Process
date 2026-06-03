@@ -153,4 +153,75 @@ public class P2ApiIntegrationTests(DbFixture fx)
         // 清理掉这条未删除的测试订单
         using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P2TestData.Cleanup(c); }
     }
+
+    private static object ProductionBody() => new
+    {
+        款号 = P2TestData.款号, 款式 = "P2测试款式",
+        客户编号 = P2TestData.客户编号, 客户名称 = "P2测试客户",
+        加工厂编号 = P2TestData.加工厂编号, 加工厂名称 = "P2测试加工厂",
+        出货单价 = 120,
+        数量明细 = new[]
+        {
+            new { 颜色 = "黑色", 尺码 = "S", 数量 = 50 },
+            new { 颜色 = "白色", 尺码 = "M", 数量 = 50 },
+        }
+    };
+
+    [SkippableFact]
+    public async Task Production_lifecycle_create_detail_approve_with_permissions()
+    {
+        using var app = Factory();
+        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P2TestData.Seed(c); }
+        SeedPerms("p2prod", "生产制单",
+            open: true, save: true, del: true, price: true, approve: true, unapprove: true);
+        var client = Client(app, "p2prod");
+
+        // 创建（算法3+4 自动展开）
+        var create = await client.PostAsJsonAsync("/api/production", ProductionBody());
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+        var 生产单号 = (await create.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("生产单号").GetString()!;
+
+        // 详情含 工序/物料 展开结果
+        var detail = await client.GetFromJsonAsync<JsonElement>($"/api/production/{生产单号}");
+        Assert.Equal(2, detail.GetProperty("工序").GetArrayLength());
+        Assert.Equal(2, detail.GetProperty("物料").GetArrayLength());
+
+        // 审核 → 反审核 → 删除
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await client.PostAsync($"/api/production/{生产单号}/approve", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await client.PostAsync($"/api/production/{生产单号}/unapprove", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await client.DeleteAsync($"/api/production/{生产单号}")).StatusCode);
+
+        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P2TestData.Cleanup(c); }
+    }
+
+    [SkippableFact]
+    public async Task Production_prices_masked_without_单价_permission()
+    {
+        using var app = Factory();
+        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P2TestData.Seed(c); }
+        SeedPerms("p2prodeditor", "生产制单", open: true, save: true, price: true);
+        var editor = Client(app, "p2prodeditor");
+        var create = await editor.PostAsJsonAsync("/api/production", ProductionBody());
+        var 生产单号 = (await create.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("生产单号").GetString()!;
+
+        SeedPerms("p2prodviewer", "生产制单", open: true, price: false);
+        var viewer = Client(app, "p2prodviewer");
+
+        // 列表：工序单价/物料金额/出货单价 被剥离
+        var list = await viewer.GetFromJsonAsync<JsonElement>($"/api/production?keyword={生产单号}");
+        var row = list.GetProperty("items").EnumerateArray().First();
+        Assert.Equal(JsonValueKind.Null, row.GetProperty("工序单价").ValueKind);
+        Assert.Equal(JsonValueKind.Null, row.GetProperty("物料金额").ValueKind);
+        Assert.Equal(JsonValueKind.Null, row.GetProperty("出货单价").ValueKind);
+
+        // 详情：工序.单价 / 物料.预算单价/金额 被剥离
+        var detail = await viewer.GetFromJsonAsync<JsonElement>($"/api/production/{生产单号}");
+        Assert.Equal(JsonValueKind.Null, detail.GetProperty("工序")[0].GetProperty("单价").ValueKind);
+        Assert.Equal(JsonValueKind.Null, detail.GetProperty("物料")[0].GetProperty("预算单价").ValueKind);
+
+        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P2TestData.Cleanup(c); }
+    }
 }

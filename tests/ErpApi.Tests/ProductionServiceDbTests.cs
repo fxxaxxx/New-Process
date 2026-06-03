@@ -178,4 +178,44 @@ public class ProductionServiceDbTests(DbFixture fx)
 
         P2TestData.Cleanup(c);
     }
+
+    [SkippableFact]
+    public async Task List_Get_and_Delete_production_order()
+    {
+        Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
+        using var c = fx.Open();
+        P2TestData.Seed(c);
+        var 生产单号 = await Svc().CreateAsync(Dto(), "tester");
+
+        // 列表
+        var page = await Svc().ListAsync(1, 20, 生产单号);
+        Assert.Equal(1, page.Total);
+        Assert.Equal(生产单号, page.Items[0].生产单号);
+
+        // 详情：单头 + 3行数量 + 2道工序 + 2行BOM
+        var detail = await Svc().GetAsync(生产单号);
+        Assert.NotNull(detail);
+        Assert.Equal(P2TestData.款号, detail!.单头!.款号);
+        Assert.Equal(3, detail.数量.Count);
+        Assert.Equal(2, detail.工序.Count);
+        Assert.Equal(2, detail.物料.Count);
+
+        // 已审核不能删
+        c.Execute("UPDATE [生产制单] SET [审核]='1' WHERE [生产单号]=@生产单号", new { 生产单号 });
+        await Assert.ThrowsAsync<InvalidOperationException>(() => Svc().DeleteAsync(生产单号));
+
+        // 反审核后可删，全部子表清空
+        c.Execute("UPDATE [生产制单] SET [审核]='0' WHERE [生产单号]=@生产单号", new { 生产单号 });
+        Assert.True(await Svc().DeleteAsync(生产单号));
+        Assert.Equal(0, c.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM [生产制单] WHERE [生产单号]=@生产单号", new { 生产单号 }));
+        Assert.Equal(0, c.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM [生产制单工序表] WHERE [生产单号]=@生产单号", new { 生产单号 }));
+        Assert.Equal(0, c.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM [生产BOM物料清单] WHERE [生产单号]=@生产单号", new { 生产单号 }));
+
+        Assert.False(await Svc().DeleteAsync("SC不存在"));
+
+        P2TestData.Cleanup(c);
+    }
 }

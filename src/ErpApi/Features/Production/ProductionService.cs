@@ -5,6 +5,7 @@ using ErpApi.Infrastructure.Db;
 using Microsoft.Data.SqlClient;
 namespace ErpApi.Features.Production;
 
+
 public sealed class ProductionService(ISqlConnectionFactory factory, IDocumentNumberGenerator docNo)
 {
     public const string DocType = "生产制单";
@@ -77,6 +78,82 @@ FROM [款号明细表] WHERE [款号]=@款号",
 
         tx.Commit();
         return 生产单号;
+    }
+
+    // 分页列表（单头；关键字模糊匹配 生产单号/款号/款式/客户名称/合同号）
+    public async Task<PagedResult<ProductionHeaderDto>> ListAsync(int page, int size, string? keyword)
+    {
+        if (page < 1) page = 1;
+        if (size < 1 || size > 200) size = 20;
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+
+        using var c = factory.Create();
+        using var multi = await c.QueryMultipleAsync(@"
+SELECT COUNT(*) FROM [生产制单]
+WHERE @kw IS NULL OR [生产单号] LIKE @kw OR [款号] LIKE @kw OR [款式] LIKE @kw
+   OR [客户名称] LIKE @kw OR [合同号] LIKE @kw;
+SELECT [ID],[生产单号],[款号],[款式],[合同号],[客户编号],[客户名称],[加工厂编号],[加工厂名称],
+       [日期],[交货日期],[制单人],[跟单员],[计划数量],[工序数],[工序单价],[物料金额],[出货单价],
+       [审核],[审核人],[完成],[备注]
+FROM [生产制单]
+WHERE @kw IS NULL OR [生产单号] LIKE @kw OR [款号] LIKE @kw OR [款式] LIKE @kw
+   OR [客户名称] LIKE @kw OR [合同号] LIKE @kw
+ORDER BY [ID] DESC
+OFFSET (@page-1)*@size ROWS FETCH NEXT @size ROWS ONLY;",
+            new { kw, page, size });
+        var total = await multi.ReadFirstAsync<int>();
+        var items = (await multi.ReadAsync<ProductionHeaderDto>()).AsList();
+        return new PagedResult<ProductionHeaderDto>(items, total);
+    }
+
+    // 详情：单头 + 数量 + 工序 + BOM
+    public async Task<ProductionDetailDto?> GetAsync(string 生产单号)
+    {
+        using var c = factory.Create();
+        using var multi = await c.QueryMultipleAsync(@"
+SELECT [ID],[生产单号],[款号],[款式],[合同号],[客户编号],[客户名称],[加工厂编号],[加工厂名称],
+       [日期],[交货日期],[制单人],[跟单员],[计划数量],[工序数],[工序单价],[物料金额],[出货单价],
+       [审核],[审核人],[完成],[备注]
+FROM [生产制单] WHERE [生产单号]=@生产单号;
+SELECT [ID],[颜色],[尺码],[数量] FROM [生产制单数量] WHERE [生产单号]=@生产单号 ORDER BY [ID];
+SELECT [ID],[工序号],[工序名称],[单价],[工序类型] FROM [生产制单工序表] WHERE [生产单号]=@生产单号 ORDER BY [工序号];
+SELECT [ID],[物料编号],[物料名称],[规格],[颜色],[单位],[总数量],[库存数量],[可用库存],[需订数量],
+       [预算单价],[金额],[供应商编号],[供应商名称]
+FROM [生产BOM物料清单] WHERE [生产单号]=@生产单号 ORDER BY [ID];",
+            new { 生产单号 });
+        var header = await multi.ReadFirstOrDefaultAsync<ProductionHeaderDto>();
+        if (header is null) return null;
+        return new ProductionDetailDto
+        {
+            单头 = header,
+            数量 = (await multi.ReadAsync<ProductionQtyRowDto>()).AsList(),
+            工序 = (await multi.ReadAsync<ProductionProcessDto>()).AsList(),
+            物料 = (await multi.ReadAsync<ProductionBomDto>()).AsList(),
+        };
+    }
+
+    // 删除：仅未审核可删；先清订单回写引用 → 删子表 → 删单头
+    public async Task<bool> DeleteAsync(string 生产单号)
+    {
+        using var c = factory.Create();
+        await c.OpenAsync();
+        using var tx = c.BeginTransaction();
+        var 审核 = await c.ExecuteScalarAsync<string?>(
+            "SELECT ISNULL([审核],'0') FROM [生产制单] WHERE [生产单号]=@生产单号", new { 生产单号 }, tx);
+        if (审核 is null) return false;
+        if (审核 == "1") throw new InvalidOperationException("已审核的生产制单不能删除，请先反审核。");
+
+        // 清除订单上的关联引用（FK 不允许删被引用的单头）
+        await c.ExecuteAsync("UPDATE [成品客户订单总表] SET [生产单号]=NULL WHERE [生产单号]=@生产单号", new { 生产单号 }, tx);
+        await c.ExecuteAsync("UPDATE [成品客户订单明细表] SET [生产单号]=NULL WHERE [生产单号]=@生产单号", new { 生产单号 }, tx);
+        // 删子表（FK→单头）
+        await c.ExecuteAsync("DELETE FROM [生产BOM物料清单] WHERE [生产单号]=@生产单号", new { 生产单号 }, tx);
+        await c.ExecuteAsync("DELETE FROM [生产制单工序表] WHERE [生产单号]=@生产单号", new { 生产单号 }, tx);
+        await c.ExecuteAsync("DELETE FROM [生产制单数量] WHERE [生产单号]=@生产单号", new { 生产单号 }, tx);
+        // 删单头
+        await c.ExecuteAsync("DELETE FROM [生产制单] WHERE [生产单号]=@生产单号", new { 生产单号 }, tx);
+        tx.Commit();
+        return true;
     }
 
     // === 算法4 BOM 物料需求展开/缺料 ===
