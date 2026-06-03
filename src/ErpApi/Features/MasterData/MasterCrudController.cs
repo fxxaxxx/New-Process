@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Security.Claims;
 using ErpApi.Data.Entities;
 using ErpApi.Engines.Authorization;
@@ -21,6 +22,20 @@ public abstract class MasterCrudController<T>(
 
     private Task<bool> AllowAsync(PermissionAction a) => perms.HasAsync(CurrentUser, Menu, a);
 
+    // 标了 [PriceField] 的价格/成本属性(每个封闭泛型 T 只反射一次)
+    private static readonly PropertyInfo[] PriceProps =
+        typeof(T).GetProperties().Where(p => p.IsDefined(typeof(PriceFieldAttribute), false)).ToArray();
+
+    // 成本保密:无"单价"权限时把价格字段置空后再返回(后端落实,不只前端隐藏)
+    private async Task MaskPricesAsync(IEnumerable<T> items)
+    {
+        if (PriceProps.Length == 0) return;
+        if (await AllowAsync(PermissionAction.单价)) return;
+        foreach (var item in items)
+            foreach (var p in PriceProps)
+                p.SetValue(item, null);
+    }
+
     private async Task AuditAsync(string behavior, string record)
     {
         using var c = factory.Create();
@@ -32,7 +47,9 @@ public abstract class MasterCrudController<T>(
     public async Task<IActionResult> List(int page = 1, int size = 20, string? keyword = null)
     {
         if (!await AllowAsync(PermissionAction.打开)) return Forbid();
-        return Ok(await svc.ListAsync(page, size, keyword));
+        var result = await svc.ListAsync(page, size, keyword);
+        await MaskPricesAsync(result.Items);
+        return Ok(result);
     }
 
     [HttpGet("{id:long}")]
@@ -40,7 +57,9 @@ public abstract class MasterCrudController<T>(
     {
         if (!await AllowAsync(PermissionAction.打开)) return Forbid();
         var e = await svc.GetAsync(id);
-        return e is null ? NotFound() : Ok(e);
+        if (e is null) return NotFound();
+        await MaskPricesAsync(new[] { e });
+        return Ok(e);
     }
 
     [HttpPost]

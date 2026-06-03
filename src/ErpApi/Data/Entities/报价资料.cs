@@ -10,8 +10,8 @@ public sealed class 报价资料 : MasterEntity
     [Column("规格")] public string? 规格 { get; set; }
     [Column("颜色")] public string? 颜色 { get; set; }
     [Column("单位")] public string? 单位 { get; set; }
-    [Column("单价")] public decimal? 单价 { get; set; }
-    [Column("销售价")] public decimal? 销售价 { get; set; }
+    [Column("单价"), PriceField] public decimal? 单价 { get; set; }
+    [Column("销售价"), PriceField] public decimal? 销售价 { get; set; }
     [Column("备注")] public string? 备注 { get; set; }
     [Column("生效日期")] public DateTime? 生效日期 { get; set; }
 }

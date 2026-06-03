@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Dapper;
 using ErpApi.Infrastructure.Security;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -83,5 +84,44 @@ public class MasterApiIntegrationTests(DbFixture fx)
         Assert.Equal(1, verify.ExecuteScalar<int>("SELECT COUNT(*) FROM [客户资料] WHERE [客户编号]='INT2'"));
         Assert.True(verify.ExecuteScalar<int>(
             "SELECT COUNT(*) FROM [c操作记录] WHERE [操作员]='p1editor' AND [行为]=N'新增'") >= 1);
+    }
+
+    private void SeedMaterialPerm(string user, bool canSeePrice)
+    {
+        using var c = new SqlConnection(fx.ConnectionString);
+        c.Open();
+        c.Execute("DELETE FROM [userbqrpower] WHERE [用户]=@user", new { user });
+        c.Execute(@"INSERT INTO [userbqrpower]([用户],[菜单],[打开],[单价])
+                    VALUES(@user,N'物料资料',1,@canSeePrice)", new { user, canSeePrice });
+        c.Execute("DELETE FROM [物料资料] WHERE [物料编号]='PRICE1'");
+        c.Execute("INSERT INTO [物料资料]([物料编号],[物料名称],[单价]) VALUES(N'PRICE1',N'保密料',66)");
+    }
+
+    [SkippableFact]
+    public async Task Price_field_masked_without_单价_permission()
+    {
+        using var app = Factory();
+        // 无"单价"权限:单价应被后端置空
+        SeedMaterialPerm("p1noprice", canSeePrice: false);
+        var client = app.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token("p1noprice"));
+        var resp = await client.GetFromJsonAsync<JsonElement>("/api/master/materials?keyword=PRICE1&size=50");
+        var row = resp.GetProperty("items").EnumerateArray()
+            .First(e => e.GetProperty("物料编号").GetString() == "PRICE1");
+        Assert.Equal(JsonValueKind.Null, row.GetProperty("单价").ValueKind); // 单价被剥离
+    }
+
+    [SkippableFact]
+    public async Task Price_field_visible_with_单价_permission()
+    {
+        using var app = Factory();
+        // 有"单价"权限:单价正常返回
+        SeedMaterialPerm("p1price", canSeePrice: true);
+        var client = app.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token("p1price"));
+        var resp = await client.GetFromJsonAsync<JsonElement>("/api/master/materials?keyword=PRICE1&size=50");
+        var row = resp.GetProperty("items").EnumerateArray()
+            .First(e => e.GetProperty("物料编号").GetString() == "PRICE1");
+        Assert.Equal(66m, row.GetProperty("单价").GetDecimal()); // 单价可见
     }
 }
