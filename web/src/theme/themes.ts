@@ -1,4 +1,4 @@
-import { theme as antdTheme, type ThemeConfig } from "antd";
+import { type ThemeConfig } from "antd";
 
 const FONT = "'Plus Jakarta Sans','PingFang SC','Microsoft YaHei',system-ui,sans-serif";
 
@@ -65,52 +65,6 @@ export const THEMES: Record<string, ErpTheme> = {
     loginBg:
       "radial-gradient(620px 420px at 14% 8%, rgba(99,102,241,0.16), transparent), radial-gradient(680px 480px at 88% 92%, rgba(56,189,248,0.14), transparent), #f5f6f8",
     loginCardBg: "#ffffff",
-  },
-
-  // ───────── 现代深 ─────────
-  dark: {
-    key: "dark",
-    name: "现代深",
-    attr: "dark",
-    antd: {
-      algorithm: antdTheme.darkAlgorithm,
-      token: {
-        colorPrimary: "#818cf8",
-        colorInfo: "#818cf8",
-        colorLink: "#a5b4fc",
-        borderRadius: 10,
-        fontFamily: FONT,
-        colorBgLayout: "#0b0e16",
-        colorBgContainer: "#121624",
-        colorBorderSecondary: "#1c2233",
-        controlHeight: 36,
-      },
-      components: {
-        Layout: { bodyBg: "#0b0e16", headerBg: "#0f1320" },
-        Menu: {
-          itemHeight: 42, itemBorderRadius: 10, iconSize: 16,
-          darkItemBg: "transparent", darkSubMenuItemBg: "transparent",
-          darkItemColor: "rgba(226,232,240,0.68)", darkItemHoverBg: "rgba(255,255,255,0.05)", darkItemHoverColor: "#fff",
-          darkItemSelectedBg: "rgba(129,140,248,0.18)", darkItemSelectedColor: "#a5b4fc",
-        },
-        Table: { headerBg: "transparent", rowHoverBg: "#171c2b", headerSplitColor: "transparent", cellPaddingBlock: 14 },
-        Button: { borderRadius: 8 },
-        Input: { borderRadius: 8 },
-        Segmented: { borderRadius: 8 },
-        Card: { borderRadiusLG: 16 },
-        Tag: { borderRadiusSM: 6 },
-      },
-    },
-    siderBg: "#0c1018",
-    siderTheme: "dark",
-    brandText: "#f1f5f9",
-    brandSub: "#64748b",
-    headerBg: "#0f1320",
-    headerColor: "rgba(255,255,255,0.88)",
-    headerBorder: "1px solid #1a2030",
-    loginBg:
-      "radial-gradient(700px 460px at 78% -12%, rgba(129,140,248,0.22), transparent), radial-gradient(600px 420px at 10% 100%, rgba(56,189,248,0.14), transparent), linear-gradient(140deg,#0a0d14,#101626)",
-    loginCardBg: "#121624",
   },
 };
 

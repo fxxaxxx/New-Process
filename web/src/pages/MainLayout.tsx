@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { Layout, Menu, Button, Segmented, Avatar } from "antd";
+import { Layout, Menu, Button, Avatar } from "antd";
 import {
   TeamOutlined, ShopOutlined, ToolOutlined, AppstoreOutlined,
   ApartmentOutlined, IdcardOutlined, TagsOutlined, ProfileOutlined,
@@ -9,7 +9,6 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { can } from "../auth/permissions";
 import { usePerms } from "../auth/PermissionContext";
 import { useTheme } from "../theme/ThemeContext";
-import { THEMES } from "../theme/themes";
 import { MASTER_CONFIGS } from "./master/configs";
 
 const { Sider, Header, Content } = Layout;
@@ -29,7 +28,7 @@ export default function MainLayout() {
   const perms = usePerms();
   const nav = useNavigate();
   const loc = useLocation();
-  const { theme, themeKey, setThemeKey } = useTheme();
+  const { theme } = useTheme();
   const [openKeys, setOpenKeys] = useState<string[]>(["base"]);
 
   const children = Object.values(MASTER_CONFIGS)
@@ -88,12 +87,6 @@ export default function MainLayout() {
         >
           <span style={{ fontSize: 15, fontWeight: 700, color: theme.headerColor }}>基础资料</span>
           <span style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <Segmented
-              size="small"
-              value={themeKey}
-              onChange={(v) => setThemeKey(v as string)}
-              options={Object.values(THEMES).map((t) => ({ label: t.name, value: t.key }))}
-            />
             <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <Avatar size={28} style={{ background: primary, fontSize: 13 }}>管</Avatar>
               <span style={{ color: theme.headerColor, opacity: 0.85, fontSize: 13, fontWeight: 600 }}>admin</span>

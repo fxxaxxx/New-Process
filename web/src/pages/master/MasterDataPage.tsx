@@ -1,11 +1,18 @@
-import { useCallback, useEffect, useState } from "react";
-import { Button, Card, Form, Input, Modal, Popconfirm, Space, Table, message } from "antd";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { Button, Card, Form, Input, Modal, Popconfirm, Space, Table, Tag, message } from "antd";
 import { masterApi } from "../../api/master";
 import { hidePrice } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
 import type { MasterCfg } from "./configs";
 
 type Row = Record<string, unknown> & { id: number };
+
+const TAG_COLORS = ["blue", "green", "gold", "magenta", "purple", "cyan", "volcano", "geekblue"];
+function tagColor(v: string) {
+  let h = 0;
+  for (const ch of v) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return TAG_COLORS[h % TAG_COLORS.length];
+}
 
 export default function MasterDataPage({ cfg }: { cfg: MasterCfg }) {
   const perms = usePerms();
@@ -29,11 +36,12 @@ export default function MasterDataPage({ cfg }: { cfg: MasterCfg }) {
 
   const columns = [
     ...fields.map(f => {
-      const mono = /编号|号|价|手机/.test(f.name);
-      return {
-        title: f.label, dataIndex: f.name, key: f.name,
-        render: mono ? (v: unknown) => <span className="erp-num">{v == null ? "" : String(v)}</span> : undefined,
-      };
+      const isTag = /类别|类型/.test(f.name);
+      const mono = !isTag && /编号|号|价|手机/.test(f.name);
+      let render: ((v: unknown) => ReactNode) | undefined;
+      if (isTag) render = (v: unknown) => (v == null || v === "") ? null : <Tag color={tagColor(String(v))} style={{ borderRadius: 6 }}>{String(v)}</Tag>;
+      else if (mono) render = (v: unknown) => <span className="erp-num">{v == null ? "" : String(v)}</span>;
+      return { title: f.label, dataIndex: f.name, key: f.name, render };
     }),
     {
       title: "操作", key: "_op", render: (_: unknown, row: Row) => (
