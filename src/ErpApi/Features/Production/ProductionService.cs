@@ -79,12 +79,86 @@ FROM [款号明细表] WHERE [款号]=@款号",
         return 生产单号;
     }
 
-    // 算法4 BOM展开（Task 7 实现；先留空壳保证编译/测试通过）
-    private Task ExpandBomAsync(SqlConnection c, SqlTransaction tx,
+    // === 算法4 BOM 物料需求展开/缺料 ===
+    // 需求(总数量) = 款号物料明细表.使用数量 × 计划数量
+    // 库存数量 = 采购入仓(+) + 退料(+) − 领料(−)，只认已审核单（P3 物料侧落地前自然为 0）
+    // 需订数量(缺料) = max(0, 总数量 − 库存数量)
+    // 预算单价 = 物料资料.单价；金额 = 总数量 × 预算单价；单头.物料金额 = Σ(金额)
+    private async Task ExpandBomAsync(SqlConnection c, SqlTransaction tx,
         string 生产单号, ProductionCreateDto dto, decimal 计划数量, DateTime now)
-        => Task.CompletedTask;
+    {
+        // 供应商 LEFT JOIN 供应商资料 校验：FK 要求 生产BOM物料清单.供应商编号 必须存在于供应商资料
+        var rows = (await c.QueryAsync<BomSourceRow>(@"
+SELECT b.[物料编号], b.[物料名称], b.[物料类别], b.[规格], b.[颜色], b.[单位], b.[使用数量],
+       m.[单价] AS 预算单价, s.[供应商编号], s.[供应商名称]
+FROM [款号物料明细表] b
+LEFT JOIN [物料资料] m ON m.[物料编号] = b.[物料编号]
+LEFT JOIN [供应商资料] s ON s.[供应商编号] = m.[供应商编号]
+WHERE b.[款号]=@款号", new { dto.款号 }, tx)).AsList();
 
-    // 订单回写（Task 7 实现）
-    private static Task LinkOrderAsync(SqlConnection c, SqlTransaction tx, string 生产单号, string? 订单单号)
-        => Task.CompletedTask;
+        decimal 物料金额合计 = 0;
+        foreach (var b in rows)
+        {
+            var 总数量 = (b.使用数量 ?? 0) * 计划数量;
+            var 库存数量 = await MaterialStockAsync(c, tx, b.物料编号);
+            var 需订数量 = Math.Max(0, 总数量 - 库存数量);
+            var 金额 = 总数量 * (b.预算单价 ?? 0);
+            物料金额合计 += 金额;
+
+            await c.ExecuteAsync(@"
+INSERT INTO [生产BOM物料清单]([日期],[制单日期],[生产单号],[款号],[款式],[客户款号],[合同号],
+    [物料编号],[物料名称],[规格],[颜色],[单位],
+    [总数量],[库存数量],[可用库存],[需订数量],[订货数量],[预算单价],[金额],
+    [供应商编号],[供应商名称],[审核])
+VALUES(@日期,@日期,@生产单号,@款号,@款式,@客户款号,@合同号,
+    @物料编号,@物料名称,@规格,@颜色,@单位,
+    @总数量,@库存数量,@库存数量,@需订数量,0,@预算单价,@金额,
+    @供应商编号,@供应商名称,'0')",
+                new
+                {
+                    日期 = now, 生产单号, dto.款号, dto.款式, dto.客户款号, dto.合同号,
+                    b.物料编号, b.物料名称, b.规格, b.颜色, b.单位,
+                    总数量, 库存数量, 需订数量, b.预算单价, 金额, b.供应商编号, b.供应商名称
+                }, tx);
+        }
+
+        await c.ExecuteAsync(
+            "UPDATE [生产制单] SET [物料金额]=@物料金额 WHERE [生产单号]=@生产单号",
+            new { 物料金额 = 物料金额合计, 生产单号 }, tx);
+    }
+
+    // 物料当前库存：明细表 JOIN 单头（审核标志在单头），符号法 UNION
+    private static async Task<decimal> MaterialStockAsync(
+        SqlConnection c, SqlTransaction tx, string? 物料编号)
+    {
+        if (string.IsNullOrEmpty(物料编号)) return 0;
+        return await c.ExecuteScalarAsync<decimal?>(@"
+SELECT ISNULL(SUM(t.qty), 0) FROM (
+    SELECT d.[数量] AS qty FROM [采购入仓明细单] d
+        JOIN [采购入仓单] h ON h.[单号]=d.[单号]
+        WHERE d.[物料编号]=@物料编号 AND ISNULL(h.[审核],'0')='1'
+    UNION ALL
+    SELECT d.[数量] FROM [退料明细单] d
+        JOIN [退料单] h ON h.[单号]=d.[单号]
+        WHERE d.[物料编号]=@物料编号 AND ISNULL(h.[审核],'0')='1'
+    UNION ALL
+    SELECT d.[数量] * -1 FROM [领料明细单] d
+        JOIN [领料单] h ON h.[单号]=d.[单号]
+        WHERE d.[物料编号]=@物料编号 AND ISNULL(h.[审核],'0')='1'
+) t", new { 物料编号 }, tx) ?? 0;
+    }
+
+    // 从订单生成：把 生产单号 回写到订单总表/明细表（FK: 订单表.生产单号 → 生产制单.生产单号，单头已插所以安全）
+    private static async Task LinkOrderAsync(
+        SqlConnection c, SqlTransaction tx, string 生产单号, string? 订单单号)
+    {
+        if (string.IsNullOrWhiteSpace(订单单号)) return;
+        var n = await c.ExecuteAsync(
+            "UPDATE [成品客户订单总表] SET [生产单号]=@生产单号 WHERE [单号]=@订单单号",
+            new { 生产单号, 订单单号 }, tx);
+        if (n == 0) throw new ArgumentException($"订单 [{订单单号}] 不存在，无法关联生产制单。");
+        await c.ExecuteAsync(
+            "UPDATE [成品客户订单明细表] SET [生产单号]=@生产单号 WHERE [单号]=@订单单号",
+            new { 生产单号, 订单单号 }, tx);
+    }
 }

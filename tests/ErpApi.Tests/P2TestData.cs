@@ -41,6 +41,10 @@ public static class P2TestData
         c.Execute("DELETE FROM [成品客户订单总表] WHERE [款号]=N'P2TK01'");
         c.Execute("DELETE FROM [成品客户订货单] WHERE [客户编号]=N'P2TC01'");
         c.Execute("DELETE FROM [生产制单] WHERE [款号]=N'P2TK01'");
+        // 采购/退料/领料单明细引用物料编号（FK），须先删子表再删物料资料
+        c.Execute("DELETE FROM [采购入仓明细单] WHERE [物料编号] IN (N'P2TM01',N'P2TM02')");
+        c.Execute("DELETE FROM [退料明细单] WHERE [物料编号] IN (N'P2TM01',N'P2TM02')");
+        c.Execute("DELETE FROM [领料明细单] WHERE [物料编号] IN (N'P2TM01',N'P2TM02')");
         c.Execute("DELETE FROM [款号物料明细表] WHERE [款号]=N'P2TK01'");
         c.Execute("DELETE FROM [款号明细表] WHERE [款号]=N'P2TK01'");
         c.Execute("DELETE FROM [款号颜色表] WHERE [款号]=N'P2TK01'");

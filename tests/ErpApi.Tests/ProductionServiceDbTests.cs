@@ -1,5 +1,6 @@
 using Dapper;
 using ErpApi.Engines.DocumentNumber;
+using ErpApi.Features.Orders;
 using ErpApi.Features.Production;
 using ErpApi.Infrastructure.Db;
 using Microsoft.Extensions.Configuration;
@@ -82,5 +83,98 @@ public class ProductionServiceDbTests(DbFixture fx)
         var dto = Dto();
         dto.数量明细 = [];
         await Assert.ThrowsAsync<ArgumentException>(() => Svc().CreateAsync(dto, "tester"));
+    }
+
+    [SkippableFact]
+    public async Task Create_expands_bom_with_shortage_算法4()
+    {
+        Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
+        using var c = fx.Open();
+        P2TestData.Seed(c);
+
+        var 生产单号 = await Svc().CreateAsync(Dto(), "tester");
+        // 计划数量 = 100；BOM: 面料用量2(单价10)、纽扣用量0.5(单价0.2)
+
+        // === 算法4 断言 ===
+        // 面料需求 = 2 × 100 = 200；库存 0 → 需订 200；金额 = 200×10 = 2000
+        var 面料 = c.QueryFirst(
+            "SELECT * FROM [生产BOM物料清单] WHERE [生产单号]=@生产单号 AND [物料编号]=N'P2TM01'",
+            new { 生产单号 });
+        Assert.Equal(200m, (decimal)面料.总数量);
+        Assert.Equal(0m, (decimal)面料.库存数量);
+        Assert.Equal(200m, (decimal)面料.需订数量);
+        Assert.Equal(10m, (decimal)面料.预算单价);
+        Assert.Equal(2000m, (decimal)面料.金额);
+
+        // 纽扣需求 = 0.5 × 100 = 50；金额 = 50×0.2 = 10
+        var 纽扣 = c.QueryFirst(
+            "SELECT * FROM [生产BOM物料清单] WHERE [生产单号]=@生产单号 AND [物料编号]=N'P2TM02'",
+            new { 生产单号 });
+        Assert.Equal(50m, (decimal)纽扣.总数量);
+        Assert.Equal(10m, (decimal)纽扣.金额);
+
+        // 单头物料金额 = 2000 + 10 = 2010
+        Assert.Equal(2010m, c.ExecuteScalar<decimal>(
+            "SELECT [物料金额] FROM [生产制单] WHERE [生产单号]=@生产单号", new { 生产单号 }));
+
+        P2TestData.Cleanup(c);
+    }
+
+    [SkippableFact]
+    public async Task Create_bom_deducts_material_stock_when_available()
+    {
+        Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
+        using var c = fx.Open();
+        P2TestData.Seed(c);
+
+        // 模拟已审核采购入仓 120 米面料（库存扣减验证：需求200 - 库存120 = 需订80）
+        c.Execute("DELETE FROM [采购入仓明细单] WHERE [单号]=N'P2TCG01'");
+        c.Execute("DELETE FROM [采购入仓单] WHERE [单号]=N'P2TCG01'");
+        c.Execute("INSERT INTO [采购入仓单]([单号],[审核]) VALUES(N'P2TCG01','1')");
+        c.Execute(@"INSERT INTO [采购入仓明细单]([单号],[物料编号],[物料名称],[数量])
+                    VALUES(N'P2TCG01',N'P2TM01',N'P2面料',120)");
+
+        var 生产单号 = await Svc().CreateAsync(Dto(), "tester");
+
+        var 面料 = c.QueryFirst(
+            "SELECT * FROM [生产BOM物料清单] WHERE [生产单号]=@生产单号 AND [物料编号]=N'P2TM01'",
+            new { 生产单号 });
+        Assert.Equal(200m, (decimal)面料.总数量);
+        Assert.Equal(120m, (decimal)面料.库存数量);
+        Assert.Equal(80m, (decimal)面料.需订数量);   // 缺料 = 需求 - 库存
+
+        c.Execute("DELETE FROM [采购入仓明细单] WHERE [单号]=N'P2TCG01'");
+        c.Execute("DELETE FROM [采购入仓单] WHERE [单号]=N'P2TCG01'");
+        P2TestData.Cleanup(c);
+    }
+
+    [SkippableFact]
+    public async Task Create_from_order_links_生产单号_back_to_order()
+    {
+        Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
+        using var c = fx.Open();
+        P2TestData.Seed(c);
+
+        // 先建一张订单
+        var orderSvc = new OrderService(Factory(), new DocumentNumberGenerator());
+        var 订单单号 = await orderSvc.CreateAsync(new OrderCreateDto
+        {
+            客户编号 = P2TestData.客户编号, 客户名称 = "P2测试客户",
+            款号 = P2TestData.款号, 款式 = "P2测试款式", 单价 = 100m,
+            明细 = [new OrderLineDto { 颜色 = "黑色", 尺码 = "S", 数量 = 100 }]
+        }, "tester");
+
+        // 从订单生成生产制单
+        var dto = Dto();
+        dto.订单单号 = 订单单号;
+        var 生产单号 = await Svc().CreateAsync(dto, "tester");
+
+        // 回写：订单总表/明细表 的 生产单号 字段被填上
+        Assert.Equal(生产单号, c.ExecuteScalar<string>(
+            "SELECT [生产单号] FROM [成品客户订单总表] WHERE [单号]=@订单单号", new { 订单单号 }));
+        Assert.Equal(生产单号, c.ExecuteScalar<string>(
+            "SELECT TOP 1 [生产单号] FROM [成品客户订单明细表] WHERE [单号]=@订单单号", new { 订单单号 }));
+
+        P2TestData.Cleanup(c);
     }
 }
