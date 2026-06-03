@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button, Col, DatePicker, Drawer, Form, Input, InputNumber, Row, Select, Space, Statistic, message } from "antd";
 import type { Dayjs } from "dayjs";
 import { masterApi } from "../../api/master";
@@ -28,6 +28,7 @@ export default function OrderCreateDrawer({ open, onClose, onCreated }: {
   const [尺码s, set尺码s] = useState<string[]>([]);
   const [qty, setQty] = useState<QtyMap>({});
   const [saving, setSaving] = useState(false);
+  const reqRef = useRef(0);
 
   useEffect(() => {
     if (!open) return;
@@ -46,12 +47,14 @@ export default function OrderCreateDrawer({ open, onClose, onCreated }: {
     form.resetFields(); set颜色s([]); set尺码s([]); setQty({});
   }, [open, form]);
 
-  // 选款号 → 带出颜色/尺码集生成矩阵
+  // 选款号 → 带出颜色/尺码集生成矩阵（seq 与 reqRef.current 不一致时丢弃结果）
   const onStyleChange = async (款号: string) => {
+    const seq = ++reqRef.current;
     const st = styles.find(s => s.款号 === 款号);
     form.setFieldsValue({ 款式: st?.款式 as string | undefined });
     try {
       const full = await stylesApi.full(款号);
+      if (seq !== reqRef.current) return;
       set颜色s(full.颜色.map(c => c.颜色名称 ?? "").filter(Boolean));
       set尺码s(full.尺码);
       setQty({});
