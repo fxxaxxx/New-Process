@@ -72,4 +72,12 @@ public class StyleServiceDbTests(DbFixture fx)
         var full = await Svc().GetFullAsync("不存在的款号XX");
         Assert.Null(full);
     }
+
+    [SkippableFact]
+    public async Task Replace_colors_throws_for_missing_style()
+    {
+        Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            Svc().ReplaceColorsAsync("不存在的款号XX", [new StyleColorDto("C1", "黑色")]));
+    }
 }

@@ -17,6 +17,7 @@ public sealed class StyleController(
         User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub") ?? "";
     private Task<bool> AllowAsync(PermissionAction a) => perms.HasAsync(CurrentUser, Menu, a);
 
+    // 审计在业务事务提交后写入(不参与回滚)——与 MasterCrudController 同一项目级权衡
     private async Task AuditAsync(string table, string behavior, string record)
     {
         using var c = factory.Create();

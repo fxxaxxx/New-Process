@@ -7,6 +7,7 @@ namespace ErpApi.Features.Styles;
 public sealed class StyleService(ISqlConnectionFactory factory, ErpDbContext db)
 {
     // 款式全貌：主档 + 颜色集 + 尺码集 + 工序工价 + BOM物料（订单/制单页面据此带出数据）
+    // 注：EF(主档/工序/物料) 与 Dapper(颜色/尺码) 用两条连接做只读聚合，非原子快照——本服务只读，足够。
     public async Task<StyleFullDto?> GetFullAsync(string 款号)
     {
         var 主档 = await db.款号总表.AsNoTracking().FirstOrDefaultAsync(s => s.款号 == 款号);
