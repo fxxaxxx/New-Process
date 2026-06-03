@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Button, Card, Form, Input, Modal, Popconfirm, Space, Table, Tag, message } from "antd";
+import { useNavigate } from "react-router-dom";
 import { masterApi } from "../../api/master";
 import { hidePrice } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
@@ -16,6 +17,7 @@ function tagColor(v: string) {
 
 export default function MasterDataPage({ cfg }: { cfg: MasterCfg }) {
   const perms = usePerms();
+  const nav = useNavigate();
   const api = masterApi(cfg.resource);
   const [rows, setRows] = useState<Row[]>([]);
   const [total, setTotal] = useState(0);
@@ -46,6 +48,9 @@ export default function MasterDataPage({ cfg }: { cfg: MasterCfg }) {
     {
       title: "操作", key: "_op", render: (_: unknown, row: Row) => (
         <Space>
+          {cfg.detailLink && cfg.detailLink(row) && (
+            <a onClick={() => nav(cfg.detailLink!(row)!)}>明细</a>
+          )}
           <a onClick={() => { setEditing(row); form.setFieldsValue(row); }}>编辑</a>
           <Popconfirm title="确认删除?" onConfirm={async () => { await api.remove(row.id); message.success("已删除"); load(); }}>
             <a>删除</a>

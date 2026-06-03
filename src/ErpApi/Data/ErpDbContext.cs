@@ -18,4 +18,7 @@ public sealed class ErpDbContext(DbContextOptions<ErpDbContext> options) : DbCon
     public DbSet<报价资料> 报价资料 => Set<报价资料>();
     public DbSet<调价表> 调价表 => Set<调价表>();
     public DbSet<调价明细> 调价明细 => Set<调价明细>();
+    public DbSet<款号总表> 款号总表 => Set<款号总表>();
+    public DbSet<款号明细表> 款号明细表 => Set<款号明细表>();
+    public DbSet<款号物料明细表> 款号物料明细表 => Set<款号物料明细表>();
 }

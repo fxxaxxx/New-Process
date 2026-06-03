@@ -16,18 +16,19 @@ public sealed class PostingEngine(ISqlConnectionFactory factory, IAuditLogger au
     {
         if (!PostableDocuments.IsAllowed(table))
             throw new InvalidOperationException($"表 [{table}] 不在可过账白名单内。");
+        var docNoCol = PostableDocuments.DocNoColumn(table);
 
         using var c = factory.Create();
         await c.OpenAsync();
         using var tx = c.BeginTransaction();
 
-        // 表名来自白名单，安全可拼接；单号/状态参数化。仅当当前状态=from 才翻转（幂等、防重复）
+        // 表名/列名来自白名单，安全可拼接；单号/状态参数化。仅当当前状态=from 才翻转（幂等、防重复）
         var sql = $@"
 UPDATE [{table}]
    SET [审核]=@to,
        [审核人]=CASE WHEN @to='1' THEN @user ELSE NULL END,
        [审核日期]=CASE WHEN @to='1' THEN SYSDATETIME() ELSE NULL END
- WHERE [单号]=@docNo AND ISNULL([审核],'0')=@from;";
+ WHERE [{docNoCol}]=@docNo AND ISNULL([审核],'0')=@from;";
         var affected = await c.ExecuteAsync(sql, new { to, from, user, docNo }, tx);
         if (affected == 0) { tx.Rollback(); return false; }
 

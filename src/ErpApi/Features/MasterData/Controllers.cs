@@ -93,3 +93,21 @@ public sealed class PriceAdjustLineController(
     MasterCrudService<调价明细> s, IPermissionService p, IAuditLogger a, ISqlConnectionFactory f)
     : MasterCrudController<调价明细>(s, p, a, f)
 { protected override string Menu => "调价"; protected override string TableName => "调价明细表"; }
+
+[Route("api/master/styles")]
+public sealed class StyleMasterController(
+    MasterCrudService<款号总表> s, IPermissionService p, IAuditLogger a, ISqlConnectionFactory f)
+    : MasterCrudController<款号总表>(s, p, a, f)
+{ protected override string Menu => "款号资料"; protected override string TableName => "款号总表"; }
+
+[Route("api/master/style-processes")]
+public sealed class StyleProcessController(
+    MasterCrudService<款号明细表> s, IPermissionService p, IAuditLogger a, ISqlConnectionFactory f)
+    : MasterCrudController<款号明细表>(s, p, a, f)
+{ protected override string Menu => "款号资料"; protected override string TableName => "款号明细表"; }
+
+[Route("api/master/style-bom-lines")]
+public sealed class StyleBomLineController(
+    MasterCrudService<款号物料明细表> s, IPermissionService p, IAuditLogger a, ISqlConnectionFactory f)
+    : MasterCrudController<款号物料明细表>(s, p, a, f)
+{ protected override string Menu => "款号资料"; protected override string TableName => "款号物料明细表"; }

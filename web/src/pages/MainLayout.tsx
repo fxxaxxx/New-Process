@@ -3,7 +3,8 @@ import { Layout, Menu, Button, Avatar } from "antd";
 import {
   TeamOutlined, ShopOutlined, ToolOutlined, AppstoreOutlined,
   ApartmentOutlined, IdcardOutlined, TagsOutlined, ProfileOutlined,
-  DatabaseOutlined,
+  DatabaseOutlined, SkinOutlined, ShoppingCartOutlined, FileTextOutlined,
+  BuildOutlined,
 } from "@ant-design/icons";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { can } from "../auth/permissions";
@@ -14,6 +15,7 @@ import { MASTER_CONFIGS } from "./master/configs";
 const { Sider, Header, Content } = Layout;
 
 function iconFor(menu: string): ReactNode {
+  if (menu.includes("款号")) return <SkinOutlined />;
   if (menu.includes("客户")) return <TeamOutlined />;
   if (menu.includes("供应商")) return <ShopOutlined />;
   if (menu.includes("加工厂")) return <ToolOutlined />;
@@ -29,12 +31,22 @@ export default function MainLayout() {
   const nav = useNavigate();
   const loc = useLocation();
   const { theme } = useTheme();
-  const [openKeys, setOpenKeys] = useState<string[]>(["base"]);
+  const [openKeys, setOpenKeys] = useState<string[]>(["base", "biz"]);
 
   const children = Object.values(MASTER_CONFIGS)
     .filter((c) => can(perms, c.menu, "打开"))
     .map((c) => ({ key: `/master/${encodeURIComponent(c.menu)}`, label: c.title, icon: iconFor(c.menu) }));
-  const items = [{ key: "base", label: "基础资料", icon: <DatabaseOutlined />, children }];
+  const bizChildren = [
+    ...(can(perms, "成品客户订货单", "打开")
+      ? [{ key: "/orders", label: "客户订单", icon: <ShoppingCartOutlined /> }] : []),
+    ...(can(perms, "生产制单", "打开")
+      ? [{ key: "/production", label: "生产制单", icon: <BuildOutlined /> }] : []),
+  ];
+  const items = [
+    { key: "base", label: "基础资料", icon: <DatabaseOutlined />, children },
+    ...(bizChildren.length
+      ? [{ key: "biz", label: "业务单据", icon: <FileTextOutlined />, children: bizChildren }] : []),
+  ];
 
   const logout = () => {
     localStorage.removeItem("erp_token");
@@ -85,7 +97,12 @@ export default function MainLayout() {
             borderBottom: theme.headerBorder, position: "sticky", top: 0, zIndex: 9,
           }}
         >
-          <span style={{ fontSize: 15, fontWeight: 700, color: theme.headerColor }}>基础资料</span>
+          <span style={{ fontSize: 15, fontWeight: 700, color: theme.headerColor }}>
+            {loc.pathname.startsWith("/orders") ? "客户订单"
+              : loc.pathname.startsWith("/production") ? "生产制单"
+              : loc.pathname.startsWith("/styles") ? "款式详情"
+              : "基础资料"}
+          </span>
           <span style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <Avatar size={28} style={{ background: primary, fontSize: 13 }}>管</Avatar>

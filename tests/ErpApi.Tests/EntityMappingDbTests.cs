@@ -27,6 +27,9 @@ public class EntityMappingDbTests(DbFixture fx)
         _ = await db.人事档案.Take(1).ToListAsync();
         _ = await db.报价类别.Take(1).ToListAsync();
         _ = await db.报价资料.Take(1).ToListAsync();
+        _ = await db.款号总表.Take(1).ToListAsync();
+        _ = await db.款号明细表.Take(1).ToListAsync();
+        _ = await db.款号物料明细表.Take(1).ToListAsync();
         Assert.True(true);
     }
 }
