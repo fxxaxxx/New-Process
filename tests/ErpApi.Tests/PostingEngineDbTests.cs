@@ -36,4 +36,31 @@ public class PostingEngineDbTests(DbFixture fx)
         Assert.True(c.ExecuteScalar<int>(
             "SELECT COUNT(*) FROM [c操作记录] WHERE [操作记录]=N'单号=P0TEST'") >= 2);
     }
+
+    [SkippableFact]
+    public async Task Approve_生产制单_uses_生产单号_column()
+    {
+        using var c = fx.Open();
+        // FK: 生产制单.款号 → 款号总表.款号，先种父行
+        c.Execute("DELETE FROM [生产制单] WHERE [生产单号]='P2POST01'");
+        c.Execute("DELETE FROM [款号总表] WHERE [款号]='P2POSTK'");
+        c.Execute("INSERT INTO [款号总表]([款号],[款式]) VALUES(N'P2POSTK',N'过账测试款')");
+        c.Execute("INSERT INTO [生产制单]([生产单号],[款号],[审核]) VALUES(N'P2POST01',N'P2POSTK','0')");
+
+        var engine = new PostingEngine(Factory(), new AuditLogger());
+
+        Assert.True(await engine.ApproveAsync("生产制单", "P2POST01", "tester"));
+        Assert.Equal("1", c.ExecuteScalar<string>(
+            "SELECT [审核] FROM [生产制单] WHERE [生产单号]='P2POST01'"));
+        Assert.Equal("tester", c.ExecuteScalar<string>(
+            "SELECT [审核人] FROM [生产制单] WHERE [生产单号]='P2POST01'"));
+
+        Assert.True(await engine.UnapproveAsync("生产制单", "P2POST01", "tester"));
+        Assert.Equal("0", c.ExecuteScalar<string>(
+            "SELECT [审核] FROM [生产制单] WHERE [生产单号]='P2POST01'"));
+
+        // 清理（FK 顺序：先子后父）
+        c.Execute("DELETE FROM [生产制单] WHERE [生产单号]='P2POST01'");
+        c.Execute("DELETE FROM [款号总表] WHERE [款号]='P2POSTK'");
+    }
 }
