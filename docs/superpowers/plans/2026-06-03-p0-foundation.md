@@ -176,32 +176,148 @@ IF COL_LENGTH(N'sysfileuser', N'锁定到期') IS NULL
 ```
 说明：原 `错密1~5` 明文列保留在表上但**代码永不写入**；新登录用 `登录失败次数`+`锁定到期`（安全基线：不存明文错误密码）。
 
-- [ ] **Step 3: 编写建库执行脚本**
+- [ ] **Step 3: 编写 .NET 建库执行器 + 包装脚本**
+
+> 说明：本机用 SQL Server LocalDB，go-sqlcmd 对 LocalDB 命名管道解析有 bug，故改用与应用相同的 Microsoft.Data.SqlClient 驱动建库（更一致、零外部依赖）。
+
+Create `tools/DbDeploy/DbDeploy.csproj`:
+```xml
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.1" />
+  </ItemGroup>
+</Project>
+```
+
+Create `tools/DbDeploy/Program.cs`:
+```csharp
+using Microsoft.Data.SqlClient;
+
+if (args.Length < 2)
+{
+    Console.Error.WriteLine("用法: DbDeploy <目标连接串> [<lenient:>脚本.sql ...]");
+    Console.Error.WriteLine("  默认严格模式(整文件一批，出错即止)；前缀 lenient: 则逐语句执行、失败跳过并记录。");
+    return 1;
+}
+var targetCs = args[0];
+var scriptSpecs = args[1..];
+
+var dbName = new SqlConnectionStringBuilder(targetCs).InitialCatalog;
+if (string.IsNullOrWhiteSpace(dbName))
+{
+    Console.Error.WriteLine("连接串缺少 Database/Initial Catalog");
+    return 1;
+}
+
+// 1) 连 master，库不存在则建
+var masterCs = new SqlConnectionStringBuilder(targetCs) { InitialCatalog = "master" }.ConnectionString;
+using (var master = new SqlConnection(masterCs))
+{
+    master.Open();
+    using var cmd = new SqlCommand(
+        "DECLARE @sql nvarchar(300) = N'CREATE DATABASE ' + QUOTENAME(@n) + N' COLLATE Chinese_PRC_CI_AS'; IF DB_ID(@n) IS NULL EXEC(@sql);", master);
+    cmd.Parameters.AddWithValue("@n", dbName);
+    cmd.ExecuteNonQuery();
+    Console.WriteLine($"数据库 [{dbName}] 就绪");
+}
+
+// 2) 连目标库执行各脚本
+int leninentSkipped = 0;
+using (var conn = new SqlConnection(targetCs))
+{
+    conn.Open();
+    foreach (var spec in scriptSpecs)
+    {
+        var lenient = spec.StartsWith("lenient:", StringComparison.OrdinalIgnoreCase);
+        var path = lenient ? spec["lenient:".Length..] : spec;
+        var text = File.ReadAllText(path);
+        Console.WriteLine($"执行 {Path.GetFileName(path)} ({(lenient ? "lenient" : "strict")}) ...");
+
+        if (lenient)
+        {
+            // 逐语句执行：每条独立 try/catch，失败跳过并记录(用于"推断"外键/索引，主数据未必匹配)
+            int ok = 0, fail = 0;
+            foreach (var stmt in text.Split(';'))
+            {
+                if (string.IsNullOrWhiteSpace(stmt)) continue;
+                try
+                {
+                    using var cmd = new SqlCommand(stmt, conn) { CommandTimeout = 300 };
+                    cmd.ExecuteNonQuery();
+                    ok++;
+                }
+                catch (SqlException ex)
+                {
+                    fail++;
+                    Console.WriteLine($"  跳过: {ex.Message.Replace("\r", " ").Replace("\n", " ")}");
+                }
+            }
+            leninentSkipped += fail;
+            Console.WriteLine($"  {Path.GetFileName(path)}: 成功 {ok}, 跳过 {fail}");
+        }
+        else
+        {
+            foreach (var batch in SplitBatches(text))
+            {
+                if (string.IsNullOrWhiteSpace(batch)) continue;
+                using var cmd = new SqlCommand(batch, conn) { CommandTimeout = 300 };
+                cmd.ExecuteNonQuery();
+            }
+        }
+    }
+
+    using var count = new SqlCommand("SELECT COUNT(*) FROM sys.tables", conn);
+    Console.WriteLine($"表数: {count.ExecuteScalar()}");
+}
+Console.WriteLine($"完成 (宽松脚本累计跳过 {leninentSkipped} 条)");
+return 0;
+
+static IEnumerable<string> SplitBatches(string sql)
+{
+    // 单独成行的 GO 作为批分隔符(忽略大小写)；无 GO 则整文件一批
+    var sb = new System.Text.StringBuilder();
+    foreach (var line in sql.Replace("\r\n", "\n").Split('\n'))
+    {
+        if (line.Trim().Equals("GO", StringComparison.OrdinalIgnoreCase))
+        {
+            yield return sb.ToString();
+            sb.Clear();
+        }
+        else sb.AppendLine(line);
+    }
+    yield return sb.ToString();
+}
+```
 
 Create `db/run-db.ps1`:
 ```powershell
-param(
-  [Parameter(Mandatory=$true)][string]$Server,
-  [Parameter(Mandatory=$true)][string]$Database
-)
+param([string]$ConnectionString = $env:ERP_DB)
 $ErrorActionPreference = "Stop"
+if ([string]::IsNullOrWhiteSpace($ConnectionString)) { throw "未提供连接串(参数 -ConnectionString 或环境变量 ERP_DB)" }
 $dir = Split-Path -Parent $MyInvocation.MyCommand.Path
-sqlcmd -S $Server -d master -Q "IF DB_ID(N'$Database') IS NULL CREATE DATABASE [$Database];"
-foreach ($f in @("01_rebuild_schema.sql","02_rebuild_relations.sql","03_p0_additions.sql")) {
-  Write-Host "Running $f ..."
-  sqlcmd -S $Server -d $Database -i (Join-Path $dir $f) -b
-}
-Write-Host "DB ready."
+$root = Split-Path -Parent $dir
+dotnet run --project (Join-Path $root "tools\DbDeploy") -- $ConnectionString `
+  ("lenient:" + (Join-Path $dir "01_rebuild_schema.sql")) `
+  ("lenient:" + (Join-Path $dir "02_rebuild_relations.sql")) `
+  (Join-Path $dir "03_p0_additions.sql")
 ```
 
-- [ ] **Step 4: 在测试数据库上执行并核对表数**
+> **DbDeploy 的 `lenient:` 模式**：净室脚本是逆向"推断"产物，含少量瑕疵——01 里几条 `CREATE INDEX [...]([单号])` 指向无该列的表；02 里部分推断外键两端列长度/精度不一致或列不存在。这些都是"声明式完整性/性能索引"，不影响表结构与列本身。故 01/02 用 `lenient:` 前缀**逐语句执行、失败即跳过并打印原因**，保证 146 张表与全部列建全；03（自建的 3 表+锁定列）保持严格模式。实测：01 跳过 ~5 条坏索引，02 应用 190/233 条关系、跳过 ~77 条（多为列长不一致的推断外键），最终 `表数: 149`。
 
-Run (示例):
+- [ ] **Step 4: 在测试库与应用库上执行并核对表数**
+
+Run:
 ```powershell
-.\db\run-db.ps1 -Server "localhost" -Database "erp_test"
-sqlcmd -S localhost -d erp_test -Q "SELECT COUNT(*) AS 表数 FROM sys.tables;"
+.\db\run-db.ps1 -ConnectionString $env:ERP_TEST_DB   # 建 erp_test(集成测试用)
+.\db\run-db.ps1 -ConnectionString $env:ERP_DB        # 建 erp(应用运行用)
 ```
-Expected: 表数 = 149（146 原表 + 3 新表）。
+Expected: 两次输出末尾均为 `表数: 149`（146 原表 + 3 新表），并打印"02_rebuild_relations.sql: 成功 190, 跳过 77"。编码核对：3 张新表 OBJECT_ID 非空、`SELECT COL_LENGTH(N'sysfileuser',N'密码')` 返回 120（=nvarchar(60)）、`登录失败次数`/`锁定到期` 列存在。
 
 - [ ] **Step 5: Commit**
 
@@ -1744,7 +1860,7 @@ Create `README.md`:
 - `ERP_TEST_DB`：（可选）集成测试数据库连接串；不设则 DB 测试跳过
 
 ## 启动
-1. 建库：`./db/run-db.ps1 -Server localhost -Database erp`
+1. 建库：`./db/run-db.ps1 -ConnectionString $env:ERP_DB`（再对 `$env:ERP_TEST_DB` 跑一次建测试库）
 2. 后端：`dotnet run --project src/ErpApi`
 3. 前端：`cd web; npm run dev`
 
