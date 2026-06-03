@@ -24,4 +24,17 @@ describe("色×码数量矩阵", () => {
     expect(qty[cellKey("黑色", "S")]).toBe(10);
     expect(qty[cellKey("白色", "L")]).toBe(5);
   });
+
+  it("空矩阵/空数组边界", () => {
+    expect(sumMatrix({})).toBe(0);
+    expect(matrixToLines([], [], {})).toEqual([]);
+  });
+
+  it("linesToMatrix 跳过颜色/尺码为空的行", () => {
+    const qty = linesToMatrix([
+      { 颜色: null, 尺码: "S", 数量: 5 },
+      { 颜色: "黑色", 尺码: "M", 数量: 3 },
+    ]);
+    expect(Object.keys(qty)).toEqual([cellKey("黑色", "M")]);
+  });
 });

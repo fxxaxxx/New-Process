@@ -17,10 +17,12 @@ function ColorsTab({ 款号, colors, onSaved }: { 款号: string; colors: StyleC
   const [rows, setRows] = useState<StyleColor[]>(colors);
   useEffect(() => setRows(colors), [colors]);
   const set = (i: number, k: keyof StyleColor, v: string) =>
-    setRows(rows.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
+    setRows(prev => prev.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
   const save = async () => {
-    await stylesApi.saveColors(款号, rows.filter(r => r.颜色名称));
-    message.success("颜色已保存"); onSaved();
+    try {
+      await stylesApi.saveColors(款号, rows.filter(r => r.颜色名称));
+      message.success("颜色已保存"); onSaved();
+    } catch { message.error("保存失败，请重试"); }
   };
   return (
     <div>
@@ -28,10 +30,10 @@ function ColorsTab({ 款号, colors, onSaved }: { 款号: string; colors: StyleC
         columns={[
           { title: "颜色编号", render: (_v: unknown, r: StyleColor, i: number) => <Input value={r.颜色编号 ?? ""} onChange={e => set(i, "颜色编号", e.target.value)} /> },
           { title: "颜色名称", render: (_v: unknown, r: StyleColor, i: number) => <Input value={r.颜色名称 ?? ""} onChange={e => set(i, "颜色名称", e.target.value)} /> },
-          { title: "", width: 60, render: (_v: unknown, _r: StyleColor, i: number) => <a onClick={() => setRows(rows.filter((_, j) => j !== i))}>删除</a> },
+          { title: "", width: 60, render: (_v: unknown, _r: StyleColor, i: number) => <a onClick={() => setRows(prev => prev.filter((_, j) => j !== i))}>删除</a> },
         ]} />
       <Space style={{ marginTop: 12 }}>
-        <Button icon={<PlusOutlined />} onClick={() => setRows([...rows, {}])}>加一行</Button>
+        <Button icon={<PlusOutlined />} onClick={() => setRows(prev => [...prev, {}])}>加一行</Button>
         <Button type="primary" onClick={save}>保存颜色</Button>
       </Space>
     </div>
@@ -43,9 +45,11 @@ function SizesTab({ 款号, sizes, onSaved }: { 款号: string; sizes: string[];
   const [text, setText] = useState(sizes.join(","));
   useEffect(() => setText(sizes.join(",")), [sizes]);
   const save = async () => {
-    const arr = text.split(/[,，\s]+/).map(s => s.trim()).filter(Boolean);
-    await stylesApi.saveSizes(款号, arr);
-    message.success("尺码已保存"); onSaved();
+    try {
+      const arr = text.split(/[,，\s]+/).map(s => s.trim()).filter(Boolean);
+      await stylesApi.saveSizes(款号, arr);
+      message.success("尺码已保存"); onSaved();
+    } catch { message.error("保存失败，请重试"); }
   };
   return (
     <Space direction="vertical" style={{ width: "100%" }}>
@@ -67,25 +71,28 @@ function LinesTab({ 款号, resource, fields, hidePriceCols, onSaved }: {
   fields: LinesField[];
   hidePriceCols: boolean; onSaved: () => void;
 }) {
-  const apiRes = masterApi(resource);
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [form] = Form.useForm();
   const visible = fields.filter(f => !(f.price && hidePriceCols));
 
   const load = useCallback(async () => {
-    // 泛型接口的 keyword 对所有字符串列模糊匹配,用款号过滤后再前端精确筛选
+    const apiRes = masterApi(resource);
+    // 单款式的工序/BOM行数远小于200,一页取完;若超限需改服务端按款号过滤
     const r = await apiRes.list(1, 200, 款号);
     setRows((r.items as Record<string, unknown>[]).filter(x => x.款号 === 款号));
   }, [款号, resource]);
   useEffect(() => { load(); }, [load]);
 
   const onSave = async () => {
-    const v = await form.validateFields();
-    const body = { ...v, 款号 };
-    if (editing && editing.id) await apiRes.update(editing.id as number, body);
-    else await apiRes.create(body);
-    message.success("已保存"); setEditing(null); form.resetFields(); load(); onSaved();
+    try {
+      const apiRes = masterApi(resource);
+      const v = await form.validateFields();
+      const body = { ...v, 款号 };
+      if (editing && editing.id) await apiRes.update(editing.id as number, body);
+      else await apiRes.create(body);
+      message.success("已保存"); setEditing(null); form.resetFields(); load(); onSaved();
+    } catch { message.error("保存失败，请重试"); }
   };
 
   return (
@@ -98,7 +105,7 @@ function LinesTab({ 款号, resource, fields, hidePriceCols, onSaved }: {
             render: (_: unknown, row: Record<string, unknown>) => (
               <Space>
                 <a onClick={() => { setEditing(row); form.setFieldsValue(row); }}>编辑</a>
-                <Popconfirm title="确认删除?" onConfirm={async () => { await apiRes.remove(row.id as number); load(); onSaved(); }}>
+                <Popconfirm title="确认删除?" onConfirm={async () => { try { await masterApi(resource).remove(row.id as number); message.success("已删除"); load(); onSaved(); } catch { message.error("删除失败，请重试"); } }}>
                   <a>删除</a>
                 </Popconfirm>
               </Space>
