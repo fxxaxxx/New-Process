@@ -5,6 +5,7 @@ import Login from "./pages/Login";
 import MainLayout from "./pages/MainLayout";
 import MasterRouter from "./pages/master/MasterRouter";
 import Dashboard from "./pages/Dashboard";
+import StyleDetailPage from "./pages/styles/StyleDetailPage";
 
 export default function App() {
   return (
@@ -14,6 +15,7 @@ export default function App() {
         <Route path="/" element={<RequireAuth><PermissionProvider><MainLayout /></PermissionProvider></RequireAuth>}>
           <Route index element={<Dashboard />} />
           <Route path="master/:menu" element={<MasterRouter />} />
+          <Route path="styles/:styleNo" element={<StyleDetailPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

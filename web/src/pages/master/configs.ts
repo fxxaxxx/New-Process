@@ -1,5 +1,9 @@
 export interface FieldCfg { name: string; label: string; price?: boolean }
-export interface MasterCfg { menu: string; resource: string; title: string; fields: FieldCfg[] }
+export interface MasterCfg {
+  menu: string; resource: string; title: string; fields: FieldCfg[];
+  // 行级"明细"跳转(如 款号 → /styles/:款号 详情页)
+  detailLink?: (row: Record<string, unknown>) => string | null;
+}
 
 export const MASTER_CONFIGS: Record<string, MasterCfg> = {
   客户资料: {
@@ -55,4 +59,13 @@ export const MASTER_CONFIGS: Record<string, MasterCfg> = {
       { name: "物料名称", label: "物料名称" }, { name: "规格", label: "规格" },
       { name: "颜色", label: "颜色" }, { name: "单位", label: "单位" },
       { name: "单价", label: "单价", price: true }, { name: "销售价", label: "销售价", price: true }] },
+  款号资料: {
+    menu: "款号资料", resource: "styles", title: "款号资料",
+    fields: [
+      { name: "款号", label: "款号" }, { name: "款式", label: "款式" },
+      { name: "单价", label: "单价", price: true }, { name: "成本价", label: "成本价", price: true },
+      { name: "批发价", label: "批发价", price: true }, { name: "零售价", label: "零售价", price: true },
+    ],
+    detailLink: (row) => (row.款号 ? `/styles/${encodeURIComponent(String(row.款号))}` : null),
+  },
 };
