@@ -1,9 +1,11 @@
 import { Button, Card, Form, Input, message } from "antd";
 import { useNavigate } from "react-router-dom";
 import { login } from "../api/client";
+import { useTheme } from "../theme/ThemeContext";
 
 export default function Login() {
   const nav = useNavigate();
+  const { theme } = useTheme();
   const onFinish = async (v: { 用户: string; 密码: string }) => {
     const r = await login(v.用户, v.密码);
     if (r.成功) nav("/");
@@ -12,7 +14,7 @@ export default function Login() {
   return (
     <div style={{
       display: "grid", placeItems: "center", height: "100vh",
-      background: "linear-gradient(135deg, #1f3a5f 0%, #2b5876 50%, #4e4376 100%)",
+      background: theme.loginBg,
     }}>
       <Card style={{ width: 380, boxShadow: "0 8px 32px rgba(0,0,0,0.25)" }}>
         <div style={{ textAlign: "center", marginBottom: 20 }}>
