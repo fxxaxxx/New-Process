@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button, Col, DatePicker, Drawer, Form, Input, InputNumber, Row, Select, Space, Statistic, message } from "antd";
 import type { Dayjs } from "dayjs";
 import { masterApi } from "../../api/master";
@@ -31,6 +31,7 @@ export default function ProductionCreateDrawer({ open, onClose, onCreated }: {
   const [尺码s, set尺码s] = useState<string[]>([]);
   const [qty, setQty] = useState<QtyMap>({});
   const [saving, setSaving] = useState(false);
+  const reqRef = useRef(0);
 
   useEffect(() => {
     if (!open) return;
@@ -52,9 +53,10 @@ export default function ProductionCreateDrawer({ open, onClose, onCreated }: {
     form.resetFields(); set颜色s([]); set尺码s([]); setQty({});
   }, [open, form]);
 
-  // 选款号 → 带出颜色/尺码矩阵
-  const loadStyleMatrix = async (款号: string) => {
+  // 选款号 → 带出颜色/尺码集生成矩阵（seq 与 reqRef.current 不一致时丢弃结果）
+  const loadStyleMatrix = async (款号: string, seq: number) => {
     const full = await stylesApi.full(款号);
+    if (seq !== reqRef.current) return full;
     set颜色s(full.颜色.map(c => c.颜色名称 ?? "").filter(Boolean));
     set尺码s(full.尺码);
     if (full.颜色.length === 0 || full.尺码.length === 0)
@@ -63,26 +65,36 @@ export default function ProductionCreateDrawer({ open, onClose, onCreated }: {
   };
 
   const onStyleChange = async (款号: string) => {
+    const seq = ++reqRef.current;
     const st = styles.find(s => s.款号 === 款号);
     form.setFieldsValue({ 款式: st?.款式 as string | undefined });
     try {
-      await loadStyleMatrix(款号);
+      await loadStyleMatrix(款号, seq);
+      if (seq !== reqRef.current) return;
       setQty({});
     } catch { message.error("加载款式颜色/尺码失败"); }
   };
 
-  // 从订单生成：带出客户/款号/数量矩阵
+  // 从订单生成：带出客户/款号/数量矩阵（seq 守卫防止快速切换时旧请求覆盖新请求）
   const onOrderChange = async (订单单号?: string) => {
-    if (!订单单号) return;
+    const seq = ++reqRef.current;
+    if (!订单单号) {
+      // 清空选择时重置预填内容
+      form.setFieldsValue({ 款号: undefined, 款式: undefined, 客户编号: undefined, 客户名称: undefined });
+      set颜色s([]); set尺码s([]); setQty({});
+      return;
+    }
     try {
       const detail = await ordersApi.get(订单单号);
+      if (seq !== reqRef.current) return;   // 已有更新的选择，丢弃本次结果
       const 款号 = detail.总表?.款号 ?? "";
       form.setFieldsValue({
         款号, 款式: detail.总表?.款式,
         客户编号: detail.订货单?.客户编号, 客户名称: detail.订货单?.客户名称,
       });
-      await loadStyleMatrix(款号);
-      setQty(linesToMatrix(detail.明细));   // 订单的色码数量直接回填矩阵
+      await loadStyleMatrix(款号, seq);
+      if (seq !== reqRef.current) return;
+      setQty(linesToMatrix(detail.明细));
     } catch { message.error("加载订单数据失败"); }
   };
 
