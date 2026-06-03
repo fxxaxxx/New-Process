@@ -35,6 +35,7 @@ builder.Services.AddSingleton<IAuditLogger, AuditLogger>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<ErpApi.Features.Styles.StyleService>();
 builder.Services.AddScoped<ErpApi.Features.Orders.OrderService>();
+builder.Services.AddScoped<ErpApi.Features.Production.ProductionService>();
 
 // JWT 认证（密钥来自环境变量，无硬编码）
 var jwtKey = Environment.GetEnvironmentVariable(JwtTokenService.KeyEnvVar)
