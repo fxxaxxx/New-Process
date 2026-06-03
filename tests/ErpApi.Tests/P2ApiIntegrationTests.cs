@@ -1,0 +1,155 @@
+using System.Net;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Text.Json;
+using Dapper;
+using ErpApi.Infrastructure.Security;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Configuration;
+using Xunit;
+
+[Collection("db")]
+public class P2ApiIntegrationTests(DbFixture fx)
+{
+    private static IConfiguration JwtCfg() => new ConfigurationBuilder().AddInMemoryCollection(
+        new Dictionary<string, string?>
+        {
+            ["Erp:Jwt:Issuer"] = "ErpApi", ["Erp:Jwt:Audience"] = "ErpClient", ["Erp:Jwt:ExpireMinutes"] = "60"
+        }).Build();
+
+    private WebApplicationFactory<Program> Factory()
+    {
+        Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
+        Environment.SetEnvironmentVariable("ERP_DB", fx.ConnectionString);
+        Environment.SetEnvironmentVariable("ERP_JWT_KEY", "test-key-please-change-0123456789abcdef");
+        return new WebApplicationFactory<Program>();
+    }
+
+    private static string Token(string user) => new JwtTokenService(JwtCfg()).Issue(user);
+
+    // 9位权限按位授权：打开/保存/删除/单价/审核/反审核
+    private void SeedPerms(string user, string menu,
+        bool open = true, bool save = false, bool del = false,
+        bool price = false, bool approve = false, bool unapprove = false)
+    {
+        using var c = new SqlConnection(fx.ConnectionString);
+        c.Open();
+        c.Execute("DELETE FROM [userbqrpower] WHERE [用户]=@user AND [菜单]=@menu", new { user, menu });
+        c.Execute(@"INSERT INTO [userbqrpower]([用户],[菜单],[打开],[保存],[删除],[单价],[审核],[反审核])
+                    VALUES(@user,@menu,@open,@save,@del,@price,@approve,@unapprove)",
+            new { user, menu, open, save, del, price, approve, unapprove });
+    }
+
+    private HttpClient Client(WebApplicationFactory<Program> app, string user)
+    {
+        var client = app.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token(user));
+        return client;
+    }
+
+    private static object OrderBody() => new
+    {
+        客户编号 = P2TestData.客户编号, 客户名称 = "P2测试客户",
+        款号 = P2TestData.款号, 款式 = "P2测试款式", 单价 = 100, 仓库 = "成品仓",
+        明细 = new[]
+        {
+            new { 色号 = "C1", 颜色 = "黑色", 尺码 = "S", 数量 = 10 },
+            new { 色号 = "C2", 颜色 = "白色", 尺码 = "M", 数量 = 5 },
+        }
+    };
+
+    [SkippableFact]
+    public async Task Order_create_forbidden_without_save_permission()
+    {
+        using var app = Factory();
+        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P2TestData.Seed(c); }
+        SeedPerms("p2viewer", "成品客户订货单", open: true, save: false);
+
+        var resp = await Client(app, "p2viewer").PostAsJsonAsync("/api/orders", OrderBody());
+        Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
+
+        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P2TestData.Cleanup(c); }
+    }
+
+    [SkippableFact]
+    public async Task Order_full_lifecycle_create_approve_unapprove_delete()
+    {
+        using var app = Factory();
+        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P2TestData.Seed(c); }
+        SeedPerms("p2editor", "成品客户订货单",
+            open: true, save: true, del: true, price: true, approve: true, unapprove: true);
+        var client = Client(app, "p2editor");
+
+        // 创建
+        var create = await client.PostAsJsonAsync("/api/orders", OrderBody());
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+        var 单号 = (await create.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("单号").GetString()!;
+
+        // 列表能查到
+        var list = await client.GetFromJsonAsync<JsonElement>($"/api/orders?keyword={单号}");
+        Assert.Equal(1, list.GetProperty("total").GetInt32());
+
+        // 审核 → 重复审核409 → 已审核删除409 → 反审核 → 可删
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await client.PostAsync($"/api/orders/{单号}/approve", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict,
+            (await client.PostAsync($"/api/orders/{单号}/approve", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict,
+            (await client.DeleteAsync($"/api/orders/{单号}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await client.PostAsync($"/api/orders/{单号}/unapprove", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await client.DeleteAsync($"/api/orders/{单号}")).StatusCode);
+
+        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P2TestData.Cleanup(c); }
+    }
+
+    [SkippableFact]
+    public async Task Order_approve_forbidden_without_审核_permission()
+    {
+        using var app = Factory();
+        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P2TestData.Seed(c); }
+        SeedPerms("p2saver", "成品客户订货单", open: true, save: true, approve: false);
+        var client = Client(app, "p2saver");
+
+        var create = await client.PostAsJsonAsync("/api/orders", OrderBody());
+        var 单号 = (await create.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("单号").GetString()!;
+
+        var resp = await client.PostAsync($"/api/orders/{单号}/approve", null);
+        Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
+
+        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P2TestData.Cleanup(c); }
+    }
+
+    [SkippableFact]
+    public async Task Order_amounts_masked_without_单价_permission()
+    {
+        using var app = Factory();
+        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P2TestData.Seed(c); }
+        // 编辑者建单
+        SeedPerms("p2editor2", "成品客户订货单", open: true, save: true, price: true);
+        var editor = Client(app, "p2editor2");
+        var create = await editor.PostAsJsonAsync("/api/orders", OrderBody());
+        var 单号 = (await create.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("单号").GetString()!;
+
+        // 无"单价"权限者：列表金额/详情单价金额 全部为 null（成本保密后端落实）
+        SeedPerms("p2noprice", "成品客户订货单", open: true, price: false);
+        var viewer = Client(app, "p2noprice");
+
+        var list = await viewer.GetFromJsonAsync<JsonElement>($"/api/orders?keyword={单号}");
+        var row = list.GetProperty("items").EnumerateArray().First();
+        Assert.Equal(JsonValueKind.Null, row.GetProperty("金额").ValueKind);
+
+        var detail = await viewer.GetFromJsonAsync<JsonElement>($"/api/orders/{单号}");
+        Assert.Equal(JsonValueKind.Null, detail.GetProperty("总表").GetProperty("单价").ValueKind);
+        Assert.Equal(JsonValueKind.Null, detail.GetProperty("明细")[0].GetProperty("金额").ValueKind);
+
+        // 有"单价"权限者能看到
+        var detail2 = await editor.GetFromJsonAsync<JsonElement>($"/api/orders/{单号}");
+        Assert.Equal(100m, detail2.GetProperty("总表").GetProperty("单价").GetDecimal());
+
+        // 清理掉这条未删除的测试订单
+        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P2TestData.Cleanup(c); }
+    }
+}
