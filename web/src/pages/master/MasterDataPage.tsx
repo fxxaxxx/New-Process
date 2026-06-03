@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Button, Form, Input, Modal, Popconfirm, Space, Table, message } from "antd";
+import { Button, Card, Form, Input, Modal, Popconfirm, Space, Table, message } from "antd";
 import { masterApi } from "../../api/master";
 import { hidePrice } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
@@ -49,20 +49,29 @@ export default function MasterDataPage({ cfg }: { cfg: MasterCfg }) {
   };
 
   return (
-    <div>
-      <Space style={{ marginBottom: 12 }}>
-        <Input.Search placeholder="搜索" allowClear onSearch={v => { setPage(1); setKeyword(v); }} style={{ width: 240 }} />
-        <Button type="primary" onClick={() => { setEditing({ id: 0 } as Row); form.resetFields(); }}>新增</Button>
-      </Space>
-      <Table rowKey="id" dataSource={rows} columns={columns}
-        pagination={{ current: page, pageSize: 10, total, onChange: setPage }} />
-      <Modal open={!!editing} title={cfg.title} onOk={onSave} onCancel={() => { setEditing(null); form.resetFields(); }} destroyOnHidden>
+    <Card
+      title={cfg.title}
+      variant="borderless"
+      extra={
+        <Space>
+          <Input.Search placeholder={`搜索${cfg.title}`} allowClear
+            onSearch={v => { setPage(1); setKeyword(v); }} style={{ width: 220 }} />
+          <Button type="primary" onClick={() => { setEditing({ id: 0 } as Row); form.resetFields(); }}>
+            新增
+          </Button>
+        </Space>
+      }
+    >
+      <Table rowKey="id" size="middle" dataSource={rows} columns={columns}
+        pagination={{ current: page, pageSize: 10, total, onChange: setPage, showTotal: t => `共 ${t} 条` }} />
+      <Modal open={!!editing} title={(editing && editing.id ? "编辑" : "新增") + cfg.title}
+        onOk={onSave} onCancel={() => { setEditing(null); form.resetFields(); }} destroyOnHidden>
         <Form form={form} layout="vertical">
           {fields.map(f => (
             <Form.Item key={f.name} name={f.name} label={f.label}><Input /></Form.Item>
           ))}
         </Form>
       </Modal>
-    </div>
+    </Card>
   );
 }
