@@ -111,6 +111,7 @@ public class ProductionServiceDbTests(DbFixture fx)
             "SELECT * FROM [生产BOM物料清单] WHERE [生产单号]=@生产单号 AND [物料编号]=N'P2TM02'",
             new { 生产单号 });
         Assert.Equal(50m, (decimal)纽扣.总数量);
+        Assert.Equal(50m, (decimal)纽扣.需订数量);
         Assert.Equal(10m, (decimal)纽扣.金额);
 
         // 单头物料金额 = 2000 + 10 = 2010

@@ -100,6 +100,8 @@ WHERE b.[款号]=@款号", new { dto.款号 }, tx)).AsList();
         foreach (var b in rows)
         {
             var 总数量 = (b.使用数量 ?? 0) * 计划数量;
+            // 可用库存暂=当前库存(预留/在途扣减逻辑 P3 落地)；
+            // N+1 查询此处可接受：制单是一次性写操作,款式物料通常<50行;批量场景再改 IN 批查。
             var 库存数量 = await MaterialStockAsync(c, tx, b.物料编号);
             var 需订数量 = Math.Max(0, 总数量 - 库存数量);
             var 金额 = 总数量 * (b.预算单价 ?? 0);
