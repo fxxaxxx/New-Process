@@ -81,3 +81,15 @@ public sealed class QuoteController(
     MasterCrudService<报价资料> s, IPermissionService p, IAuditLogger a, ISqlConnectionFactory f)
     : MasterCrudController<报价资料>(s, p, a, f)
 { protected override string Menu => "报价资料"; protected override string TableName => "报价资料"; }
+
+[Route("api/master/price-adjusts")]
+public sealed class PriceAdjustController(
+    MasterCrudService<调价表> s, IPermissionService p, IAuditLogger a, ISqlConnectionFactory f)
+    : MasterCrudController<调价表>(s, p, a, f)
+{ protected override string Menu => "调价"; protected override string TableName => "调价表"; }
+
+[Route("api/master/price-adjust-lines")]
+public sealed class PriceAdjustLineController(
+    MasterCrudService<调价明细> s, IPermissionService p, IAuditLogger a, ISqlConnectionFactory f)
+    : MasterCrudController<调价明细>(s, p, a, f)
+{ protected override string Menu => "调价"; protected override string TableName => "调价明细表"; }
