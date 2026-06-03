@@ -37,7 +37,8 @@ VALUES(@单号,@日期,@交货日期,@客户编号,@客户名称,@仓库,@数量
                 数量 = 数量合计, 金额 = 金额合计, 操作员 = user, dto.备注
             }, tx);
 
-        // 2. 订单总表（款号头，单号 UNIQUE = 一单一款）；颜色组/尺码组/数量组为原系统宽表习惯的冗余串
+        // 2. 订单总表（款号头，单号 UNIQUE = 一单一款）
+        // 颜色组/尺码组/数量组：原系统宽表习惯的冗余串，仅供人工参考，不参与业务计算(三串顺序互不对齐)
         var 颜色组 = string.Join(",", dto.明细.Select(l => l.颜色).Distinct());
         var 尺码组 = string.Join(",", dto.明细.Select(l => l.尺码).Distinct());
         var 数量组 = string.Join(",", dto.明细.Select(l => l.数量));
@@ -80,7 +81,8 @@ VALUES(@单号,@日期,@交货日期,@客户编号,@客户名称,@仓库,@款号
         using var multi = await c.QueryMultipleAsync(@"
 SELECT COUNT(*) FROM [成品客户订货单]
 WHERE @kw IS NULL OR [单号] LIKE @kw OR [客户编号] LIKE @kw OR [客户名称] LIKE @kw OR [备注] LIKE @kw;
-SELECT * FROM [成品客户订货单]
+SELECT [ID],[单号],[日期],[交货日期],[客户编号],[客户名称],[仓库],[数量],[金额],[操作员],[审核],[审核人],[备注]
+FROM [成品客户订货单]
 WHERE @kw IS NULL OR [单号] LIKE @kw OR [客户编号] LIKE @kw OR [客户名称] LIKE @kw OR [备注] LIKE @kw
 ORDER BY [ID] DESC
 OFFSET (@page-1)*@size ROWS FETCH NEXT @size ROWS ONLY;",
@@ -95,9 +97,9 @@ OFFSET (@page-1)*@size ROWS FETCH NEXT @size ROWS ONLY;",
     {
         using var c = factory.Create();
         using var multi = await c.QueryMultipleAsync(@"
-SELECT * FROM [成品客户订货单] WHERE [单号]=@单号;
-SELECT * FROM [成品客户订单总表] WHERE [单号]=@单号;
-SELECT * FROM [成品客户订单明细表] WHERE [单号]=@单号 ORDER BY [ID];",
+SELECT [ID],[单号],[日期],[交货日期],[客户编号],[客户名称],[仓库],[数量],[金额],[操作员],[审核],[审核人],[备注] FROM [成品客户订货单] WHERE [单号]=@单号;
+SELECT [单号],[款号],[款式],[生产单号],[数量],[单价],[金额],[颜色组],[尺码组],[合同号],[客户款号] FROM [成品客户订单总表] WHERE [单号]=@单号;
+SELECT [ID],[色号],[颜色],[尺码],[数量],[单价],[金额] FROM [成品客户订单明细表] WHERE [单号]=@单号 ORDER BY [ID];",
             new { 单号 });
         var header = await multi.ReadFirstOrDefaultAsync<OrderHeaderDto>();
         if (header is null) return null;
@@ -114,7 +116,7 @@ SELECT * FROM [成品客户订单明细表] WHERE [单号]=@单号 ORDER BY [ID]
         using var tx = c.BeginTransaction();
         var 审核 = await c.ExecuteScalarAsync<string?>(
             "SELECT ISNULL([审核],'0') FROM [成品客户订货单] WHERE [单号]=@单号", new { 单号 }, tx);
-        if (审核 is null) { tx.Rollback(); return false; }
+        if (审核 is null) return false;
         if (审核 == "1") throw new InvalidOperationException("已审核的订单不能删除，请先反审核。");
         await c.ExecuteAsync("DELETE FROM [成品客户订单明细表] WHERE [单号]=@单号", new { 单号 }, tx);
         await c.ExecuteAsync("DELETE FROM [成品客户订单总表] WHERE [单号]=@单号", new { 单号 }, tx);

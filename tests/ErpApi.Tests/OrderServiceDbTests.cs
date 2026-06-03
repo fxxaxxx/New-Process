@@ -33,6 +33,7 @@ public class OrderServiceDbTests(DbFixture fx)
     [SkippableFact]
     public async Task Create_writes_three_layers_with_totals()
     {
+        Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
         using var c = fx.Open();
         P2TestData.Seed(c);
 
@@ -70,6 +71,7 @@ public class OrderServiceDbTests(DbFixture fx)
     [SkippableFact]
     public async Task List_and_Get_return_created_order()
     {
+        Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
         using var c = fx.Open();
         P2TestData.Seed(c);
         var 单号 = await Svc().CreateAsync(Dto(), "tester");
@@ -89,6 +91,7 @@ public class OrderServiceDbTests(DbFixture fx)
     [SkippableFact]
     public async Task Delete_unapproved_removes_three_layers_but_approved_throws()
     {
+        Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
         using var c = fx.Open();
         P2TestData.Seed(c);
         var 单号 = await Svc().CreateAsync(Dto(), "tester");
