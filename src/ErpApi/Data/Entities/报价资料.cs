@@ -13,4 +13,5 @@ public sealed class 报价资料 : MasterEntity
     [Column("单价")] public decimal? 单价 { get; set; }
     [Column("销售价")] public decimal? 销售价 { get; set; }
     [Column("备注")] public string? 备注 { get; set; }
+    [Column("生效日期")] public DateTime? 生效日期 { get; set; }
 }

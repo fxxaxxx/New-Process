@@ -21,6 +21,7 @@ builder.Services.AddSingleton<ISqlConnectionFactory, SqlConnectionFactory>();
 builder.Services.AddDbContext<ErpApi.Data.ErpDbContext>((sp, o) =>
     o.UseSqlServer(sp.GetRequiredService<ISqlConnectionFactory>().GetConnectionString()));
 builder.Services.AddScoped(typeof(ErpApi.Features.MasterData.MasterCrudService<>));
+builder.Services.AddScoped<ErpApi.Features.MasterData.Pricing.PricingService>();
 builder.Services.AddSingleton<IPasswordHasher, BcryptPasswordHasher>();
 builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
 // 4 横切引擎

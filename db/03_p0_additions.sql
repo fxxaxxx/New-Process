@@ -78,3 +78,7 @@ BEGIN
 END
 CLOSE postable_cur;
 DEALLOCATE postable_cur;
+
+-- P1 取价(算法8)：报价资料 增加 生效日期，支持按生效日期取最新价
+IF COL_LENGTH(N'报价资料', N'生效日期') IS NULL
+    ALTER TABLE [报价资料] ADD [生效日期] datetime2(0) NULL;
