@@ -8,6 +8,8 @@ import Dashboard from "./pages/Dashboard";
 import StyleDetailPage from "./pages/styles/StyleDetailPage";
 import OrdersPage from "./pages/orders/OrdersPage";
 import ProductionPage from "./pages/production/ProductionPage";
+import MaterialDocRouter from "./pages/materials/MaterialDocRouter";
+import MaterialInventoryPage from "./pages/materials/MaterialInventoryPage";
 
 export default function App() {
   return (
@@ -20,6 +22,8 @@ export default function App() {
           <Route path="styles/:styleNo" element={<StyleDetailPage />} />
           <Route path="orders" element={<OrdersPage />} />
           <Route path="production" element={<ProductionPage />} />
+          <Route path="materials/:doc" element={<MaterialDocRouter />} />
+          <Route path="material-inventory" element={<MaterialInventoryPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

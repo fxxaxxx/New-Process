@@ -16,7 +16,9 @@ public class ProductionServiceDbTests(DbFixture fx)
         return new SqlConnectionFactory(cfg);
     }
 
-    private ProductionService Svc() => new(Factory(), new DocumentNumberGenerator());
+    private ProductionService Svc() =>
+        new(Factory(), new DocumentNumberGenerator(),
+            new ErpApi.Engines.Inventory.MaterialInventoryService(Factory()));
 
     private static ProductionCreateDto Dto() => new()
     {
