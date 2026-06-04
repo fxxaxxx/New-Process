@@ -154,4 +154,44 @@ public class P4ApiIntegrationTests(DbFixture fx)
             using var c = new SqlConnection(fx.ConnectionString); c.Open(); P4TestData.Cleanup(c);
         }
     }
+
+    [SkippableFact]
+    public async Task Piecework_summary_groups_by_worker_and_masks_amount()
+    {
+        using var app = Factory();
+        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P4TestData.Seed(c); }
+        // 录入并审核计件
+        SeedPerms("p4sumrec", "计件", open: true, save: true, approve: true, price: true);
+        var rec = Client(app, "p4sumrec");
+        try
+        {
+            await rec.PostAsJsonAsync("/api/piecework", PieceworkBody());
+            await rec.PostAsync($"/api/piecework/approve?生产单号={P4TestData.生产单号}", null);
+
+            // 无"计件汇总"菜单打开权限 → 403（只给了"计件"菜单）
+            SeedPerms("p4sumdenied", "计件", open: true);
+            var denied = Client(app, "p4sumdenied");
+            Assert.Equal(HttpStatusCode.Forbidden,
+                (await denied.GetAsync($"/api/piecework/summary?生产单号={P4TestData.生产单号}")).StatusCode);
+
+            // 有"计件汇总"+"单价"权限 → 看到归集金额 175
+            SeedPerms("p4sum", "计件汇总", open: true, price: true);
+            var viewer = Client(app, "p4sum");
+            var sum = await viewer.GetFromJsonAsync<JsonElement>($"/api/piecework/summary?生产单号={P4TestData.生产单号}");
+            var row = sum.EnumerateArray().First();
+            Assert.Equal(P4TestData.员工号, row.GetProperty("员工号").GetString());
+            Assert.Equal(70m, row.GetProperty("数量").GetDecimal());
+            Assert.Equal(175m, row.GetProperty("金额").GetDecimal());
+
+            // 有"计件汇总"但无"单价" → 金额脱敏
+            SeedPerms("p4sumnoprice", "计件汇总", open: true, price: false);
+            var np = Client(app, "p4sumnoprice");
+            var sum2 = await np.GetFromJsonAsync<JsonElement>($"/api/piecework/summary?生产单号={P4TestData.生产单号}");
+            Assert.Equal(JsonValueKind.Null, sum2.EnumerateArray().First().GetProperty("金额").ValueKind);
+        }
+        finally
+        {
+            using var c = new SqlConnection(fx.ConnectionString); c.Open(); P4TestData.Cleanup(c);
+        }
+    }
 }

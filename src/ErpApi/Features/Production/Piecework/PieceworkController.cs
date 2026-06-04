@@ -68,4 +68,16 @@ public sealed class PieceworkController(
         await AuditAsync("审核", $"生产单={生产单号},计件{n}条");
         return NoContent();
     }
+
+    // 计件汇总（算法2 前身）：按 员工×工序 归集已审核计件。独立"计件汇总"菜单控权；金额按"单价"权限脱敏。
+    [HttpGet("summary")]
+    public async Task<IActionResult> Summary([FromQuery(Name = "生产单号")] string 生产单号)
+    {
+        const string summaryMenu = "计件汇总";
+        if (!await perms.HasAsync(CurrentUser, summaryMenu, PermissionAction.打开)) return Forbid();
+        var rows = await svc.SummaryAsync(生产单号);
+        if (!await perms.HasAsync(CurrentUser, summaryMenu, PermissionAction.单价))
+            foreach (var r in rows) r.金额 = null;
+        return Ok(rows);
+    }
 }
