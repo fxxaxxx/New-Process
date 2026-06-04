@@ -6,4 +6,5 @@ $root = Split-Path -Parent $dir
 dotnet run --project (Join-Path $root "tools\DbDeploy") -- $ConnectionString `
   ("lenient:" + (Join-Path $dir "01_rebuild_schema.sql")) `
   ("lenient:" + (Join-Path $dir "02_rebuild_relations.sql")) `
-  (Join-Path $dir "03_p0_additions.sql")
+  (Join-Path $dir "03_p0_additions.sql") `
+  (Join-Path $dir "04_p4_additions.sql")

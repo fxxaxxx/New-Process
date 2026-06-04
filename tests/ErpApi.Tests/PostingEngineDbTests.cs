@@ -65,4 +65,26 @@ public class PostingEngineDbTests(DbFixture fx)
         c.Execute("DELETE FROM [生产制单] WHERE [生产单号]='P2POST01'");
         c.Execute("DELETE FROM [款号总表] WHERE [款号]='P2POSTK'");
     }
+
+    [SkippableFact]
+    public async Task Approve_裁床总表_uses_裁床单号_column()
+    {
+        using var c = fx.Open();
+        c.Execute("DELETE FROM [裁床总表] WHERE [裁床单号]='P4CBPOST1'");
+        c.Execute("DELETE FROM [款号总表] WHERE [款号]='P4CBK'");
+        c.Execute("INSERT INTO [款号总表]([款号],[款式]) VALUES(N'P4CBK',N'裁床过账测试款')");
+        c.Execute("INSERT INTO [裁床总表]([裁床单号],[款号],[审核]) VALUES(N'P4CBPOST1',N'P4CBK','0')");
+
+        var engine = new PostingEngine(Factory(), new AuditLogger());
+
+        Assert.True(await engine.ApproveAsync("裁床总表", "P4CBPOST1", "tester"));
+        Assert.Equal("1", c.ExecuteScalar<string>("SELECT [审核] FROM [裁床总表] WHERE [裁床单号]='P4CBPOST1'"));
+        Assert.Equal("tester", c.ExecuteScalar<string>("SELECT [审核人] FROM [裁床总表] WHERE [裁床单号]='P4CBPOST1'"));
+        Assert.False(await engine.ApproveAsync("裁床总表", "P4CBPOST1", "tester"));  // 重复审核返回false
+        Assert.True(await engine.UnapproveAsync("裁床总表", "P4CBPOST1", "tester"));
+        Assert.Equal("0", c.ExecuteScalar<string>("SELECT [审核] FROM [裁床总表] WHERE [裁床单号]='P4CBPOST1'"));
+
+        c.Execute("DELETE FROM [裁床总表] WHERE [裁床单号]='P4CBPOST1'");
+        c.Execute("DELETE FROM [款号总表] WHERE [款号]='P4CBK'");
+    }
 }
