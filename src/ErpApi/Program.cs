@@ -28,6 +28,7 @@ builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IDocumentNumberGenerator, DocumentNumberGenerator>();
 builder.Services.AddScoped<IPostingEngine, PostingEngine>();
 builder.Services.AddScoped<IInventorySummaryService, InventorySummaryService>();
+builder.Services.AddScoped<IMaterialInventoryService, MaterialInventoryService>();
 builder.Services.AddSingleton<IInventorySnapshotProvider, NullSnapshotProvider>();
 builder.Services.AddScoped<IPermissionService, PermissionService>();
 builder.Services.AddSingleton<IAuditLogger, AuditLogger>();
