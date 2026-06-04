@@ -61,7 +61,8 @@ ORDER BY j.[ID] DESC", new { 生产单号 });
         return rows.AsList();
     }
 
-    // 批量审核某生产单的未审核计件；返回审核条数
+    // 批量审核某生产单的未审核计件；返回审核条数。
+    // 注：计件表无审核人/审核日期列，user 仅为与其它审核接口签名对称，不落库。
     public async Task<int> ApproveByOrderAsync(string 生产单号, string user)
     {
         using var c = factory.Create();
@@ -70,17 +71,19 @@ ORDER BY j.[ID] DESC", new { 生产单号 });
             new { 生产单号 });
     }
 
-    // 删除单条计件（仅未审核）
+    // 删除单条计件（仅未审核）；单句条件 DELETE 保证原子(避免读审核位与删除之间的竞态)
     public async Task<bool> DeleteAsync(long id)
     {
         using var c = factory.Create();
         await c.OpenAsync();
+        var rows = await c.ExecuteAsync(
+            "DELETE FROM [计件表] WHERE [ID]=@id AND ISNULL([审核],'0')='0'", new { id });
+        if (rows > 0) return true;
+        // 没删成：区分"不存在"与"已审核"
         var 审核 = await c.ExecuteScalarAsync<string?>(
             "SELECT ISNULL([审核],'0') FROM [计件表] WHERE [ID]=@id", new { id });
         if (审核 is null) return false;
-        if (审核 == "1") throw new InvalidOperationException("已审核的计件不能删除，请先反审核。");
-        await c.ExecuteAsync("DELETE FROM [计件表] WHERE [ID]=@id", new { id });
-        return true;
+        throw new InvalidOperationException("已审核的计件不能删除，请先反审核。");
     }
 
     // 计件汇总（算法2 前身）：按 员工×工序 归集已审核计件的数量与金额
@@ -93,7 +96,7 @@ SELECT j.[员工号], MAX(e.[姓名]) AS 姓名, j.[工序号], MAX(p.[工序名
 FROM [计件表] j
 LEFT JOIN [生产制单工序表] p ON p.[生产单号]=j.[生产单号] AND p.[工序号]=j.[工序号]
 LEFT JOIN [人事档案] e ON e.[编号]=j.[员工号]
-WHERE j.[生产单号]=@生产单号 AND ISNULL(j.[审核],'0')='1'
+WHERE j.[生产单号]=@生产单号 AND ISNULL(j.[审核],'0')='1' AND ISNULL(j.[有效],'1')<>'0'
 GROUP BY j.[员工号], j.[工序号]
 ORDER BY j.[员工号], j.[工序号]", new { 生产单号 });
         return rows.AsList();

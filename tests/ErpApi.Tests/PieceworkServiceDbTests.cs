@@ -60,6 +60,24 @@ public class PieceworkServiceDbTests(DbFixture fx)
     }
 
     [SkippableFact]
+    public async Task Record_with_扎号_reads_back_without_cast_error()
+    {
+        using var c = fx.Open();
+        P4TestData.Seed(c);
+        try
+        {
+            await Svc().RecordAsync(new PieceworkRecordDto
+            {
+                生产单号 = P4TestData.生产单号,
+                明细 = [ new PieceworkLineDto { 工序号 = "02", 员工号 = P4TestData.员工号, 扎号 = 5, 数量 = 10 } ]
+            }, "tester");
+            var rows = await Svc().ListByOrderAsync(P4TestData.生产单号);
+            Assert.Equal(5, Assert.Single(rows).扎号);
+        }
+        finally { P4TestData.Cleanup(c); }
+    }
+
+    [SkippableFact]
     public async Task List_Approve_Delete_and_Summary()
     {
         using var c = fx.Open();
