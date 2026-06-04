@@ -4,7 +4,7 @@ import {
   TeamOutlined, ShopOutlined, ToolOutlined, AppstoreOutlined,
   ApartmentOutlined, IdcardOutlined, TagsOutlined, ProfileOutlined,
   DatabaseOutlined, SkinOutlined, ShoppingCartOutlined, FileTextOutlined,
-  BuildOutlined,
+  BuildOutlined, ShoppingOutlined, ImportOutlined, ExportOutlined, ContainerOutlined,
 } from "@ant-design/icons";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { can } from "../auth/permissions";
@@ -31,7 +31,7 @@ export default function MainLayout() {
   const nav = useNavigate();
   const loc = useLocation();
   const { theme } = useTheme();
-  const [openKeys, setOpenKeys] = useState<string[]>(["base", "biz"]);
+  const [openKeys, setOpenKeys] = useState<string[]>(["base", "biz", "mat"]);
 
   const children = Object.values(MASTER_CONFIGS)
     .filter((c) => can(perms, c.menu, "打开"))
@@ -42,10 +42,17 @@ export default function MainLayout() {
     ...(can(perms, "生产制单", "打开")
       ? [{ key: "/production", label: "生产制单", icon: <BuildOutlined /> }] : []),
   ];
+  const matChildren = [
+    ...(can(perms, "采购入仓单", "打开") ? [{ key: "/materials/purchase-receipts", label: "采购入仓", icon: <ImportOutlined /> }] : []),
+    ...(can(perms, "领料单", "打开") ? [{ key: "/materials/material-issues", label: "领料单", icon: <ExportOutlined /> }] : []),
+    ...(can(perms, "退料单", "打开") ? [{ key: "/materials/material-returns", label: "退料单", icon: <ImportOutlined /> }] : []),
+    ...(can(perms, "物料库存", "打开") ? [{ key: "/material-inventory", label: "物料库存", icon: <ContainerOutlined /> }] : []),
+  ];
   const items = [
     { key: "base", label: "基础资料", icon: <DatabaseOutlined />, children },
     ...(bizChildren.length
       ? [{ key: "biz", label: "业务单据", icon: <FileTextOutlined />, children: bizChildren }] : []),
+    ...(matChildren.length ? [{ key: "mat", label: "物料管理", icon: <ShoppingOutlined />, children: matChildren }] : []),
   ];
 
   const logout = () => {
@@ -101,6 +108,8 @@ export default function MainLayout() {
             {loc.pathname.startsWith("/orders") ? "客户订单"
               : loc.pathname.startsWith("/production") ? "生产制单"
               : loc.pathname.startsWith("/styles") ? "款式详情"
+              : loc.pathname.startsWith("/material-inventory") ? "物料库存"
+              : loc.pathname.startsWith("/materials/") ? "物料单据"
               : "基础资料"}
           </span>
           <span style={{ display: "flex", alignItems: "center", gap: 16 }}>
