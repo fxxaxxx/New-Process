@@ -1,0 +1,10 @@
+import { api } from "./client";
+
+export interface MaterialStockRow {
+  物料编号: string; 物料名称?: string; 规格?: string; 单位?: string; 仓库?: string; 库存数量: number;
+}
+
+export const materialInventoryApi = {
+  list: (仓库?: string, keyword?: string) =>
+    api.get<MaterialStockRow[]>("/material-inventory", { params: { 仓库, keyword } }).then(r => r.data),
+};
