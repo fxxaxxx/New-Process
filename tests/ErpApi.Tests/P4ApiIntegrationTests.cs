@@ -98,4 +98,60 @@ public class P4ApiIntegrationTests(DbFixture fx)
             P4TestData.Cleanup(c);
         }
     }
+
+    private static object PieceworkBody() => new
+    {
+        生产单号 = P4TestData.生产单号, 床号 = "1",
+        明细 = new[]
+        {
+            new { 工序号 = "02", 员工号 = P4TestData.员工号, 颜色 = "黑色", 尺码 = "M", 数量 = 40 },
+            new { 工序号 = "02", 员工号 = P4TestData.员工号, 颜色 = "白色", 尺码 = "L", 数量 = 30 },
+        }
+    };
+
+    [SkippableFact]
+    public async Task Piecework_record_forbidden_without_save_permission()
+    {
+        using var app = Factory();
+        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P4TestData.Seed(c); }
+        SeedPerms("p4pwviewer", "计件", open: true, save: false);
+        var resp = await Client(app, "p4pwviewer").PostAsJsonAsync("/api/piecework", PieceworkBody());
+        Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
+        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P4TestData.Cleanup(c); }
+    }
+
+    [SkippableFact]
+    public async Task Piecework_record_approve_and_amounts_masked_without_单价()
+    {
+        using var app = Factory();
+        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P4TestData.Seed(c); }
+        SeedPerms("p4pw", "计件", open: true, save: true, del: true, price: true, approve: true);
+        var editor = Client(app, "p4pw");
+        try
+        {
+            var rec = await editor.PostAsJsonAsync("/api/piecework", PieceworkBody());
+            Assert.Equal(HttpStatusCode.Created, rec.StatusCode);
+            Assert.Equal(2, (await rec.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("录入条数").GetInt32());
+
+            // 有"单价"权限：查询能看到单价/金额
+            var list = await editor.GetFromJsonAsync<JsonElement>($"/api/piecework?生产单号={P4TestData.生产单号}");
+            Assert.Equal(2, list.GetArrayLength());
+            Assert.Equal(2.5m, list[0].GetProperty("单价").GetDecimal());
+
+            // 批量审核
+            Assert.Equal(HttpStatusCode.NoContent,
+                (await editor.PostAsync($"/api/piecework/approve?生产单号={P4TestData.生产单号}", null)).StatusCode);
+
+            // 无"单价"权限：单价/金额被剥离
+            SeedPerms("p4pwnoprice", "计件", open: true, price: false);
+            var viewer = Client(app, "p4pwnoprice");
+            var masked = await viewer.GetFromJsonAsync<JsonElement>($"/api/piecework?生产单号={P4TestData.生产单号}");
+            Assert.Equal(JsonValueKind.Null, masked[0].GetProperty("单价").ValueKind);
+            Assert.Equal(JsonValueKind.Null, masked[0].GetProperty("金额").ValueKind);
+        }
+        finally
+        {
+            using var c = new SqlConnection(fx.ConnectionString); c.Open(); P4TestData.Cleanup(c);
+        }
+    }
 }
