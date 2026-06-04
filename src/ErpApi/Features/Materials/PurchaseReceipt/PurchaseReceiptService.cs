@@ -14,6 +14,7 @@ public sealed class PurchaseReceiptService(ISqlConnectionFactory factory, IDocum
     public async Task<string> CreateAsync(PurchaseReceiptCreateDto dto, string user)
     {
         if (dto.明细.Count == 0) throw new ArgumentException("采购入仓单至少要有一行物料明细");
+        if (string.IsNullOrWhiteSpace(dto.仓库)) throw new ArgumentException("采购入仓单必须指定仓库");
 
         var 数量合计 = dto.明细.Sum(l => l.数量);
         var 金额合计 = dto.明细.Sum(l => l.数量 * (l.单价 ?? 0));

@@ -32,6 +32,7 @@ public class PurchaseReceiptServiceDbTests(DbFixture fx)
     [SkippableFact]
     public async Task Create_writes_header_and_lines_with_totals()
     {
+        Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
         using var c = fx.Open();
         P3TestData.Seed(c);
         var 单号 = await Svc().CreateAsync(Dto(), "tester");
@@ -61,8 +62,17 @@ public class PurchaseReceiptServiceDbTests(DbFixture fx)
     }
 
     [SkippableFact]
+    public async Task Create_rejects_blank_warehouse()
+    {
+        Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
+        var dto = Dto(); dto.仓库 = null;
+        await Assert.ThrowsAsync<ArgumentException>(() => Svc().CreateAsync(dto, "tester"));
+    }
+
+    [SkippableFact]
     public async Task List_Get_Delete_lifecycle()
     {
+        Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
         using var c = fx.Open();
         P3TestData.Seed(c);
         var 单号 = await Svc().CreateAsync(Dto(), "tester");
