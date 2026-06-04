@@ -197,4 +197,63 @@ public class P3ApiIntegrationTests(DbFixture fx)
             P3TestData.Cleanup(c);
         }
     }
+
+    [SkippableFact]
+    public async Task Material_inventory_reflects_approved_documents()
+    {
+        using var app = Factory();
+        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P3TestData.Seed(c); }
+        const string u = "p3stock";
+        SeedPerms(u, "采购入仓单", open: true, save: true, approve: true, unapprove: true);
+        SeedPerms(u, "领料单", open: true, save: true, approve: true, unapprove: true);
+        SeedPerms(u, "退料单", open: true, save: true, approve: true, unapprove: true);
+        SeedPerms(u, "物料库存", open: true);
+        var client = Client(app, u);
+        string? rk = null, ll = null, tl = null;
+        try
+        {
+            rk = (await (await client.PostAsJsonAsync("/api/purchase-receipts", new {
+                供应商编号 = P3TestData.供应商编号, 仓库 = P3TestData.仓库,
+                明细 = new[] { new { 物料编号 = "P3M01", 物料名称 = "P3面料", 单位 = "米", 数量 = 100, 单价 = 10.0 } }
+            })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("单号").GetString();
+            ll = (await (await client.PostAsJsonAsync("/api/material-issues", new {
+                领料部门 = "车间一", 仓库 = P3TestData.仓库,
+                明细 = new[] { new { 物料编号 = "P3M01", 物料名称 = "P3面料", 单位 = "米", 数量 = 30, 单价 = 10.0 } }
+            })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("单号").GetString();
+            tl = (await (await client.PostAsJsonAsync("/api/material-returns", new {
+                退料部门 = "车间一", 仓库 = P3TestData.仓库,
+                明细 = new[] { new { 物料编号 = "P3M01", 物料名称 = "P3面料", 单位 = "米", 数量 = 5, 单价 = 10.0 } }
+            })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("单号").GetString();
+
+            // 全未审核 → 库存查询无 P3M01
+            var none = await client.GetFromJsonAsync<JsonElement>("/api/material-inventory?keyword=P3M01");
+            Assert.Equal(0, none.GetArrayLength());
+
+            await client.PostAsync($"/api/purchase-receipts/{rk}/approve", null);
+            await client.PostAsync($"/api/material-issues/{ll}/approve", null);
+            await client.PostAsync($"/api/material-returns/{tl}/approve", null);
+
+            // 库存 = 100 − 30 + 5 = 75
+            var stock = await client.GetFromJsonAsync<JsonElement>("/api/material-inventory?仓库=物料仓&keyword=P3M01");
+            var row = stock.EnumerateArray().First(e => e.GetProperty("物料编号").GetString() == "P3M01");
+            Assert.Equal(75m, row.GetProperty("库存数量").GetDecimal());
+            Assert.Equal("物料仓", row.GetProperty("仓库").GetString());
+
+            // 反审核领料 → 库存回到 105
+            await client.PostAsync($"/api/material-issues/{ll}/unapprove", null);
+            var stock2 = await client.GetFromJsonAsync<JsonElement>("/api/material-inventory?keyword=P3M01");
+            Assert.Equal(105m, stock2.EnumerateArray().First().GetProperty("库存数量").GetDecimal());
+        }
+        finally
+        {
+            using var c = new SqlConnection(fx.ConnectionString); c.Open();
+            foreach (var (tbl, det, no) in new[] { ("采购入仓单", "采购入仓明细单", rk), ("领料单", "领料明细单", ll), ("退料单", "退料明细单", tl) })
+                if (no is not null)
+                {
+                    c.Execute($"DELETE FROM [{det}] WHERE [单号]=@no", new { no });
+                    c.Execute($"DELETE FROM [{tbl}] WHERE [单号]=@no", new { no });
+                }
+            P3TestData.Cleanup(c);
+        }
+    }
 }
