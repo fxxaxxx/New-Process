@@ -1,11 +1,15 @@
 using Dapper;
 using ErpApi.Engines.DocumentNumber;
+using ErpApi.Engines.Inventory;
 using ErpApi.Features.MasterData;
 using ErpApi.Infrastructure.Db;
 using Microsoft.Data.SqlClient;
 namespace ErpApi.Features.Production;
 
-public sealed class ProductionService(ISqlConnectionFactory factory, IDocumentNumberGenerator docNo)
+public sealed class ProductionService(
+    ISqlConnectionFactory factory,
+    IDocumentNumberGenerator docNo,
+    IMaterialInventoryService inventory)
 {
     public const string DocType = "生产制单";
     public const string Prefix = "SC";   // 生产单号 = SC + yyyyMMdd + 3位流水
@@ -178,7 +182,7 @@ WHERE b.[款号]=@款号", new { dto.款号 }, tx)).AsList();
             var 总数量 = (b.使用数量 ?? 0) * 计划数量;
             // 可用库存暂=当前库存(预留/在途扣减逻辑 P3 落地)；
             // N+1 查询此处可接受：制单是一次性写操作,款式物料通常<50行;批量场景再改 IN 批查。
-            var 库存数量 = await MaterialStockAsync(c, tx, b.物料编号);
+            var 库存数量 = await inventory.StockOfAsync(b.物料编号 ?? "", (c, tx));
             var 需订数量 = Math.Max(0, 总数量 - 库存数量);
             var 金额 = 总数量 * (b.预算单价 ?? 0);
             物料金额合计 += 金额;
@@ -203,27 +207,6 @@ VALUES(@日期,@日期,@生产单号,@款号,@款式,@客户款号,@合同号,
         await c.ExecuteAsync(
             "UPDATE [生产制单] SET [物料金额]=@物料金额 WHERE [生产单号]=@生产单号",
             new { 物料金额 = 物料金额合计, 生产单号 }, tx);
-    }
-
-    // 物料当前库存：明细表 JOIN 单头（审核标志在单头），符号法 UNION
-    private static async Task<decimal> MaterialStockAsync(
-        SqlConnection c, SqlTransaction tx, string? 物料编号)
-    {
-        if (string.IsNullOrEmpty(物料编号)) return 0;
-        return await c.ExecuteScalarAsync<decimal?>(@"
-SELECT ISNULL(SUM(t.qty), 0) FROM (
-    SELECT d.[数量] AS qty FROM [采购入仓明细单] d
-        JOIN [采购入仓单] h ON h.[单号]=d.[单号]
-        WHERE d.[物料编号]=@物料编号 AND ISNULL(h.[审核],'0')='1'
-    UNION ALL
-    SELECT d.[数量] FROM [退料明细单] d
-        JOIN [退料单] h ON h.[单号]=d.[单号]
-        WHERE d.[物料编号]=@物料编号 AND ISNULL(h.[审核],'0')='1'
-    UNION ALL
-    SELECT d.[数量] * -1 FROM [领料明细单] d
-        JOIN [领料单] h ON h.[单号]=d.[单号]
-        WHERE d.[物料编号]=@物料编号 AND ISNULL(h.[审核],'0')='1'
-) t", new { 物料编号 }, tx) ?? 0;
     }
 
     // 从订单生成：把 生产单号 回写到订单总表/明细表（FK: 订单表.生产单号 → 生产制单.生产单号，单头已插所以安全）
