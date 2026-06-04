@@ -96,6 +96,42 @@ public class P3ApiIntegrationTests(DbFixture fx)
         }
     }
 
+    private static object IssueBody() => new
+    {
+        领料部门 = "车间一", 领料人 = "张三", 仓库 = P3TestData.仓库,
+        明细 = new[] { new { 物料编号 = "P3M01", 物料名称 = "P3面料", 规格 = "规格A", 单位 = "米", 数量 = 30, 单价 = 10.0 } }
+    };
+
+    [SkippableFact]
+    public async Task Issue_lifecycle_with_permissions()
+    {
+        using var app = Factory();
+        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P3TestData.Seed(c); }
+        SeedPerms("p3llviewer", "领料单", open: true, save: false);
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await Client(app, "p3llviewer").PostAsJsonAsync("/api/material-issues", IssueBody())).StatusCode);
+
+        SeedPerms("p3ll", "领料单", open: true, save: true, del: true, price: true, approve: true, unapprove: true);
+        var client = Client(app, "p3ll");
+        var create = await client.PostAsJsonAsync("/api/material-issues", IssueBody());
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+        var 单号 = (await create.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("单号").GetString()!;
+        try
+        {
+            Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/api/material-issues/{单号}/approve", null)).StatusCode);
+            Assert.Equal(HttpStatusCode.Conflict, (await client.DeleteAsync($"/api/material-issues/{单号}")).StatusCode);
+            Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/api/material-issues/{单号}/unapprove", null)).StatusCode);
+            Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/material-issues/{单号}")).StatusCode);
+        }
+        finally
+        {
+            using var c = new SqlConnection(fx.ConnectionString); c.Open();
+            c.Execute("DELETE FROM [领料明细单] WHERE [单号]=@单号", new { 单号 });
+            c.Execute("DELETE FROM [领料单] WHERE [单号]=@单号", new { 单号 });
+            P3TestData.Cleanup(c);
+        }
+    }
+
     [SkippableFact]
     public async Task Receipt_amounts_masked_without_单价_permission()
     {
