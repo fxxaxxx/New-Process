@@ -21,6 +21,7 @@ SELECT d.[物料编号],d.[物料名称],d.[规格],d.[单位],d.[仓库], d.[�
     public async Task<decimal> StockOfAsync(string 物料编号, (SqlConnection conn, SqlTransaction tx)? scope)
     {
         if (string.IsNullOrEmpty(物料编号)) return 0;
+        // 单物料用外层 WHERE 过滤(物料单据量级小,SQL Server 会对 UNION ALL 做等值谓词下推);量级增大后可改为各分支内联 WHERE。
         var sql = $"SELECT ISNULL(SUM([数量]),0) FROM ({LedgerUnion}) t WHERE [物料编号]=@物料编号";
         if (scope is { } s)
             return await s.conn.ExecuteScalarAsync<decimal?>(sql, new { 物料编号 }, s.tx) ?? 0;
@@ -37,7 +38,7 @@ SELECT [物料编号], MAX([物料名称]) AS 物料名称, MAX([规格]) AS 规
        [仓库], SUM([数量]) AS 库存数量
 FROM ({LedgerUnion}) t
 WHERE (@wh IS NULL OR [仓库]=@wh)
-  AND (@kw IS NULL OR [物料编号] LIKE @kw OR [物料名称] LIKE @kw)
+  AND (@kw IS NULL OR [物料编号] LIKE @kw OR [物料名称] LIKE @kw OR [规格] LIKE @kw)
 GROUP BY [物料编号],[仓库]
 HAVING SUM([数量]) <> 0
 ORDER BY [物料编号],[仓库]";

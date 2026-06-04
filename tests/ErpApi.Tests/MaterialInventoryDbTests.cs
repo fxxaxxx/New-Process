@@ -78,4 +78,43 @@ public class MaterialInventoryDbTests(DbFixture fx)
         Assert.Single(await Svc().ListAsync(仓库: "物料仓", keyword: "P3M01"));
         Cleanup(c);
     }
+
+    [SkippableFact]
+    public async Task StockOf_within_caller_transaction_does_not_commit_it()
+    {
+        Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
+        using var c = fx.Open();
+        Seed(c);
+        // 在一个会回滚的事务里再插 50 入仓,StockOfAsync 应能看到事务内未提交数据(75+50=125)
+        using (var tx = c.BeginTransaction())
+        {
+            c.Execute("INSERT INTO [采购入仓单]([单号],[仓库],[审核]) VALUES(N'P3RKTX',N'物料仓','1')", transaction: tx);
+            c.Execute(@"INSERT INTO [采购入仓明细单]([单号],[仓库],[物料编号],[物料名称],[规格],[单位],[数量])
+                        VALUES(N'P3RKTX',N'物料仓',N'P3M01',N'P3面料',N'规格A',N'米',50)", transaction: tx);
+            var inTx = await Svc().StockOfAsync("P3M01", (c, tx));
+            Assert.Equal(125m, inTx);
+            tx.Rollback();   // 回滚后那 50 不应留下
+        }
+        var afterRollback = await Svc().StockOfAsync("P3M01", null);
+        Assert.Equal(75m, afterRollback);
+        Cleanup(c);
+    }
+
+    [SkippableFact]
+    public async Task List_excludes_net_zero_material()
+    {
+        Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
+        using var c = fx.Open();
+        Cleanup(c);
+        c.Execute("INSERT INTO [物料资料]([物料编号],[物料名称],[单位]) VALUES(N'P3M01',N'P3面料',N'米')");
+        // 入100 + 领100 = 净0,不应出现在库存列表
+        c.Execute("INSERT INTO [采购入仓单]([单号],[仓库],[审核]) VALUES(N'P3RK01',N'物料仓','1')");
+        c.Execute(@"INSERT INTO [采购入仓明细单]([单号],[仓库],[物料编号],[物料名称],[单位],[数量])
+                    VALUES(N'P3RK01',N'物料仓',N'P3M01',N'P3面料',N'米',100)");
+        c.Execute("INSERT INTO [领料单]([单号],[仓库],[审核]) VALUES(N'P3LL01',N'物料仓','1')");
+        c.Execute(@"INSERT INTO [领料明细单]([单号],[仓库],[物料编号],[物料名称],[单位],[数量])
+                    VALUES(N'P3LL01',N'物料仓',N'P3M01',N'P3面料',N'米',100)");
+        Assert.Empty(await Svc().ListAsync(null, "P3M01"));
+        Cleanup(c);
+    }
 }
