@@ -84,6 +84,7 @@ public class PostingEngineDbTests(DbFixture fx)
         Assert.True(await engine.UnapproveAsync("裁床总表", "P4CBPOST1", "tester"));
         Assert.Equal("0", c.ExecuteScalar<string>("SELECT [审核] FROM [裁床总表] WHERE [裁床单号]='P4CBPOST1'"));
 
+        // 清理（FK 顺序：先子后父，裁床总表.款号→款号总表）
         c.Execute("DELETE FROM [裁床总表] WHERE [裁床单号]='P4CBPOST1'");
         c.Execute("DELETE FROM [款号总表] WHERE [款号]='P4CBK'");
     }
