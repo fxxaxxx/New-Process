@@ -114,6 +114,7 @@ public class P3ApiIntegrationTests(DbFixture fx)
             var detail = await viewer.GetFromJsonAsync<JsonElement>($"/api/purchase-receipts/{单号}");
             Assert.Equal(JsonValueKind.Null, detail.GetProperty("单头").GetProperty("金额").ValueKind);
             Assert.Equal(JsonValueKind.Null, detail.GetProperty("明细")[0].GetProperty("单价").ValueKind);
+            Assert.Equal(JsonValueKind.Null, detail.GetProperty("明细")[0].GetProperty("金额").ValueKind);
             var d2 = await editor.GetFromJsonAsync<JsonElement>($"/api/purchase-receipts/{单号}");
             Assert.Equal(10m, d2.GetProperty("明细")[0].GetProperty("单价").GetDecimal());
         }
