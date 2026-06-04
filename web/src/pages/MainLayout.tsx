@@ -31,7 +31,7 @@ export default function MainLayout() {
   const nav = useNavigate();
   const loc = useLocation();
   const { theme } = useTheme();
-  const [openKeys, setOpenKeys] = useState<string[]>(["base", "biz", "mat"]);
+  const [openKeys, setOpenKeys] = useState<string[]>([]);   // 默认全折叠,点击菜单组才展开
 
   const children = Object.values(MASTER_CONFIGS)
     .filter((c) => can(perms, c.menu, "打开"))
