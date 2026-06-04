@@ -53,7 +53,10 @@ export default function MaterialDocCreateDrawer({ cfg, open, onClose, onCreated 
         <Row gutter={16}>
           {cfg.headerFields.map(f => (
             <Col span={8} key={f.name}>
-              <Form.Item name={f.name} label={f.label}><Input /></Form.Item>
+              <Form.Item name={f.name} label={f.label}
+                rules={f.required ? [{ required: true, message: `请填写${f.label}` }] : undefined}>
+                <Input />
+              </Form.Item>
             </Col>
           ))}
         </Row>

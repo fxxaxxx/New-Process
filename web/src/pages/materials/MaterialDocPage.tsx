@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Card, Input, Popconfirm, Space, Table, Tag, message } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
 import { materialDocApi, type MaterialDocHeader } from "../../api/materialDocs";
@@ -10,7 +10,7 @@ import MaterialDocDetailDrawer from "./MaterialDocDetailDrawer";
 
 export default function MaterialDocPage({ cfg }: { cfg: MaterialDocCfg }) {
   const perms = usePerms();
-  const dapi = materialDocApi(cfg.resource);
+  const dapi = useMemo(() => materialDocApi(cfg.resource), [cfg.resource]);
   const [rows, setRows] = useState<MaterialDocHeader[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -19,9 +19,9 @@ export default function MaterialDocPage({ cfg }: { cfg: MaterialDocCfg }) {
   const [viewing, setViewing] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    try { const r = await materialDocApi(cfg.resource).list(page, 10, keyword); setRows(r.items); setTotal(r.total); }
+    try { const r = await dapi.list(page, 10, keyword); setRows(r.items); setTotal(r.total); }
     catch { message.error("加载列表失败"); }
-  }, [page, keyword, cfg.resource]);
+  }, [page, keyword, dapi]);
   useEffect(() => { load(); }, [load]);
 
   const act = async (fn: () => Promise<unknown>, ok: string) => {

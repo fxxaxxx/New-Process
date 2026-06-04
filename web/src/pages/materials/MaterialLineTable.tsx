@@ -1,3 +1,4 @@
+import type { Dispatch, SetStateAction } from "react";
 import { Button, Input, InputNumber, Select, Table } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
 import { lineAmount, type DocLine } from "../../utils/materialLines";
@@ -8,11 +9,11 @@ type MaterialOption = Record<string, unknown>;
 export default function MaterialLineTable({ materials, value, onChange, hidePriceCols }: {
   materials: MaterialOption[];
   value: DocLine[];
-  onChange: (lines: DocLine[]) => void;
+  onChange: Dispatch<SetStateAction<DocLine[]>>;
   hidePriceCols: boolean;
 }) {
   const setLine = (i: number, patch: Partial<DocLine>) =>
-    onChange(value.map((l, j) => (j === i ? { ...l, ...patch } : l)));
+    onChange(prev => prev.map((l, j) => (j === i ? { ...l, ...patch } : l)));
 
   const pickMaterial = (i: number, 物料编号: string) => {
     const m = materials.find(x => String(x.物料编号) === 物料编号);
@@ -62,14 +63,14 @@ export default function MaterialLineTable({ materials, value, onChange, hidePric
     ]),
     {
       title: "", key: "_op", width: 50,
-      render: (_: unknown, __: DocLine, i: number) => <a onClick={() => onChange(value.filter((_, j) => j !== i))}>删除</a>,
+      render: (_: unknown, __: DocLine, i: number) => <a onClick={() => onChange(prev => prev.filter((_, j) => j !== i))}>删除</a>,
     },
   ];
 
   return (
     <div>
       <Table size="small" rowKey={(_: DocLine, i?: number) => String(i)} pagination={false} dataSource={value} columns={columns} />
-      <Button icon={<PlusOutlined />} style={{ marginTop: 12 }} onClick={() => onChange([...value, { 数量: 0 }])}>加一行</Button>
+      <Button icon={<PlusOutlined />} style={{ marginTop: 12 }} onClick={() => onChange(prev => [...prev, { 数量: 0 }])}>加一行</Button>
     </div>
   );
 }
