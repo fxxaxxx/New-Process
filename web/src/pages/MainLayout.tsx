@@ -5,6 +5,7 @@ import {
   ApartmentOutlined, IdcardOutlined, TagsOutlined, ProfileOutlined,
   DatabaseOutlined, SkinOutlined, ShoppingCartOutlined, FileTextOutlined,
   BuildOutlined, ShoppingOutlined, ImportOutlined, ExportOutlined, ContainerOutlined,
+  ScissorOutlined, FormOutlined, BarChartOutlined,
 } from "@ant-design/icons";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { can } from "../auth/permissions";
@@ -48,11 +49,17 @@ export default function MainLayout() {
     ...(can(perms, "退料单", "打开") ? [{ key: "/materials/material-returns", label: "退料单", icon: <ImportOutlined /> }] : []),
     ...(can(perms, "物料库存", "打开") ? [{ key: "/material-inventory", label: "物料库存", icon: <ContainerOutlined /> }] : []),
   ];
+  const wsChildren = [
+    ...(can(perms, "裁床单", "打开") ? [{ key: "/cuttings", label: "裁床单", icon: <ScissorOutlined /> }] : []),
+    ...(can(perms, "计件", "打开") ? [{ key: "/piecework", label: "计件录入", icon: <FormOutlined /> }] : []),
+    ...(can(perms, "计件汇总", "打开") ? [{ key: "/piecework-summary", label: "计件汇总", icon: <BarChartOutlined /> }] : []),
+  ];
   const items = [
     { key: "base", label: "基础资料", icon: <DatabaseOutlined />, children },
     ...(bizChildren.length
       ? [{ key: "biz", label: "业务单据", icon: <FileTextOutlined />, children: bizChildren }] : []),
     ...(matChildren.length ? [{ key: "mat", label: "物料管理", icon: <ShoppingOutlined />, children: matChildren }] : []),
+    ...(wsChildren.length ? [{ key: "ws", label: "生产车间", icon: <ScissorOutlined />, children: wsChildren }] : []),
   ];
 
   const logout = () => {
@@ -110,6 +117,9 @@ export default function MainLayout() {
               : loc.pathname.startsWith("/styles") ? "款式详情"
               : loc.pathname.startsWith("/material-inventory") ? "物料库存"
               : loc.pathname.startsWith("/materials/") ? "物料单据"
+              : loc.pathname.startsWith("/cuttings") ? "裁床单"
+              : loc.pathname.startsWith("/piecework-summary") ? "计件汇总"
+              : loc.pathname.startsWith("/piecework") ? "计件录入"
               : "基础资料"}
           </span>
           <span style={{ display: "flex", alignItems: "center", gap: 16 }}>
