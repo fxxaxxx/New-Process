@@ -65,4 +65,83 @@ public class P4M7ApiIntegrationTests(DbFixture fx)
             c.Execute("DELETE FROM [发外加工项目] WHERE [加工项目]='APITEST车缝'");
         }
     }
+
+    private static object OutsourceBody() => new
+    {
+        加工厂编号 = P4TestData.加工厂编号, 加工厂名称 = "P4测试加工厂", 仓库 = "成品仓",
+        生产单号 = P4TestData.生产单号, 款号 = P4TestData.款号, 款式 = "P4测试款式", 床号 = "1",
+        明细 = new[]
+        {
+            new { 加工项目 = P4M7TestData.加工项目, 颜色 = "黑色", 尺码 = "M", 数量 = 60 },
+            new { 加工项目 = P4M7TestData.加工项目, 颜色 = "白色", 尺码 = "L", 数量 = 40 },
+        }
+    };
+
+    [SkippableFact]
+    public async Task Outsource_create_forbidden_without_save_permission()
+    {
+        using var app = Factory();
+        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P4M7TestData.Seed(c); }
+        SeedPerms("p4osviewer", "发外加工", open: true, save: false);
+        var resp = await Client(app, "p4osviewer").PostAsJsonAsync("/api/outsourcing", OutsourceBody());
+        Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
+        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P4M7TestData.Cleanup(c); }
+    }
+
+    [SkippableFact]
+    public async Task Outsource_detail_strips_price_without_permission()
+    {
+        using var app = Factory();
+        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P4M7TestData.Seed(c); }
+        SeedPerms("p4osnoprice", "发外加工", open: true, save: true, price: false);
+        var client = Client(app, "p4osnoprice");
+        var create = await client.PostAsJsonAsync("/api/outsourcing", OutsourceBody());
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+        var 单号 = (await create.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("单号").GetString()!;
+        try
+        {
+            var detail = await client.GetFromJsonAsync<JsonElement>($"/api/outsourcing/{单号}");
+            var line0 = detail.GetProperty("明细")[0];
+            Assert.Equal(JsonValueKind.Null, line0.GetProperty("单价").ValueKind);
+            Assert.Equal(JsonValueKind.Null, line0.GetProperty("金额").ValueKind);
+        }
+        finally
+        {
+            using var c = new SqlConnection(fx.ConnectionString); c.Open();
+            c.Execute("DELETE FROM [发外加工明细单] WHERE [单号]=@n", new { n = 单号 });
+            c.Execute("DELETE FROM [发外加工单] WHERE [单号]=@n", new { n = 单号 });
+            P4M7TestData.Cleanup(c);
+        }
+    }
+
+    [SkippableFact]
+    public async Task Outsource_lifecycle_create_approve_unapprove_delete()
+    {
+        using var app = Factory();
+        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P4M7TestData.Seed(c); }
+        SeedPerms("p4os", "发外加工", open: true, save: true, del: true, price: true, approve: true, unapprove: true);
+        var client = Client(app, "p4os");
+
+        var create = await client.PostAsJsonAsync("/api/outsourcing", OutsourceBody());
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+        var 单号 = (await create.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("单号").GetString()!;
+        try
+        {
+            var list = await client.GetFromJsonAsync<JsonElement>($"/api/outsourcing?keyword={单号}");
+            Assert.Equal(1, list.GetProperty("total").GetInt32());
+            var detail = await client.GetFromJsonAsync<JsonElement>($"/api/outsourcing/{单号}");
+            Assert.Equal(2, detail.GetProperty("明细").GetArrayLength());
+            Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/api/outsourcing/{单号}/approve", null)).StatusCode);
+            Assert.Equal(HttpStatusCode.Conflict, (await client.DeleteAsync($"/api/outsourcing/{单号}")).StatusCode);
+            Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/api/outsourcing/{单号}/unapprove", null)).StatusCode);
+            Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/outsourcing/{单号}")).StatusCode);
+        }
+        finally
+        {
+            using var c = new SqlConnection(fx.ConnectionString); c.Open();
+            c.Execute("DELETE FROM [发外加工明细单] WHERE [单号]=@n", new { n = 单号 });
+            c.Execute("DELETE FROM [发外加工单] WHERE [单号]=@n", new { n = 单号 });
+            P4M7TestData.Cleanup(c);
+        }
+    }
 }
