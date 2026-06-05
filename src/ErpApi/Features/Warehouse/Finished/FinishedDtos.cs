@@ -162,3 +162,131 @@ public sealed class FinishedStocktakeDetailDto
     public FinishedStocktakeHeaderDto? 单头 { get; set; }
     public List<FinishedStocktakeLineRowDto> 明细 { get; set; } = [];
 }
+
+// ===== 成品调拨 =====
+public sealed class FinishedTransferLineDto
+{ public string? 色号 { get; set; } public string? 颜色 { get; set; } public string? 尺码 { get; set; } public decimal 数量 { get; set; } public decimal? 单价 { get; set; } }
+public sealed class FinishedTransferCreateDto
+{
+    public string 源仓库 { get; set; } = "";
+    public string 目标仓库 { get; set; } = "";
+    public string? 客户编号 { get; set; }
+    public string? 客户名称 { get; set; }
+    public string? 出仓单号 { get; set; }
+    public string? 生产单号 { get; set; }
+    public string? 款号 { get; set; }
+    public string? 款式 { get; set; }
+    public string? 床号 { get; set; }
+    public string? 备注 { get; set; }
+    public List<FinishedTransferLineDto> 明细 { get; set; } = [];
+}
+public sealed class FinishedTransferHeaderDto
+{
+    public long ID { get; set; }
+    public string? 单号 { get; set; }
+    public string? 客户名称 { get; set; }
+    public DateTime? 日期 { get; set; }
+    public string? 操作员 { get; set; }
+    public string? 审核 { get; set; }
+    public string? 审核人 { get; set; }
+    public string? 备注 { get; set; }
+}
+public sealed class FinishedTransferLineRowDto
+{
+    public long ID { get; set; }
+    public string? 源仓库 { get; set; }
+    public string? 目标仓库 { get; set; }
+    public string? 款号 { get; set; }
+    public string? 色号 { get; set; }
+    public string? 颜色 { get; set; }
+    public string? 尺码 { get; set; }
+    public decimal? 数量 { get; set; }
+    public decimal? 单价 { get; set; }
+    public decimal? 金额 { get; set; }
+}
+public sealed class FinishedTransferDetailDto
+{ public FinishedTransferHeaderDto? 单头 { get; set; } public List<FinishedTransferLineRowDto> 明细 { get; set; } = []; }
+
+// ===== 成品退货（客户退回，入仓库 +）=====
+public sealed class FinishedSalesReturnLineDto
+{ public string? 色号 { get; set; } public string? 颜色 { get; set; } public string? 尺码 { get; set; } public decimal 数量 { get; set; } public decimal? 单价 { get; set; } }
+public sealed class FinishedSalesReturnCreateDto
+{
+    public string 仓库 { get; set; } = "";
+    public string? 出仓单号 { get; set; }
+    public string? 客户编号 { get; set; }
+    public string? 客户名称 { get; set; }
+    public string? 生产单号 { get; set; }
+    public string? 款号 { get; set; }
+    public string? 款式 { get; set; }
+    public string? 床号 { get; set; }
+    public string? 备注 { get; set; }
+    public List<FinishedSalesReturnLineDto> 明细 { get; set; } = [];
+}
+public sealed class FinishedSalesReturnHeaderDto
+{
+    public long ID { get; set; }
+    public string? 单号 { get; set; }
+    public string? 客户名称 { get; set; }
+    public string? 仓库 { get; set; }
+    public DateTime? 日期 { get; set; }
+    public string? 操作员 { get; set; }
+    public string? 审核 { get; set; }
+    public string? 审核人 { get; set; }
+    public string? 备注 { get; set; }
+}
+public sealed class FinishedSalesReturnLineRowDto
+{
+    public long ID { get; set; }
+    public string? 款号 { get; set; }
+    public string? 色号 { get; set; }
+    public string? 颜色 { get; set; }
+    public string? 尺码 { get; set; }
+    public decimal? 数量 { get; set; }
+    public decimal? 单价 { get; set; }
+    public decimal? 金额 { get; set; }
+}
+public sealed class FinishedSalesReturnDetailDto
+{ public FinishedSalesReturnHeaderDto? 单头 { get; set; } public List<FinishedSalesReturnLineRowDto> 明细 { get; set; } = []; }
+
+// ===== 成品退仓（退供应商，出仓库 −）=====
+public sealed class FinishedVendorReturnLineDto
+{ public string? 色号 { get; set; } public string? 颜色 { get; set; } public string? 尺码 { get; set; } public decimal 数量 { get; set; } public decimal? 单价 { get; set; } }
+public sealed class FinishedVendorReturnCreateDto
+{
+    public string 仓库 { get; set; } = "";
+    public string? 入仓单号 { get; set; }
+    public string? 供应商编号 { get; set; }
+    public string? 供应商名称 { get; set; }
+    public string? 生产单号 { get; set; }
+    public string? 款号 { get; set; }
+    public string? 款式 { get; set; }
+    public string? 床号 { get; set; }
+    public string? 备注 { get; set; }
+    public List<FinishedVendorReturnLineDto> 明细 { get; set; } = [];
+}
+public sealed class FinishedVendorReturnHeaderDto
+{
+    public long ID { get; set; }
+    public string? 单号 { get; set; }
+    public string? 供应商名称 { get; set; }
+    public string? 仓库 { get; set; }
+    public DateTime? 日期 { get; set; }
+    public string? 操作员 { get; set; }
+    public string? 审核 { get; set; }
+    public string? 审核人 { get; set; }
+    public string? 备注 { get; set; }
+}
+public sealed class FinishedVendorReturnLineRowDto
+{
+    public long ID { get; set; }
+    public string? 款号 { get; set; }
+    public string? 色号 { get; set; }
+    public string? 颜色 { get; set; }
+    public string? 尺码 { get; set; }
+    public decimal? 数量 { get; set; }
+    public decimal? 单价 { get; set; }
+    public decimal? 金额 { get; set; }
+}
+public sealed class FinishedVendorReturnDetailDto
+{ public FinishedVendorReturnHeaderDto? 单头 { get; set; } public List<FinishedVendorReturnLineRowDto> 明细 { get; set; } = []; }

@@ -72,4 +72,31 @@ public class InventorySummaryDbTests(DbFixture fx)
             P5TestData.Cleanup(c);
         }
     }
+
+    [SkippableFact]
+    public async Task FinishedGoods_transfer_moves_qty_between_warehouses()
+    {
+        using var c = fx.Open();
+        P5TestData.Seed(c);
+        try
+        {
+            c.Execute("INSERT INTO [成品入仓单]([单号],[仓库],[审核]) VALUES(N'P5BRK',N'P5成品仓','1')");
+            c.Execute("INSERT INTO [成品调拨单]([单号],[源仓库],[目标仓库],[审核]) VALUES(N'P5BCD',N'P5成品仓',N'P5半成品仓','1')");
+            c.Execute(@"INSERT INTO [成品入仓明细单]([单号],[仓库],[生产单号],[款号],[款式],[色号],[颜色],[尺码],[数量],[审核])
+                        VALUES(N'P5BRK',N'P5成品仓',N'P5SC01',N'P5K01',N'P5测试款式',N'01',N'黑色',N'M',100,'1')");
+            c.Execute(@"INSERT INTO [成品调拨明细单]([单号],[源仓库],[目标仓库],[生产单号],[款号],[款式],[色号],[颜色],[尺码],[数量],[审核])
+                        VALUES(N'P5BCD',N'P5成品仓',N'P5半成品仓',N'P5SC01',N'P5K01',N'P5测试款式',N'01',N'黑色',N'M',30,'1')");
+            var svc = new InventorySummaryService(Factory());
+            Assert.Equal(70m, (await svc.FinishedGoodsAsync("P5成品仓"))[0].库存);     // 100-30
+            Assert.Equal(30m, (await svc.FinishedGoodsAsync("P5半成品仓"))[0].库存);   // +30
+        }
+        finally
+        {
+            c.Execute("DELETE FROM [成品入仓明细单] WHERE [单号]='P5BRK'");
+            c.Execute("DELETE FROM [成品调拨明细单] WHERE [单号]='P5BCD'");
+            c.Execute("DELETE FROM [成品入仓单] WHERE [单号]='P5BRK'");
+            c.Execute("DELETE FROM [成品调拨单] WHERE [单号]='P5BCD'");
+            P5TestData.Cleanup(c);
+        }
+    }
 }

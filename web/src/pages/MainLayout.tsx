@@ -8,6 +8,7 @@ import {
   ScissorOutlined, FormOutlined, BarChartOutlined,
   SendOutlined, RollbackOutlined, ReconciliationOutlined,
   InboxOutlined, AuditOutlined,
+  SwapOutlined, UndoOutlined,
 } from "@ant-design/icons";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { can } from "../auth/permissions";
@@ -66,6 +67,9 @@ export default function MainLayout() {
     ...(can(perms, "成品出仓", "打开") ? [{ key: "/finished-issues", label: "成品出仓", icon: <ExportOutlined /> }] : []),
     ...(can(perms, "成品盘点", "打开") ? [{ key: "/finished-stocktakes", label: "成品盘点", icon: <AuditOutlined /> }] : []),
     ...(can(perms, "成品库存", "打开") ? [{ key: "/finished-inventory", label: "成品库存", icon: <DatabaseOutlined /> }] : []),
+    ...(can(perms, "成品调拨", "打开") ? [{ key: "/finished-transfers", label: "成品调拨", icon: <SwapOutlined /> }] : []),
+    ...(can(perms, "成品退货", "打开") ? [{ key: "/finished-sales-returns", label: "成品退货", icon: <RollbackOutlined /> }] : []),
+    ...(can(perms, "成品退仓", "打开") ? [{ key: "/finished-vendor-returns", label: "成品退仓", icon: <UndoOutlined /> }] : []),
   ];
   const items = [
     { key: "base", label: "基础资料", icon: <DatabaseOutlined />, children },
@@ -142,6 +146,9 @@ export default function MainLayout() {
               : loc.pathname.startsWith("/finished-issues") ? "成品出仓"
               : loc.pathname.startsWith("/finished-stocktakes") ? "成品盘点"
               : loc.pathname.startsWith("/finished-inventory") ? "成品库存"
+              : loc.pathname.startsWith("/finished-transfers") ? "成品调拨"
+              : loc.pathname.startsWith("/finished-sales-returns") ? "成品退货"
+              : loc.pathname.startsWith("/finished-vendor-returns") ? "成品退仓"
               : "基础资料"}
           </span>
           <span style={{ display: "flex", alignItems: "center", gap: 16 }}>

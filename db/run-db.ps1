@@ -9,4 +9,5 @@ dotnet run --project (Join-Path $root "tools\DbDeploy") -- $ConnectionString `
   (Join-Path $dir "03_p0_additions.sql") `
   (Join-Path $dir "04_p4_additions.sql") `
   (Join-Path $dir "05_p4m7_additions.sql") `
-  (Join-Path $dir "06_p5_additions.sql")
+  (Join-Path $dir "06_p5_additions.sql") `
+  (Join-Path $dir "07_p5b_additions.sql")

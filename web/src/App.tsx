@@ -20,6 +20,9 @@ import FinishedReceiptPage from "./pages/warehouse/FinishedReceiptPage";
 import FinishedIssuePage from "./pages/warehouse/FinishedIssuePage";
 import FinishedStocktakePage from "./pages/warehouse/FinishedStocktakePage";
 import FinishedInventoryPage from "./pages/warehouse/FinishedInventoryPage";
+import FinishedTransferPage from "./pages/warehouse/FinishedTransferPage";
+import FinishedSalesReturnPage from "./pages/warehouse/FinishedSalesReturnPage";
+import FinishedVendorReturnPage from "./pages/warehouse/FinishedVendorReturnPage";
 
 export default function App() {
   return (
@@ -44,6 +47,9 @@ export default function App() {
           <Route path="finished-issues" element={<FinishedIssuePage />} />
           <Route path="finished-stocktakes" element={<FinishedStocktakePage />} />
           <Route path="finished-inventory" element={<FinishedInventoryPage />} />
+          <Route path="finished-transfers" element={<FinishedTransferPage />} />
+          <Route path="finished-sales-returns" element={<FinishedSalesReturnPage />} />
+          <Route path="finished-vendor-returns" element={<FinishedVendorReturnPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
