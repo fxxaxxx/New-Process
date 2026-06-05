@@ -99,4 +99,39 @@ public class InventorySummaryDbTests(DbFixture fx)
             P5TestData.Cleanup(c);
         }
     }
+
+    [SkippableFact]
+    public async Task SemiFinished_in_minus_issue_plus_盘点盈亏()
+    {
+        using var c = fx.Open();
+        P5cTestData.Seed(c);
+        try
+        {
+            // 半成品明细单无 审核 列；审核状态在主单。明细仅录数量/物料维度。
+            c.Execute("INSERT INTO [半成品入仓单]([单号],[仓库],[审核]) VALUES(N'P5CSRK',N'P5c半成品仓','1')");
+            c.Execute(@"INSERT INTO [半成品入仓明细单]([单号],[仓库],[生产单号],[款号],[物料编号],[物料名称],[规格],[颜色],[数量])
+                        VALUES(N'P5CSRK',N'P5c半成品仓',N'P5cSC01',N'P5cK01',N'P5cM1',N'P5c半成品料',N'规格A',N'黑色',100)");
+            c.Execute("INSERT INTO [半成品领料单]([单号],[仓库],[审核]) VALUES(N'P5CSLL',N'P5c半成品仓','1')");
+            c.Execute(@"INSERT INTO [半成品领料明细单]([单号],[仓库],[生产单号],[款号],[物料编号],[物料名称],[规格],[颜色],[数量])
+                        VALUES(N'P5CSLL',N'P5c半成品仓',N'P5cSC01',N'P5cK01',N'P5cM1',N'P5c半成品料',N'规格A',N'黑色',30)");
+            c.Execute("INSERT INTO [半成品盘点单]([单号],[仓库],[审核]) VALUES(N'P5CSPD',N'P5c半成品仓','1')");
+            c.Execute(@"INSERT INTO [半成品盘点明细单]([单号],[仓库],[生产单号],[款号],[物料编号],[物料名称],[规格],[颜色],[系统数量],[盘点数量],[盈亏数量])
+                        VALUES(N'P5CSPD',N'P5c半成品仓',N'P5cSC01',N'P5cK01',N'P5cM1',N'P5c半成品料',N'规格A',N'黑色',70,68,-2)");
+
+            var rows = await new InventorySummaryService(Factory()).SemiFinishedAsync("P5c半成品仓");
+            var r = Assert.Single(rows);
+            Assert.Equal("P5cM1", r.物料编号);
+            Assert.Equal(68m, r.库存);   // 100 - 30 + (-2)
+        }
+        finally
+        {
+            c.Execute("DELETE FROM [半成品入仓明细单] WHERE [单号]='P5CSRK'");
+            c.Execute("DELETE FROM [半成品入仓单] WHERE [单号]='P5CSRK'");
+            c.Execute("DELETE FROM [半成品领料明细单] WHERE [单号]='P5CSLL'");
+            c.Execute("DELETE FROM [半成品领料单] WHERE [单号]='P5CSLL'");
+            c.Execute("DELETE FROM [半成品盘点明细单] WHERE [单号]='P5CSPD'");
+            c.Execute("DELETE FROM [半成品盘点单] WHERE [单号]='P5CSPD'");
+            P5cTestData.Cleanup(c);
+        }
+    }
 }
