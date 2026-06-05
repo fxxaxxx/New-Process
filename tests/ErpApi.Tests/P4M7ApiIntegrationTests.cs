@@ -52,12 +52,17 @@ public class P4M7ApiIntegrationTests(DbFixture fx)
         using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); c.Execute("DELETE FROM [发外加工项目] WHERE [加工项目]='APITEST车缝'"); }
         SeedPerms("p4osi", "发外加工项目", open: true, save: true, del: true, price: true);
         var client = Client(app, "p4osi");
-
-        var create = await client.PostAsJsonAsync("/api/master/outsource-items", new { 加工项目 = "APITEST车缝", 单价 = 2.5, 备注 = "x" });
-        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
-        var list = await client.GetFromJsonAsync<JsonElement>("/api/master/outsource-items?keyword=APITEST车缝");
-        Assert.True(list.GetProperty("total").GetInt32() >= 1);
-
-        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); c.Execute("DELETE FROM [发外加工项目] WHERE [加工项目]='APITEST车缝'"); }
+        try
+        {
+            var create = await client.PostAsJsonAsync("/api/master/outsource-items", new { 加工项目 = "APITEST车缝", 单价 = 2.5, 备注 = "x" });
+            Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+            var list = await client.GetFromJsonAsync<JsonElement>("/api/master/outsource-items?keyword=APITEST车缝");
+            Assert.True(list.GetProperty("total").GetInt32() >= 1);
+        }
+        finally
+        {
+            using var c = new SqlConnection(fx.ConnectionString); c.Open();
+            c.Execute("DELETE FROM [发外加工项目] WHERE [加工项目]='APITEST车缝'");
+        }
     }
 }
