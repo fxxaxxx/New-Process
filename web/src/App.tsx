@@ -23,6 +23,10 @@ import FinishedInventoryPage from "./pages/warehouse/FinishedInventoryPage";
 import FinishedTransferPage from "./pages/warehouse/FinishedTransferPage";
 import FinishedSalesReturnPage from "./pages/warehouse/FinishedSalesReturnPage";
 import FinishedVendorReturnPage from "./pages/warehouse/FinishedVendorReturnPage";
+import SemiReceiptPage from "./pages/warehouse/SemiReceiptPage";
+import SemiIssuePage from "./pages/warehouse/SemiIssuePage";
+import SemiStocktakePage from "./pages/warehouse/SemiStocktakePage";
+import SemiInventoryPage from "./pages/warehouse/SemiInventoryPage";
 
 export default function App() {
   return (
@@ -50,6 +54,10 @@ export default function App() {
           <Route path="finished-transfers" element={<FinishedTransferPage />} />
           <Route path="finished-sales-returns" element={<FinishedSalesReturnPage />} />
           <Route path="finished-vendor-returns" element={<FinishedVendorReturnPage />} />
+          <Route path="semi-receipts" element={<SemiReceiptPage />} />
+          <Route path="semi-issues" element={<SemiIssuePage />} />
+          <Route path="semi-stocktakes" element={<SemiStocktakePage />} />
+          <Route path="semi-inventory" element={<SemiInventoryPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
