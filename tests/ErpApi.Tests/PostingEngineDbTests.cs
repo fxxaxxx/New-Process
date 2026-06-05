@@ -132,4 +132,31 @@ public class PostingEngineDbTests(DbFixture fx)
         c.Execute("DELETE FROM [发外回收单] WHERE [单号]='P4FHPOST1'");
         c.Execute("DELETE FROM [加工厂资料] WHERE [加工厂编号]='P4FHF'");
     }
+
+    [SkippableFact]
+    public async Task Approve_成品入仓单_uses_单号_column()
+    {
+        using var c = fx.Open();
+        c.Execute("DELETE FROM [成品入仓单] WHERE [单号]='P5RKPOST1'");
+        c.Execute("INSERT INTO [成品入仓单]([单号],[仓库],[审核]) VALUES(N'P5RKPOST1',N'P5成品仓','0')");
+        var engine = new PostingEngine(Factory(), new AuditLogger());
+        Assert.True(await engine.ApproveAsync("成品入仓单", "P5RKPOST1", "tester"));
+        Assert.Equal("1", c.ExecuteScalar<string>("SELECT [审核] FROM [成品入仓单] WHERE [单号]='P5RKPOST1'"));
+        Assert.Equal("tester", c.ExecuteScalar<string>("SELECT [审核人] FROM [成品入仓单] WHERE [单号]='P5RKPOST1'"));
+        Assert.True(await engine.UnapproveAsync("成品入仓单", "P5RKPOST1", "tester"));
+        c.Execute("DELETE FROM [成品入仓单] WHERE [单号]='P5RKPOST1'");
+    }
+
+    [SkippableFact]
+    public async Task Approve_成品盘点单_uses_单号_column()
+    {
+        using var c = fx.Open();
+        c.Execute("DELETE FROM [成品盘点单] WHERE [单号]='P5PDPOST1'");
+        c.Execute("INSERT INTO [成品盘点单]([单号],[仓库],[审核]) VALUES(N'P5PDPOST1',N'P5成品仓','0')");
+        var engine = new PostingEngine(Factory(), new AuditLogger());
+        Assert.True(await engine.ApproveAsync("成品盘点单", "P5PDPOST1", "tester"));
+        Assert.Equal("tester", c.ExecuteScalar<string>("SELECT [审核人] FROM [成品盘点单] WHERE [单号]='P5PDPOST1'"));
+        Assert.True(await engine.UnapproveAsync("成品盘点单", "P5PDPOST1", "tester"));
+        c.Execute("DELETE FROM [成品盘点单] WHERE [单号]='P5PDPOST1'");
+    }
 }
