@@ -71,6 +71,12 @@ export default function MainLayout() {
     ...(can(perms, "成品退货", "打开") ? [{ key: "/finished-sales-returns", label: "成品退货", icon: <RollbackOutlined /> }] : []),
     ...(can(perms, "成品退仓", "打开") ? [{ key: "/finished-vendor-returns", label: "成品退仓", icon: <UndoOutlined /> }] : []),
   ];
+  const sfChildren = [
+    ...(can(perms, "半成品入仓", "打开") ? [{ key: "/semi-receipts", label: "半成品入仓", icon: <InboxOutlined /> }] : []),
+    ...(can(perms, "半成品领料", "打开") ? [{ key: "/semi-issues", label: "半成品领料", icon: <ExportOutlined /> }] : []),
+    ...(can(perms, "半成品盘点", "打开") ? [{ key: "/semi-stocktakes", label: "半成品盘点", icon: <AuditOutlined /> }] : []),
+    ...(can(perms, "半成品库存", "打开") ? [{ key: "/semi-inventory", label: "半成品库存", icon: <DatabaseOutlined /> }] : []),
+  ];
   const items = [
     { key: "base", label: "基础资料", icon: <DatabaseOutlined />, children },
     ...(bizChildren.length
@@ -79,6 +85,7 @@ export default function MainLayout() {
     ...(wsChildren.length ? [{ key: "ws", label: "生产车间", icon: <ScissorOutlined />, children: wsChildren }] : []),
     ...(osChildren.length ? [{ key: "os", label: "发外加工", icon: <SendOutlined />, children: osChildren }] : []),
     ...(fgChildren.length ? [{ key: "fg", label: "成品仓储", icon: <InboxOutlined />, children: fgChildren }] : []),
+    ...(sfChildren.length ? [{ key: "sf", label: "半成品仓储", icon: <InboxOutlined />, children: sfChildren }] : []),
   ];
 
   const logout = () => {
@@ -149,6 +156,10 @@ export default function MainLayout() {
               : loc.pathname.startsWith("/finished-transfers") ? "成品调拨"
               : loc.pathname.startsWith("/finished-sales-returns") ? "成品退货"
               : loc.pathname.startsWith("/finished-vendor-returns") ? "成品退仓"
+              : loc.pathname.startsWith("/semi-receipts") ? "半成品入仓"
+              : loc.pathname.startsWith("/semi-issues") ? "半成品领料"
+              : loc.pathname.startsWith("/semi-stocktakes") ? "半成品盘点"
+              : loc.pathname.startsWith("/semi-inventory") ? "半成品库存"
               : "基础资料"}
           </span>
           <span style={{ display: "flex", alignItems: "center", gap: 16 }}>

@@ -173,4 +173,18 @@ public class PostingEngineDbTests(DbFixture fx)
         Assert.True(await engine.UnapproveAsync("成品调拨单", "P5BCDPOST1", "tester"));
         c.Execute("DELETE FROM [成品调拨单] WHERE [单号]='P5BCDPOST1'");
     }
+
+    [SkippableFact]
+    public async Task Approve_半成品入仓单_uses_单号_column()
+    {
+        using var c = fx.Open();
+        c.Execute("DELETE FROM [半成品入仓单] WHERE [单号]='P5CBRPOST1'");
+        c.Execute("INSERT INTO [半成品入仓单]([单号],[仓库],[审核]) VALUES(N'P5CBRPOST1',N'P5c半成品仓','0')");
+        var engine = new PostingEngine(Factory(), new AuditLogger());
+        Assert.True(await engine.ApproveAsync("半成品入仓单", "P5CBRPOST1", "tester"));
+        Assert.Equal("1", c.ExecuteScalar<string>("SELECT [审核] FROM [半成品入仓单] WHERE [单号]='P5CBRPOST1'"));
+        Assert.Equal("tester", c.ExecuteScalar<string>("SELECT [审核人] FROM [半成品入仓单] WHERE [单号]='P5CBRPOST1'"));
+        Assert.True(await engine.UnapproveAsync("半成品入仓单", "P5CBRPOST1", "tester"));
+        c.Execute("DELETE FROM [半成品入仓单] WHERE [单号]='P5CBRPOST1'");
+    }
 }
