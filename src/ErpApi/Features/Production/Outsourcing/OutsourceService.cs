@@ -98,7 +98,7 @@ FROM [发外加工明细单] WHERE [单号]=@单号 ORDER BY [ID];",
         await c.OpenAsync();
         using var tx = c.BeginTransaction();
         var 审核 = await c.ExecuteScalarAsync<string?>(
-            "SELECT ISNULL([审核],'0') FROM [发外加工单] WHERE [单号]=@单号", new { 单号 }, tx);
+            "SELECT ISNULL([审核],'0') FROM [发外加工单] WITH (UPDLOCK, HOLDLOCK) WHERE [单号]=@单号", new { 单号 }, tx);
         if (审核 is null) return false;
         if (审核 == "1") throw new InvalidOperationException("已审核的发外派工单不能删除，请先反审核。");
         await c.ExecuteAsync("DELETE FROM [发外加工明细单] WHERE [单号]=@单号", new { 单号 }, tx);
