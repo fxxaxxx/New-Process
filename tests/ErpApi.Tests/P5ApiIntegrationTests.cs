@@ -283,4 +283,41 @@ public class P5ApiIntegrationTests(DbFixture fx)
             P5TestData.Cleanup(c);
         }
     }
+
+    [SkippableFact]
+    public async Task VendorReturn_lifecycle_reduces_inventory()
+    {
+        using var app = Factory();
+        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P5TestData.Seed(c);
+            c.Execute(@"INSERT INTO [成品入仓单]([单号],[仓库],[审核]) VALUES(N'P5BTCRK',N'P5成品仓','1')");
+            c.Execute(@"INSERT INTO [成品入仓明细单]([单号],[仓库],[生产单号],[款号],[款式],[色号],[颜色],[尺码],[数量],[审核])
+                        VALUES(N'P5BTCRK',N'P5成品仓',N'P5SC01',N'P5K01',N'P5测试款式',N'01',N'黑色',N'M',10,'1')"); }
+        SeedPerms("p5btc", "成品退仓", open: true, save: true, del: true, price: true, approve: true, unapprove: true);
+        SeedPerms("p5btc", "成品库存", open: true);
+        var client = Client(app, "p5btc");
+        string? tc = null;
+        async Task<decimal> Inv() {
+            var inv = await client.GetFromJsonAsync<JsonElement>($"/api/finished-inventory?{Uri.EscapeDataString("仓库")}={Uri.EscapeDataString(P5TestData.仓库)}");
+            decimal s = 0; foreach (var r in inv.EnumerateArray()) s += r.GetProperty("库存").GetDecimal(); return s;
+        }
+        try
+        {
+            Assert.Equal(10m, await Inv());
+            var cr = await client.PostAsJsonAsync("/api/finished-vendor-returns", new {
+                仓库 = P5TestData.仓库, 生产单号 = P5TestData.生产单号, 款号 = P5TestData.款号, 款式 = "P5测试款式",
+                明细 = new[] { new { 色号 = "01", 颜色 = "黑色", 尺码 = "M", 数量 = 3, 单价 = 10 } } });
+            Assert.Equal(HttpStatusCode.Created, cr.StatusCode);
+            tc = (await cr.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("单号").GetString()!;
+            Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/api/finished-vendor-returns/{tc}/approve", null)).StatusCode);
+            Assert.Equal(7m, await Inv());
+        }
+        finally
+        {
+            using var c = new SqlConnection(fx.ConnectionString); c.Open();
+            if (tc != null) { c.Execute("DELETE FROM [成品退仓明细单] WHERE [单号]=@n", new { n = tc }); c.Execute("DELETE FROM [成品退仓单] WHERE [单号]=@n", new { n = tc }); }
+            c.Execute("DELETE FROM [成品入仓明细单] WHERE [单号]='P5BTCRK'");
+            c.Execute("DELETE FROM [成品入仓单] WHERE [单号]='P5BTCRK'");
+            P5TestData.Cleanup(c);
+        }
+    }
 }
