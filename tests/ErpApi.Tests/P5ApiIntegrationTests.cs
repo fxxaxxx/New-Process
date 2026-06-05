@@ -251,4 +251,36 @@ public class P5ApiIntegrationTests(DbFixture fx)
             P5TestData.Cleanup(c);
         }
     }
+
+    [SkippableFact]
+    public async Task SalesReturn_lifecycle_adds_inventory()
+    {
+        using var app = Factory();
+        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P5TestData.Seed(c); }
+        SeedPerms("p5bth", "成品退货", open: true, save: true, del: true, price: true, approve: true, unapprove: true);
+        SeedPerms("p5bth", "成品库存", open: true);
+        var client = Client(app, "p5bth");
+        string? th = null;
+        async Task<decimal> Inv() {
+            var inv = await client.GetFromJsonAsync<JsonElement>($"/api/finished-inventory?{Uri.EscapeDataString("仓库")}={Uri.EscapeDataString(P5TestData.仓库)}");
+            decimal s = 0; foreach (var r in inv.EnumerateArray()) s += r.GetProperty("库存").GetDecimal(); return s;
+        }
+        try
+        {
+            var cr = await client.PostAsJsonAsync("/api/finished-sales-returns", new {
+                仓库 = P5TestData.仓库, 客户编号 = P5TestData.客户编号, 客户名称 = "P5测试客户",
+                生产单号 = P5TestData.生产单号, 款号 = P5TestData.款号, 款式 = "P5测试款式",
+                明细 = new[] { new { 色号 = "01", 颜色 = "黑色", 尺码 = "M", 数量 = 5, 单价 = 20 } } });
+            Assert.Equal(HttpStatusCode.Created, cr.StatusCode);
+            th = (await cr.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("单号").GetString()!;
+            Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/api/finished-sales-returns/{th}/approve", null)).StatusCode);
+            Assert.Equal(5m, await Inv());
+        }
+        finally
+        {
+            using var c = new SqlConnection(fx.ConnectionString); c.Open();
+            if (th != null) { c.Execute("DELETE FROM [成品退货明细单] WHERE [单号]=@n", new { n = th }); c.Execute("DELETE FROM [成品退货单] WHERE [单号]=@n", new { n = th }); }
+            P5TestData.Cleanup(c);
+        }
+    }
 }

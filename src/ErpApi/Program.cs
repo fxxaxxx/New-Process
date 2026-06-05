@@ -48,6 +48,7 @@ builder.Services.AddScoped<ErpApi.Features.Warehouse.Finished.FinishedReceiptSer
 builder.Services.AddScoped<ErpApi.Features.Warehouse.Finished.FinishedIssueService>();
 builder.Services.AddScoped<ErpApi.Features.Warehouse.Finished.FinishedStocktakeService>();
 builder.Services.AddScoped<ErpApi.Features.Warehouse.Finished.FinishedTransferService>();
+builder.Services.AddScoped<ErpApi.Features.Warehouse.Finished.FinishedSalesReturnService>();
 
 // JWT 认证（密钥来自环境变量，无硬编码）
 var jwtKey = Environment.GetEnvironmentVariable(JwtTokenService.KeyEnvVar)
