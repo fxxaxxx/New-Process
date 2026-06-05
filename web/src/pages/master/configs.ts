@@ -68,4 +68,9 @@ export const MASTER_CONFIGS: Record<string, MasterCfg> = {
     ],
     detailLink: (row) => (row.款号 ? `/styles/${encodeURIComponent(String(row.款号))}` : null),
   },
+  发外加工项目: { menu: "发外加工项目", resource: "outsource-items", title: "发外加工项目",
+    fields: [
+      { name: "加工项目", label: "加工项目" },
+      { name: "单价", label: "单价", price: true },
+      { name: "备注", label: "备注" }] },
 };

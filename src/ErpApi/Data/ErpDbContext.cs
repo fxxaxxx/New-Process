@@ -21,4 +21,5 @@ public sealed class ErpDbContext(DbContextOptions<ErpDbContext> options) : DbCon
     public DbSet<款号总表> 款号总表 => Set<款号总表>();
     public DbSet<款号明细表> 款号明细表 => Set<款号明细表>();
     public DbSet<款号物料明细表> 款号物料明细表 => Set<款号物料明细表>();
+    public DbSet<发外加工项目> 发外加工项目 => Set<发外加工项目>();
 }

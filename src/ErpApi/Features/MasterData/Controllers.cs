@@ -111,3 +111,9 @@ public sealed class StyleBomLineController(
     MasterCrudService<款号物料明细表> s, IPermissionService p, IAuditLogger a, ISqlConnectionFactory f)
     : MasterCrudController<款号物料明细表>(s, p, a, f)
 { protected override string Menu => "款号资料"; protected override string TableName => "款号物料明细表"; }
+
+[Route("api/master/outsource-items")]
+public sealed class OutsourceItemController(
+    MasterCrudService<发外加工项目> s, IPermissionService p, IAuditLogger a, ISqlConnectionFactory f)
+    : MasterCrudController<发外加工项目>(s, p, a, f)
+{ protected override string Menu => "发外加工项目"; protected override string TableName => "发外加工项目"; }
