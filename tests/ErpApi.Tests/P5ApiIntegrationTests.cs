@@ -118,4 +118,39 @@ public class P5ApiIntegrationTests(DbFixture fx)
             P5TestData.Cleanup(c);
         }
     }
+
+    [SkippableFact]
+    public async Task Issue_lifecycle_reduces_inventory()
+    {
+        using var app = Factory();
+        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P5TestData.Seed(c); }
+        SeedPerms("p5ck", "成品入仓", open: true, save: true, approve: true);
+        SeedPerms("p5ck", "成品出仓", open: true, save: true, del: true, price: true, approve: true, unapprove: true);
+        SeedPerms("p5ck", "成品库存", open: true);
+        var client = Client(app, "p5ck");
+        string? rk = null, ck = null;
+        try
+        {
+            var cr = await client.PostAsJsonAsync("/api/finished-receipts", ReceiptBody());
+            rk = (await cr.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("单号").GetString()!;
+            await client.PostAsync($"/api/finished-receipts/{rk}/approve", null);
+            var ci = await client.PostAsJsonAsync("/api/finished-issues", new {
+                仓库 = P5TestData.仓库, 客户编号 = P5TestData.客户编号, 客户名称 = "P5测试客户",
+                生产单号 = P5TestData.生产单号, 款号 = P5TestData.款号, 款式 = "P5测试款式",
+                明细 = new[] { new { 色号 = "01", 颜色 = "黑色", 尺码 = "M", 数量 = 30, 单价 = 20 } } });
+            Assert.Equal(HttpStatusCode.Created, ci.StatusCode);
+            ck = (await ci.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("单号").GetString()!;
+            Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/api/finished-issues/{ck}/approve", null)).StatusCode);
+            var inv = await client.GetFromJsonAsync<JsonElement>($"/api/finished-inventory?{Uri.EscapeDataString("仓库")}={Uri.EscapeDataString(P5TestData.仓库)}");
+            decimal sum = 0; foreach (var r in inv.EnumerateArray()) sum += r.GetProperty("库存").GetDecimal();
+            Assert.Equal(70m, sum);
+        }
+        finally
+        {
+            using var c = new SqlConnection(fx.ConnectionString); c.Open();
+            if (ck != null) { c.Execute("DELETE FROM [成品出仓明细单] WHERE [单号]=@n", new { n = ck }); c.Execute("DELETE FROM [成品出仓单] WHERE [单号]=@n", new { n = ck }); }
+            if (rk != null) { c.Execute("DELETE FROM [成品入仓明细单] WHERE [单号]=@n", new { n = rk }); c.Execute("DELETE FROM [成品入仓单] WHERE [单号]=@n", new { n = rk }); }
+            P5TestData.Cleanup(c);
+        }
+    }
 }
