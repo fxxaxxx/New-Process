@@ -154,4 +154,52 @@ public class P5cApiIntegrationTests(DbFixture fx)
             P5cTestData.Cleanup(c);
         }
     }
+
+    [SkippableFact]
+    public async Task FullLoop_receipt_issue_stocktake_inventory()
+    {
+        using var app = Factory();
+        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P5cTestData.Seed(c); }
+        foreach (var m in new[] { "半成品入仓", "半成品领料", "半成品盘点" })
+            SeedPerms("p5cloop", m, open: true, save: true, del: true, price: true, approve: true, unapprove: true);
+        SeedPerms("p5cloop", "半成品库存", open: true);
+        var client = Client(app, "p5cloop");
+        string? rk = null, ll = null, pd = null;
+        async Task<decimal> Inv() {
+            var inv = await client.GetFromJsonAsync<JsonElement>($"/api/semi-inventory?{Uri.EscapeDataString("仓库")}={Uri.EscapeDataString(P5cTestData.仓库)}");
+            decimal s = 0; foreach (var r in inv.EnumerateArray()) s += r.GetProperty("库存").GetDecimal(); return s;
+        }
+        try
+        {
+            var cr = await client.PostAsJsonAsync("/api/semi-receipts", ReceiptBody());
+            rk = (await cr.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("单号").GetString()!;
+            await client.PostAsync($"/api/semi-receipts/{rk}/approve", null);
+            Assert.Equal(100m, await Inv());
+
+            var ci = await client.PostAsJsonAsync("/api/semi-issues", new {
+                仓库 = P5cTestData.仓库, 生产单号 = P5cTestData.生产单号, 款号 = P5cTestData.款号, 部门 = "车间一", 领料人 = "张三",
+                明细 = new[] { new { 物料编号 = P5cTestData.物料编号, 物料名称 = "P5c半成品料", 规格 = "规格A", 颜色 = "黑色", 单位 = "件", 数量 = 30, 单价 = 10 } } });
+            ll = (await ci.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("单号").GetString()!;
+            await client.PostAsync($"/api/semi-issues/{ll}/approve", null);
+            Assert.Equal(70m, await Inv());
+
+            var basis = await client.GetFromJsonAsync<JsonElement>($"/api/semi-stocktakes/basis?{Uri.EscapeDataString("仓库")}={Uri.EscapeDataString(P5cTestData.仓库)}");
+            decimal basisSum = 0; foreach (var b in basis.EnumerateArray()) basisSum += b.GetProperty("系统数量").GetDecimal();
+            Assert.Equal(70m, basisSum);
+            var cp = await client.PostAsJsonAsync("/api/semi-stocktakes", new {
+                仓库 = P5cTestData.仓库,
+                明细 = new[] { new { 物料编号 = P5cTestData.物料编号, 物料名称 = "P5c半成品料", 规格 = "规格A", 颜色 = "黑色", 系统数量 = 70, 盘点数量 = 68 } } });
+            pd = (await cp.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("单号").GetString()!;
+            await client.PostAsync($"/api/semi-stocktakes/{pd}/approve", null);
+            Assert.Equal(68m, await Inv());  // 70 + (-2)
+        }
+        finally
+        {
+            using var c = new SqlConnection(fx.ConnectionString); c.Open();
+            if (pd != null) { c.Execute("DELETE FROM [半成品盘点明细单] WHERE [单号]=@n", new { n = pd }); c.Execute("DELETE FROM [半成品盘点单] WHERE [单号]=@n", new { n = pd }); }
+            if (ll != null) { c.Execute("DELETE FROM [半成品领料明细单] WHERE [单号]=@n", new { n = ll }); c.Execute("DELETE FROM [半成品领料单] WHERE [单号]=@n", new { n = ll }); }
+            if (rk != null) { c.Execute("DELETE FROM [半成品入仓明细单] WHERE [单号]=@n", new { n = rk }); c.Execute("DELETE FROM [半成品入仓单] WHERE [单号]=@n", new { n = rk }); }
+            P5cTestData.Cleanup(c);
+        }
+    }
 }
