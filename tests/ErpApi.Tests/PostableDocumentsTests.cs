@@ -27,4 +27,11 @@ public class PostableDocumentsTests
     {
         Assert.Throws<InvalidOperationException>(() => PostableDocuments.DocNoColumn("不存在的表"));
     }
+
+    [Fact]
+    public void DocNoColumn_maps_裁床总表_to_裁床单号()
+    {
+        Assert.Equal("裁床单号", PostableDocuments.DocNoColumn("裁床总表"));
+        Assert.True(PostableDocuments.IsAllowed("裁床总表"));
+    }
 }
