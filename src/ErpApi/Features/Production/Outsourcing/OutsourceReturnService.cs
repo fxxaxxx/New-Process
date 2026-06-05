@@ -64,7 +64,9 @@ ORDER BY d.[款号], d.[加工项目], d.[颜色], d.[尺码]", new { 发外单�
             var price = await c.ExecuteScalarAsync<decimal?>(@"
 SELECT TOP 1 [单价] FROM [发外加工明细单]
 WHERE [单号]=@发外单号 AND [加工项目]=@加工项目 AND ISNULL([颜色],'')=ISNULL(@颜色,'') AND ISNULL([尺码],'')=ISNULL(@尺码,'')",
-                new { dto.发外单号, l.加工项目, l.颜色, l.尺码 }, tx) ?? 0m;
+                new { dto.发外单号, l.加工项目, l.颜色, l.尺码 }, tx);
+            if (price is null)
+                throw new ArgumentException($"回收明细 [{l.加工项目} {l.颜色} {l.尺码}] 在发外单 [{dto.发外单号}] 中找不到对应派工行");
             var 已回收 = await c.ExecuteScalarAsync<decimal?>(@"
 SELECT ISNULL(SUM(rd.[数量]),0) FROM [发外回收明细单] rd
 JOIN [发外回收单] rh ON rh.[单号]=rd.[单号] AND ISNULL(rh.[审核],'0')='1'
@@ -72,7 +74,7 @@ WHERE rd.[发外单号]=@发外单号 AND rd.[加工项目]=@加工项目
   AND ISNULL(rd.[颜色],'')=ISNULL(@颜色,'') AND ISNULL(rd.[尺码],'')=ISNULL(@尺码,'')",
                 new { dto.发外单号, l.加工项目, l.颜色, l.尺码 }, tx) ?? 0m;
             var owed = l.发外数量 - (已回收 + l.回收数量);
-            lines.Add((l, price, owed));
+            lines.Add((l, price.Value, owed));
         }
 
         await c.ExecuteAsync(@"
