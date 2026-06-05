@@ -209,4 +209,46 @@ public class P5ApiIntegrationTests(DbFixture fx)
             P5TestData.Cleanup(c);
         }
     }
+
+    [SkippableFact]
+    public async Task Transfer_lifecycle_moves_inventory_between_warehouses()
+    {
+        using var app = Factory();
+        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P5TestData.Seed(c);
+            c.Execute(@"INSERT INTO [成品入仓单]([单号],[仓库],[审核]) VALUES(N'P5BAPIRK',N'P5成品仓','1')");
+            c.Execute(@"INSERT INTO [成品入仓明细单]([单号],[仓库],[生产单号],[款号],[款式],[色号],[颜色],[尺码],[数量],[审核])
+                        VALUES(N'P5BAPIRK',N'P5成品仓',N'P5SC01',N'P5K01',N'P5测试款式',N'01',N'黑色',N'M',100,'1')"); }
+        SeedPerms("p5btr", "成品调拨", open: true, save: true, del: true, price: true, approve: true, unapprove: true);
+        SeedPerms("p5btr", "成品库存", open: true);
+        var client = Client(app, "p5btr");
+        string? cd = null;
+        async Task<decimal> Inv(string wh) {
+            var inv = await client.GetFromJsonAsync<JsonElement>($"/api/finished-inventory?{Uri.EscapeDataString("仓库")}={Uri.EscapeDataString(wh)}");
+            decimal s = 0; foreach (var r in inv.EnumerateArray()) s += r.GetProperty("库存").GetDecimal(); return s;
+        }
+        try
+        {
+            Assert.Equal(100m, await Inv("P5成品仓"));
+            var cr = await client.PostAsJsonAsync("/api/finished-transfers", new {
+                源仓库 = "P5成品仓", 目标仓库 = "P5半成品仓",
+                生产单号 = P5TestData.生产单号, 款号 = P5TestData.款号, 款式 = "P5测试款式",
+                明细 = new[] { new { 色号 = "01", 颜色 = "黑色", 尺码 = "M", 数量 = 30, 单价 = 10 } } });
+            Assert.Equal(HttpStatusCode.Created, cr.StatusCode);
+            cd = (await cr.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("单号").GetString()!;
+            Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/api/finished-transfers/{cd}/approve", null)).StatusCode);
+            Assert.Equal(70m, await Inv("P5成品仓"));      // 100-30
+            Assert.Equal(30m, await Inv("P5半成品仓"));    // +30
+            Assert.Equal(HttpStatusCode.Conflict, (await client.DeleteAsync($"/api/finished-transfers/{cd}")).StatusCode);
+            Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/api/finished-transfers/{cd}/unapprove", null)).StatusCode);
+            Assert.Equal(100m, await Inv("P5成品仓"));      // 反审核后回到100
+        }
+        finally
+        {
+            using var c = new SqlConnection(fx.ConnectionString); c.Open();
+            if (cd != null) { c.Execute("DELETE FROM [成品调拨明细单] WHERE [单号]=@n", new { n = cd }); c.Execute("DELETE FROM [成品调拨单] WHERE [单号]=@n", new { n = cd }); }
+            c.Execute("DELETE FROM [成品入仓明细单] WHERE [单号]='P5BAPIRK'");
+            c.Execute("DELETE FROM [成品入仓单] WHERE [单号]='P5BAPIRK'");
+            P5TestData.Cleanup(c);
+        }
+    }
 }
