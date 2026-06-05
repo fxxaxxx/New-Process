@@ -9,6 +9,7 @@ public static class P5TestData
     public const string 款号 = "P5K01";
     public const string 生产单号 = "P5SC01";
     public const string 仓库 = "P5成品仓";
+    public const string 仓库2 = "P5半成品仓";
 
     public static void Seed(SqlConnection c)
     {
@@ -21,10 +22,11 @@ public static class P5TestData
 
     public static void Cleanup(SqlConnection c)
     {
-        foreach (var d in new[] { "成品盘点明细单", "成品出仓明细单", "成品入仓明细单" })
+        foreach (var d in new[] { "成品盘点明细单", "成品出仓明细单", "成品入仓明细单",
+                                  "成品调拨明细单", "成品退货明细单", "成品退仓明细单" })
             c.Execute($"DELETE FROM [{d}] WHERE [生产单号]=N'P5SC01'");
-        foreach (var h in new[] { "成品盘点单", "成品出仓单", "成品入仓单" })
-            c.Execute($"DELETE FROM [{h}] WHERE [仓库]=N'P5成品仓'");
+        foreach (var h in new[] { "成品盘点单", "成品出仓单", "成品入仓单", "成品退货单", "成品退仓单" })
+            c.Execute($"DELETE FROM [{h}] WHERE [仓库] IN (N'P5成品仓', N'P5半成品仓')");
         c.Execute("DELETE FROM [生产制单] WHERE [生产单号]=N'P5SC01'");
         c.Execute("DELETE FROM [款号总表] WHERE [款号]=N'P5K01'");
         c.Execute("DELETE FROM [客户资料] WHERE [客户编号]=N'P5C01'");
