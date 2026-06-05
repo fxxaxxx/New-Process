@@ -39,4 +39,37 @@ public class InventorySummaryDbTests(DbFixture fx)
         var k0 = rows.Single(r => r.款号 == "K0" && r.颜色 == "红" && r.尺码 == "M");
         Assert.Equal(70m, k0.库存);
     }
+
+    [SkippableFact]
+    public async Task FinishedGoods_includes_审核入仓_minus_出仓_plus_盘点盈亏()
+    {
+        using var c = fx.Open();
+        P5TestData.Seed(c);
+        try
+        {
+            // 主从 FK：明细单.单号 → 各主单.单号，故先插主单
+            c.Execute("INSERT INTO [成品入仓单]([单号],[仓库],[审核]) VALUES(N'P5RKD',N'P5成品仓','1')");
+            c.Execute("INSERT INTO [成品出仓单]([单号],[仓库],[审核]) VALUES(N'P5CKD',N'P5成品仓','1')");
+            c.Execute("INSERT INTO [成品盘点单]([单号],[仓库],[审核]) VALUES(N'P5PDD',N'P5成品仓','1')");
+
+            c.Execute(@"INSERT INTO [成品入仓明细单]([单号],[仓库],[生产单号],[款号],[款式],[色号],[颜色],[尺码],[数量],[审核])
+                        VALUES(N'P5RKD',N'P5成品仓',N'P5SC01',N'P5K01',N'P5测试款式',N'01',N'黑色',N'M',100,'1')");
+            c.Execute(@"INSERT INTO [成品出仓明细单]([单号],[仓库],[生产单号],[款号],[款式],[色号],[颜色],[尺码],[数量],[审核])
+                        VALUES(N'P5CKD',N'P5成品仓',N'P5SC01',N'P5K01',N'P5测试款式',N'01',N'黑色',N'M',30,'1')");
+            c.Execute(@"INSERT INTO [成品盘点明细单]([单号],[仓库],[生产单号],[款号],[款式],[色号],[颜色],[尺码],[系统数量],[盘点数量],[盈亏数量],[审核])
+                        VALUES(N'P5PDD',N'P5成品仓',N'P5SC01',N'P5K01',N'P5测试款式',N'01',N'黑色',N'M',70,68,-2,'1')");
+
+            var rows = await new InventorySummaryService(Factory()).FinishedGoodsAsync("P5成品仓");
+            var r = Assert.Single(rows);
+            Assert.Equal("P5K01", r.款号);
+            Assert.Equal(68m, r.库存);
+        }
+        finally
+        {
+            c.Execute("DELETE FROM [成品入仓明细单] WHERE [单号]='P5RKD'");
+            c.Execute("DELETE FROM [成品出仓明细单] WHERE [单号]='P5CKD'");
+            c.Execute("DELETE FROM [成品盘点明细单] WHERE [单号]='P5PDD'");
+            P5TestData.Cleanup(c);
+        }
+    }
 }
