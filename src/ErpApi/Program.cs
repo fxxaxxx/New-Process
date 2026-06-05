@@ -44,6 +44,7 @@ builder.Services.AddScoped<ErpApi.Features.Production.Cutting.CuttingService>();
 builder.Services.AddScoped<ErpApi.Features.Production.Piecework.PieceworkService>();
 builder.Services.AddScoped<ErpApi.Features.Production.Outsourcing.OutsourceService>();
 builder.Services.AddScoped<ErpApi.Features.Production.Outsourcing.OutsourceReturnService>();
+builder.Services.AddScoped<ErpApi.Features.Warehouse.Finished.FinishedReceiptService>();
 
 // JWT 认证（密钥来自环境变量，无硬编码）
 var jwtKey = Environment.GetEnvironmentVariable(JwtTokenService.KeyEnvVar)
