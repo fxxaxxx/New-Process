@@ -52,3 +52,40 @@ export const finishedStocktakeApi = {
 export const finishedInventoryApi = {
   list: (仓库: string) => api.get<FinishedStockRow[]>("/finished-inventory", { params: { 仓库 } }).then(r => r.data),
 };
+
+// ---- 调拨 ----
+export interface FTLine { 色号?: string; 颜色?: string; 尺码?: string; 数量: number; 单价?: number }
+export interface FTCreate { 源仓库: string; 目标仓库: string; 客户编号?: string; 客户名称?: string; 出仓单号?: string; 生产单号?: string; 款号?: string; 款式?: string; 床号?: string; 备注?: string; 明细: FTLine[] }
+export interface FTHeader { id: number; 单号?: string; 客户名称?: string; 日期?: string; 审核?: string; 备注?: string }
+export interface FTDetail { 单头: FTHeader | null; 明细: { id: number; 源仓库?: string; 目标仓库?: string; 款号?: string; 色号?: string; 颜色?: string; 尺码?: string; 数量?: number; 单价?: number | null; 金额?: number | null }[] }
+// ---- 退货 ----
+export interface FSRLine { 色号?: string; 颜色?: string; 尺码?: string; 数量: number; 单价?: number }
+export interface FSRCreate { 仓库: string; 出仓单号?: string; 客户编号?: string; 客户名称?: string; 生产单号?: string; 款号?: string; 款式?: string; 床号?: string; 备注?: string; 明细: FSRLine[] }
+export interface FSRHeader { id: number; 单号?: string; 客户名称?: string; 仓库?: string; 日期?: string; 审核?: string; 备注?: string }
+// ---- 退仓 ----
+export interface FVRLine { 色号?: string; 颜色?: string; 尺码?: string; 数量: number; 单价?: number }
+export interface FVRCreate { 仓库: string; 入仓单号?: string; 供应商编号?: string; 供应商名称?: string; 生产单号?: string; 款号?: string; 款式?: string; 床号?: string; 备注?: string; 明细: FVRLine[] }
+export interface FVRHeader { id: number; 单号?: string; 供应商名称?: string; 仓库?: string; 日期?: string; 审核?: string; 备注?: string }
+
+export const finishedTransferApi = {
+  list: (page = 1, size = 20, keyword = "") => api.get<Paged<FTHeader>>("/finished-transfers", { params: { page, size, keyword } }).then(r => r.data),
+  get: (单号: string) => api.get<FTDetail>(`/finished-transfers/${enc(单号)}`).then(r => r.data),
+  create: (body: FTCreate) => api.post<{ 单号: string }>("/finished-transfers", body).then(r => r.data),
+  remove: (单号: string) => api.delete(`/finished-transfers/${enc(单号)}`),
+  approve: (单号: string) => api.post(`/finished-transfers/${enc(单号)}/approve`),
+  unapprove: (单号: string) => api.post(`/finished-transfers/${enc(单号)}/unapprove`),
+};
+export const finishedSalesReturnApi = {
+  list: (page = 1, size = 20, keyword = "") => api.get<Paged<FSRHeader>>("/finished-sales-returns", { params: { page, size, keyword } }).then(r => r.data),
+  create: (body: FSRCreate) => api.post<{ 单号: string }>("/finished-sales-returns", body).then(r => r.data),
+  remove: (单号: string) => api.delete(`/finished-sales-returns/${enc(单号)}`),
+  approve: (单号: string) => api.post(`/finished-sales-returns/${enc(单号)}/approve`),
+  unapprove: (单号: string) => api.post(`/finished-sales-returns/${enc(单号)}/unapprove`),
+};
+export const finishedVendorReturnApi = {
+  list: (page = 1, size = 20, keyword = "") => api.get<Paged<FVRHeader>>("/finished-vendor-returns", { params: { page, size, keyword } }).then(r => r.data),
+  create: (body: FVRCreate) => api.post<{ 单号: string }>("/finished-vendor-returns", body).then(r => r.data),
+  remove: (单号: string) => api.delete(`/finished-vendor-returns/${enc(单号)}`),
+  approve: (单号: string) => api.post(`/finished-vendor-returns/${enc(单号)}/approve`),
+  unapprove: (单号: string) => api.post(`/finished-vendor-returns/${enc(单号)}/unapprove`),
+};
