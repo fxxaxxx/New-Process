@@ -13,6 +13,9 @@ import MaterialInventoryPage from "./pages/materials/MaterialInventoryPage";
 import CuttingPage from "./pages/workshop/CuttingPage";
 import PieceworkPage from "./pages/workshop/PieceworkPage";
 import PieceworkSummaryPage from "./pages/workshop/PieceworkSummaryPage";
+import OutsourcePage from "./pages/workshop/OutsourcePage";
+import OutsourceReturnPage from "./pages/workshop/OutsourceReturnPage";
+import OutsourceReconcilePage from "./pages/workshop/OutsourceReconcilePage";
 
 export default function App() {
   return (
@@ -30,6 +33,9 @@ export default function App() {
           <Route path="cuttings" element={<CuttingPage />} />
           <Route path="piecework" element={<PieceworkPage />} />
           <Route path="piecework-summary" element={<PieceworkSummaryPage />} />
+          <Route path="outsourcing" element={<OutsourcePage />} />
+          <Route path="outsourcing-returns" element={<OutsourceReturnPage />} />
+          <Route path="outsourcing-reconcile" element={<OutsourceReconcilePage />} />
         </Route>
       </Routes>
     </BrowserRouter>

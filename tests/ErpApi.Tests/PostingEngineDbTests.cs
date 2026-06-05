@@ -88,4 +88,48 @@ public class PostingEngineDbTests(DbFixture fx)
         c.Execute("DELETE FROM [裁床总表] WHERE [裁床单号]='P4CBPOST1'");
         c.Execute("DELETE FROM [款号总表] WHERE [款号]='P4CBK'");
     }
+
+    [SkippableFact]
+    public async Task Approve_发外加工单_uses_单号_column()
+    {
+        using var c = fx.Open();
+        c.Execute("DELETE FROM [发外加工单] WHERE [单号]='P4FWPOST1'");
+        c.Execute("DELETE FROM [加工厂资料] WHERE [加工厂编号]='P4FWF'");
+        c.Execute("INSERT INTO [加工厂资料]([加工厂编号],[加工厂名称]) VALUES(N'P4FWF',N'发外过账测试厂')");
+        c.Execute("INSERT INTO [发外加工单]([单号],[加工厂编号],[审核]) VALUES(N'P4FWPOST1',N'P4FWF','0')");
+
+        var engine = new PostingEngine(Factory(), new AuditLogger());
+
+        Assert.True(await engine.ApproveAsync("发外加工单", "P4FWPOST1", "tester"));
+        Assert.Equal("1", c.ExecuteScalar<string>("SELECT [审核] FROM [发外加工单] WHERE [单号]='P4FWPOST1'"));
+        Assert.Equal("tester", c.ExecuteScalar<string>("SELECT [审核人] FROM [发外加工单] WHERE [单号]='P4FWPOST1'"));
+        Assert.False(await engine.ApproveAsync("发外加工单", "P4FWPOST1", "tester"));
+        Assert.True(await engine.UnapproveAsync("发外加工单", "P4FWPOST1", "tester"));
+        Assert.Equal("0", c.ExecuteScalar<string>("SELECT [审核] FROM [发外加工单] WHERE [单号]='P4FWPOST1'"));
+
+        c.Execute("DELETE FROM [发外加工单] WHERE [单号]='P4FWPOST1'");
+        c.Execute("DELETE FROM [加工厂资料] WHERE [加工厂编号]='P4FWF'");
+    }
+
+    [SkippableFact]
+    public async Task Approve_发外回收单_uses_单号_column()
+    {
+        using var c = fx.Open();
+        c.Execute("DELETE FROM [发外回收单] WHERE [单号]='P4FHPOST1'");
+        c.Execute("DELETE FROM [加工厂资料] WHERE [加工厂编号]='P4FHF'");
+        c.Execute("INSERT INTO [加工厂资料]([加工厂编号],[加工厂名称]) VALUES(N'P4FHF',N'回收过账测试厂')");
+        c.Execute("INSERT INTO [发外回收单]([单号],[加工厂编号],[审核]) VALUES(N'P4FHPOST1',N'P4FHF','0')");
+
+        var engine = new PostingEngine(Factory(), new AuditLogger());
+
+        Assert.True(await engine.ApproveAsync("发外回收单", "P4FHPOST1", "tester"));
+        Assert.Equal("1", c.ExecuteScalar<string>("SELECT [审核] FROM [发外回收单] WHERE [单号]='P4FHPOST1'"));
+        Assert.Equal("tester", c.ExecuteScalar<string>("SELECT [审核人] FROM [发外回收单] WHERE [单号]='P4FHPOST1'"));
+        Assert.False(await engine.ApproveAsync("发外回收单", "P4FHPOST1", "tester"));
+        Assert.True(await engine.UnapproveAsync("发外回收单", "P4FHPOST1", "tester"));
+        Assert.Equal("0", c.ExecuteScalar<string>("SELECT [审核] FROM [发外回收单] WHERE [单号]='P4FHPOST1'"));
+
+        c.Execute("DELETE FROM [发外回收单] WHERE [单号]='P4FHPOST1'");
+        c.Execute("DELETE FROM [加工厂资料] WHERE [加工厂编号]='P4FHF'");
+    }
 }
