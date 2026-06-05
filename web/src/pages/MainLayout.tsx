@@ -7,6 +7,7 @@ import {
   BuildOutlined, ShoppingOutlined, ImportOutlined, ExportOutlined, ContainerOutlined,
   ScissorOutlined, FormOutlined, BarChartOutlined,
   SendOutlined, RollbackOutlined, ReconciliationOutlined,
+  InboxOutlined, AuditOutlined,
 } from "@ant-design/icons";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { can } from "../auth/permissions";
@@ -60,6 +61,12 @@ export default function MainLayout() {
     ...(can(perms, "发外回收", "打开") ? [{ key: "/outsourcing-returns", label: "发外回收", icon: <RollbackOutlined /> }] : []),
     ...(can(perms, "发外对数", "打开") ? [{ key: "/outsourcing-reconcile", label: "发外对数", icon: <ReconciliationOutlined /> }] : []),
   ];
+  const fgChildren = [
+    ...(can(perms, "成品入仓", "打开") ? [{ key: "/finished-receipts", label: "成品入仓", icon: <InboxOutlined /> }] : []),
+    ...(can(perms, "成品出仓", "打开") ? [{ key: "/finished-issues", label: "成品出仓", icon: <ExportOutlined /> }] : []),
+    ...(can(perms, "成品盘点", "打开") ? [{ key: "/finished-stocktakes", label: "成品盘点", icon: <AuditOutlined /> }] : []),
+    ...(can(perms, "成品库存", "打开") ? [{ key: "/finished-inventory", label: "成品库存", icon: <DatabaseOutlined /> }] : []),
+  ];
   const items = [
     { key: "base", label: "基础资料", icon: <DatabaseOutlined />, children },
     ...(bizChildren.length
@@ -67,6 +74,7 @@ export default function MainLayout() {
     ...(matChildren.length ? [{ key: "mat", label: "物料管理", icon: <ShoppingOutlined />, children: matChildren }] : []),
     ...(wsChildren.length ? [{ key: "ws", label: "生产车间", icon: <ScissorOutlined />, children: wsChildren }] : []),
     ...(osChildren.length ? [{ key: "os", label: "发外加工", icon: <SendOutlined />, children: osChildren }] : []),
+    ...(fgChildren.length ? [{ key: "fg", label: "成品仓储", icon: <InboxOutlined />, children: fgChildren }] : []),
   ];
 
   const logout = () => {
@@ -130,6 +138,10 @@ export default function MainLayout() {
               : loc.pathname.startsWith("/outsourcing-reconcile") ? "发外对数"
               : loc.pathname.startsWith("/outsourcing-returns") ? "发外回收"
               : loc.pathname.startsWith("/outsourcing") ? "发外派工"
+              : loc.pathname.startsWith("/finished-receipts") ? "成品入仓"
+              : loc.pathname.startsWith("/finished-issues") ? "成品出仓"
+              : loc.pathname.startsWith("/finished-stocktakes") ? "成品盘点"
+              : loc.pathname.startsWith("/finished-inventory") ? "成品库存"
               : "基础资料"}
           </span>
           <span style={{ display: "flex", alignItems: "center", gap: 16 }}>
