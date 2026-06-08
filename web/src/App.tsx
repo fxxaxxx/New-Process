@@ -32,6 +32,9 @@ import SalesShipmentPage from "./pages/sales/SalesShipmentPage";
 import SalesReturnPage from "./pages/sales/SalesReturnPage";
 import SalesReceiptPage from "./pages/sales/SalesReceiptPage";
 import ReceivablesPage from "./pages/sales/ReceivablesPage";
+import PurchasePaymentPage from "./pages/payables/PurchasePaymentPage";
+import OutsourcePaymentPage from "./pages/payables/OutsourcePaymentPage";
+import PayablesPage from "./pages/payables/PayablesPage";
 
 export default function App() {
   return (
@@ -68,6 +71,9 @@ export default function App() {
           <Route path="sales-returns" element={<SalesReturnPage />} />
           <Route path="sales-receipts" element={<SalesReceiptPage />} />
           <Route path="receivables" element={<ReceivablesPage />} />
+          <Route path="purchase-payments" element={<PurchasePaymentPage />} />
+          <Route path="outsource-payments" element={<OutsourcePaymentPage />} />
+          <Route path="payables" element={<PayablesPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
