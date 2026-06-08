@@ -65,6 +65,7 @@ builder.Services.AddScoped<ErpApi.Features.Payables.PayablesService>();
 builder.Services.AddScoped<ErpApi.Features.Payroll.PieceworkPayrollService>();
 builder.Services.AddScoped<ErpApi.Features.Payroll.AbsenceService>();
 builder.Services.AddScoped<ErpApi.Features.Payroll.AttendanceService>();
+builder.Services.AddScoped<ErpApi.Features.Payroll.WageTemplateService>();
 
 // JWT 认证（密钥来自环境变量，无硬编码）
 var jwtKey = Environment.GetEnvironmentVariable(JwtTokenService.KeyEnvVar)
