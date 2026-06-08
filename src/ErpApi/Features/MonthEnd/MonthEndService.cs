@@ -64,7 +64,7 @@ VALUES(@年月,@仓库,@口径,@款号,@款式,@色号,@颜色,@尺码,@物料�
     private static string NormalizeKind(string 口径)
     {
         var k = (口径 ?? "").Trim();
-        if (k != "成品" && k != "半成品") throw new ArgumentException("口径须为 成品 或 半成品。");
+        if (k != "成品" && k != "半成品" && k != "物料") throw new ArgumentException("口径须为 成品 / 半成品 / 物料。");
         return k;
     }
 
@@ -80,7 +80,8 @@ VALUES(@年月,@仓库,@口径,@款号,@款式,@色号,@颜色,@尺码,@物料�
 
         // 目标仓库：传仓库=单仓；否则该口径当月(及以前)有审核流水的全部仓库
         List<string> whs = string.IsNullOrWhiteSpace(req.仓库)
-            ? (await c.QueryAsync<string>(口径 == "成品" ? 成品仓库Sql : 半成品仓库Sql, new { 下月初 }, tx)).ToList()
+            ? (await c.QueryAsync<string>(
+                口径 == "成品" ? 成品仓库Sql : 口径 == "半成品" ? 半成品仓库Sql : 物料仓库Sql, new { 下月初 }, tx)).ToList()
             : [req.仓库.Trim()];
         if (whs.Count == 0) { tx.Commit(); return new MonthEndCloseResult { 结数 = 0, 仓库 = whs }; }
 
@@ -93,7 +94,7 @@ VALUES(@年月,@仓库,@口径,@款号,@款式,@色号,@颜色,@尺码,@物料�
             throw new InvalidOperationException($"以下仓库 {req.年月} 该口径已结，请先反月结：{string.Join("、", conflicts)}");
 
         int 结数 = 0;
-        var ledger = 口径 == "成品" ? 成品账本Sql : 半成品账本Sql;
+        var ledger = 口径 == "成品" ? 成品账本Sql : 口径 == "半成品" ? 半成品账本Sql : 物料账本Sql;
         foreach (var wh in whs)
         {
             var rows = (await c.QueryAsync<MonthEndRow>(ledger, new { 仓 = wh, 月初, 下月初 }, tx)).ToList();
@@ -130,6 +131,34 @@ SELECT DISTINCT 仓库 FROM (
     SELECT d.仓库 FROM [半成品入仓明细单] d JOIN [半成品入仓单] h ON h.单号=d.单号 WHERE ISNULL(h.审核,'0')='1' AND d.[日期] < @下月初
     UNION SELECT d.仓库 FROM [半成品领料明细单] d JOIN [半成品领料单] h ON h.单号=d.单号 WHERE ISNULL(h.审核,'0')='1' AND d.[日期] < @下月初
     UNION SELECT d.仓库 FROM [半成品盘点明细单] d JOIN [半成品盘点单] h ON h.单号=d.单号 WHERE ISNULL(h.审核,'0')='1' AND d.[日期] < @下月初
+) t WHERE 仓库 IS NOT NULL AND 仓库 <> N'';";
+
+    // ---- 物料(原料)账本：物料编号×仓库(忽略颜色，与 MaterialInventoryService 一致)。审核在单头→JOIN 单头。----
+    private const string 物料账本Sql = @"
+WITH 账本 AS (
+    SELECT d.物料编号,d.物料名称,d.规格,d.单位,d.[日期], ISNULL(d.数量,0)    AS 签
+      FROM [采购入仓明细单] d JOIN [采购入仓单] h ON h.单号=d.单号 WHERE d.仓库=@仓 AND ISNULL(h.审核,'0')='1'
+    UNION ALL
+    SELECT d.物料编号,d.物料名称,d.规格,d.单位,d.[日期], ISNULL(d.数量,0)
+      FROM [退料明细单] d JOIN [退料单] h ON h.单号=d.单号 WHERE d.仓库=@仓 AND ISNULL(h.审核,'0')='1'
+    UNION ALL
+    SELECT d.物料编号,d.物料名称,d.规格,d.单位,d.[日期], ISNULL(d.数量,0)*-1
+      FROM [领料明细单] d JOIN [领料单] h ON h.单号=d.单号 WHERE d.仓库=@仓 AND ISNULL(h.审核,'0')='1'
+)
+SELECT 物料编号, MAX(物料名称) AS 物料名称, MAX(规格) AS 规格, MAX(单位) AS 单位,
+       SUM(CASE WHEN [日期] <  @月初 THEN 签 ELSE 0 END)                                  AS 期初,
+       SUM(CASE WHEN [日期] >= @月初 AND [日期] < @下月初 AND 签 > 0 THEN 签  ELSE 0 END) AS 本期入,
+       SUM(CASE WHEN [日期] >= @月初 AND [日期] < @下月初 AND 签 < 0 THEN -签 ELSE 0 END) AS 本期出
+FROM 账本
+GROUP BY 物料编号
+HAVING SUM(CASE WHEN [日期] < @下月初 THEN 签 ELSE 0 END) <> 0
+    OR SUM(CASE WHEN [日期] >= @月初 AND [日期] < @下月初 THEN ABS(签) ELSE 0 END) > 0;";
+
+    private const string 物料仓库Sql = @"
+SELECT DISTINCT 仓库 FROM (
+    SELECT d.仓库 FROM [采购入仓明细单] d JOIN [采购入仓单] h ON h.单号=d.单号 WHERE ISNULL(h.审核,'0')='1' AND d.[日期] < @下月初
+    UNION SELECT d.仓库 FROM [退料明细单] d JOIN [退料单] h ON h.单号=d.单号 WHERE ISNULL(h.审核,'0')='1' AND d.[日期] < @下月初
+    UNION SELECT d.仓库 FROM [领料明细单] d JOIN [领料单] h ON h.单号=d.单号 WHERE ISNULL(h.审核,'0')='1' AND d.[日期] < @下月初
 ) t WHERE 仓库 IS NOT NULL AND 仓库 <> N'';";
 
     public async Task<int> ReopenAsync(MonthEndReopenRequest req, string user)

@@ -69,7 +69,7 @@ export default function MonthEnd() {
       extra={
         <Space wrap>
           <Select value={kind} onChange={(v) => setKind(v as Kind)} style={{ width: 110 }}
-            options={[{ value: "成品", label: "成品" }, { value: "半成品", label: "半成品" }]} />
+            options={[{ value: "成品", label: "成品" }, { value: "半成品", label: "半成品" }, { value: "物料", label: "物料" }]} />
           <DatePicker picker="month" value={month} onChange={setMonth} allowClear={false} />
           <Input placeholder="仓库(空=全部)" allowClear value={仓库}
             onChange={(e) => set仓库(e.target.value)} style={{ width: 160 }} />
