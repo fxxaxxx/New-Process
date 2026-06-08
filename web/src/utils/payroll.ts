@@ -10,3 +10,10 @@ export function toYearMonth(d: { year: () => number; month: () => number } | nul
 export function netAttendance(应出勤: number, 缺勤: number): number {
   return 应出勤 - 缺勤;
 }
+
+// 工资模板明细校验:每行台头项目非空且无重复
+export function validWageItems(items: { 台头项目?: string }[]): boolean {
+  const names = items.map(i => (i.台头项目 ?? "").trim());
+  if (names.some(n => n === "")) return false;
+  return new Set(names).size === names.length;
+}

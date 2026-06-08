@@ -38,6 +38,7 @@ import PayablesPage from "./pages/payables/PayablesPage";
 import PieceworkPayrollPage from "./pages/payroll/PieceworkPayrollPage";
 import AbsencePage from "./pages/payroll/AbsencePage";
 import AttendancePage from "./pages/payroll/AttendancePage";
+import WageTemplatePage from "./pages/payroll/WageTemplatePage";
 
 export default function App() {
   return (
@@ -80,6 +81,7 @@ export default function App() {
           <Route path="payroll/piecework" element={<PieceworkPayrollPage />} />
           <Route path="payroll/absences" element={<AbsencePage />} />
           <Route path="payroll/attendance" element={<AttendancePage />} />
+          <Route path="payroll/wage-templates" element={<WageTemplatePage />} />
         </Route>
       </Routes>
     </BrowserRouter>

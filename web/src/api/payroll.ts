@@ -31,3 +31,19 @@ export const attendanceApi = {
   monthly: (月份: string, 应出勤天数: number, 部门编号?: string) =>
     api.get<AttendanceMonthlyRow[]>("/payroll/attendance", { params: { 月份, 应出勤天数, 部门编号 } }).then(r => r.data),
 };
+
+const enc = encodeURIComponent;
+
+export interface WageTemplateItem { 序号?: number; 台头项目?: string; 类型?: string; 公式?: string }
+export interface WageTemplateHeader { 模板编号?: string; 模板名称?: string; 项目数: number }
+export interface WageTemplateDetail { 模板编号?: string; 模板名称?: string; 明细: WageTemplateItem[] }
+export interface WageTemplateSave { 模板编号: string; 模板名称?: string; 明细: WageTemplateItem[] }
+
+export const wageTemplateApi = {
+  list: (keyword?: string) =>
+    api.get<WageTemplateHeader[]>("/payroll/wage-templates", { params: { keyword } }).then(r => r.data),
+  get: (模板编号: string) =>
+    api.get<WageTemplateDetail>(`/payroll/wage-templates/${enc(模板编号)}`).then(r => r.data),
+  save: (body: WageTemplateSave) => api.post("/payroll/wage-templates", body),
+  remove: (模板编号: string) => api.delete(`/payroll/wage-templates/${enc(模板编号)}`),
+};
