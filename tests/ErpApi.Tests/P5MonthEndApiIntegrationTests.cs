@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Linq;
 using System.Text.Json;
 using Dapper;
 using ErpApi.Infrastructure.Security;
@@ -100,5 +101,60 @@ public class P5MonthEndApiIntegrationTests(DbFixture fx)
             Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);
         }
         finally { Clean(); }
+    }
+
+    private void SeedPermsPrice(string user, bool price)
+    {
+        using var c = new SqlConnection(fx.ConnectionString); c.Open();
+        c.Execute("DELETE FROM [userbqrpower] WHERE [用户]=@user AND [菜单]=N'库存月结'", new { user });
+        c.Execute(@"INSERT INTO [userbqrpower]([用户],[菜单],[打开],[删除],[功能],[单价]) VALUES(@user,N'库存月结',1,1,1,@price)",
+            new { user, price });
+    }
+
+    private const string costWh = "ME_API成本仓";
+    private void SeedCostDocs()
+    {
+        using var c = new SqlConnection(fx.ConnectionString); c.Open();
+        CleanCost();
+        c.Execute("IF NOT EXISTS (SELECT 1 FROM [物料资料] WHERE [物料编号]=N'MMP1') INSERT INTO [物料资料]([物料编号],[物料名称],[规格],[单位]) VALUES(N'MMP1',N'保密料',N'规Y',N'KG')");
+        c.Execute("INSERT INTO [采购入仓单]([单号],[日期],[仓库],[审核]) VALUES(N'CSTAPI',N'2026-03-10',@wh,'1')", new { wh = costWh });
+        c.Execute("INSERT INTO [采购入仓明细单]([单号],[日期],[仓库],[物料编号],[物料名称],[规格],[单位],[数量],[单价],[金额]) VALUES(N'CSTAPI',N'2026-03-10',@wh,N'MMP1',N'保密料',N'规Y',N'KG',10,5,50)", new { wh = costWh });
+    }
+    private void CleanCost()
+    {
+        using var c = new SqlConnection(fx.ConnectionString); c.Open();
+        c.Execute("DELETE FROM [采购入仓明细单] WHERE [仓库]=@wh", new { wh = costWh });
+        c.Execute("DELETE FROM [采购入仓单] WHERE [仓库]=@wh", new { wh = costWh });
+        c.Execute("DELETE FROM [结存快照表] WHERE [仓库]=@wh", new { wh = costWh });
+        c.Execute("DELETE FROM [物料资料] WHERE [物料编号]=N'MMP1'");
+    }
+
+    [SkippableFact]
+    public async Task Report_物料金额_按单价权限脱敏()
+    {
+        using var app = Factory();
+        SeedCostDocs();
+        try
+        {
+            SeedPermsPrice("me_cost", price: true);
+            var client = Client(app, "me_cost");
+            var close = await client.PostAsJsonAsync("/api/month-end/close", new { 年月 = "202603", 口径 = "物料", 仓库 = costWh });
+            Assert.Equal(HttpStatusCode.OK, close.StatusCode);
+
+            var url = $"/api/month-end?{Uri.EscapeDataString("年月")}=202603&{Uri.EscapeDataString("口径")}={Uri.EscapeDataString("物料")}&{Uri.EscapeDataString("仓库")}={Uri.EscapeDataString(costWh)}";
+
+            var withPrice = await client.GetFromJsonAsync<JsonElement>(url);
+            var r0 = withPrice.EnumerateArray().First();
+            Assert.Equal(JsonValueKind.Number, r0.GetProperty("加权单价").ValueKind);
+            Assert.Equal(5m, r0.GetProperty("加权单价").GetDecimal());
+
+            SeedPermsPrice("me_noprice", price: false);
+            var noPrice = await Client(app, "me_noprice").GetFromJsonAsync<JsonElement>(url);
+            var n0 = noPrice.EnumerateArray().First();
+            Assert.Equal(JsonValueKind.Null, n0.GetProperty("加权单价").ValueKind);
+            Assert.Equal(JsonValueKind.Null, n0.GetProperty("结存金额").ValueKind);
+            Assert.Equal(10m, n0.GetProperty("结存").GetDecimal());
+        }
+        finally { CleanCost(); }
     }
 }

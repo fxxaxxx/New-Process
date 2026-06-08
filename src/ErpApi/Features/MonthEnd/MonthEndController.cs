@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 namespace ErpApi.Features.MonthEnd;
 
-// 库存月结 REST。打开=看月报/已结月份、功能=执行月结(close)、删除=反月结(reopen)。仅数量、无脱敏。
+// 库存月结 REST。打开=看月报/已结月份、功能=月结、删除=反月结。物料金额列缺 单价 权限时脱敏。
 [ApiController]
 [Authorize]
 [Route("api/month-end")]
@@ -27,8 +27,13 @@ public sealed class MonthEndController(
         [FromQuery(Name = "仓库")] string? 仓库 = null)
     {
         if (!await AllowAsync(PermissionAction.打开)) return Forbid();
-        try { return Ok(await svc.ReportAsync(年月, 口径, 仓库)); }
+        IReadOnlyList<MonthEndRow> rows;
+        try { rows = await svc.ReportAsync(年月, 口径, 仓库); }
         catch (ArgumentException ex) { return BadRequest(new { 消息 = ex.Message }); }
+        if (!await AllowAsync(PermissionAction.单价))
+            foreach (var r in rows)
+            { r.期初金额 = null; r.本期入金额 = null; r.本期出金额 = null; r.结存金额 = null; r.加权单价 = null; }
+        return Ok(rows);
     }
 
     [HttpGet("periods")]
