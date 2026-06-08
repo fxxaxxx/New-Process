@@ -47,3 +47,25 @@ export const wageTemplateApi = {
   save: (body: WageTemplateSave) => api.post("/payroll/wage-templates", body),
   remove: (模板编号: string) => api.delete(`/payroll/wage-templates/${enc(模板编号)}`),
 };
+
+export interface PayrollSummaryRow {
+  工资表编号?: string; 月份?: string; 部门编号?: string; 模板编号?: string;
+  基本工资?: number; 计件工资?: number; 应发合计?: number; 应扣合计?: number; 实发合计?: number;
+}
+export interface PayrollItemCol { 列名?: string; 台头项目?: string; 类型?: string }
+export interface PayrollDetail {
+  单头: PayrollSummaryRow | null;
+  项目: PayrollItemCol[];
+  明细: Record<string, unknown>[];
+}
+export interface PayrollGenerate { 月份: string; 部门编号: string; 模板编号: string; 应出勤天数: number }
+
+export const payrollApi = {
+  generate: (body: PayrollGenerate) =>
+    api.post<{ 工资表编号: string }>("/payroll/wages", body).then(r => r.data),
+  list: (月份?: string, 部门编号?: string) =>
+    api.get<PayrollSummaryRow[]>("/payroll/wages", { params: { 月份, 部门编号 } }).then(r => r.data),
+  detail: (工资表编号: string) =>
+    api.get<PayrollDetail>(`/payroll/wages/${enc(工资表编号)}`).then(r => r.data),
+  remove: (工资表编号: string) => api.delete(`/payroll/wages/${enc(工资表编号)}`),
+};

@@ -98,6 +98,7 @@ export default function MainLayout() {
     ...(can(perms, "缺勤登记", "打开") ? [{ key: "/payroll/absences", label: "缺勤登记", icon: <CalendarOutlined /> }] : []),
     ...(can(perms, "出勤汇总", "打开") ? [{ key: "/payroll/attendance", label: "出勤汇总", icon: <ScheduleOutlined /> }] : []),
     ...(can(perms, "工资模板", "打开") ? [{ key: "/payroll/wage-templates", label: "工资模板", icon: <ProfileOutlined /> }] : []),
+    ...(can(perms, "工资表", "打开") ? [{ key: "/payroll/wages", label: "工资表", icon: <AccountBookOutlined /> }] : []),
   ];
   const items = [
     { key: "base", label: "基础资料", icon: <DatabaseOutlined />, children },
@@ -198,6 +199,7 @@ export default function MainLayout() {
               : loc.pathname.startsWith("/payroll/absences") ? "缺勤登记"
               : loc.pathname.startsWith("/payroll/attendance") ? "出勤汇总"
               : loc.pathname.startsWith("/payroll/wage-templates") ? "工资模板"
+              : loc.pathname.startsWith("/payroll/wages") ? "工资表"
               : "基础资料"}
           </span>
           <span style={{ display: "flex", alignItems: "center", gap: 16 }}>
