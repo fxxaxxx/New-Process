@@ -1,0 +1,104 @@
+using System.Net;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Text.Json;
+using Dapper;
+using ErpApi.Infrastructure.Security;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Configuration;
+using Xunit;
+
+[Collection("db")]
+public class P5MonthEndApiIntegrationTests(DbFixture fx)
+{
+    private static IConfiguration JwtCfg() => new ConfigurationBuilder().AddInMemoryCollection(
+        new Dictionary<string, string?>
+        { ["Erp:Jwt:Issuer"] = "ErpApi", ["Erp:Jwt:Audience"] = "ErpClient", ["Erp:Jwt:ExpireMinutes"] = "60" }).Build();
+
+    private WebApplicationFactory<Program> Factory()
+    {
+        Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
+        Environment.SetEnvironmentVariable("ERP_DB", fx.ConnectionString);
+        Environment.SetEnvironmentVariable("ERP_JWT_KEY", "test-key-please-change-0123456789abcdef");
+        return new WebApplicationFactory<Program>();
+    }
+    private static string Token(string user) => new JwtTokenService(JwtCfg()).Issue(user);
+
+    private void SeedPerms(string user, bool open = true, bool del = true, bool func = true)
+    {
+        using var c = new SqlConnection(fx.ConnectionString); c.Open();
+        c.Execute("DELETE FROM [userbqrpower] WHERE [用户]=@user AND [菜单]=N'库存月结'", new { user });
+        c.Execute(@"INSERT INTO [userbqrpower]([用户],[菜单],[打开],[删除],[功能]) VALUES(@user,N'库存月结',@open,@del,@func)",
+            new { user, open, del, func });
+    }
+    private HttpClient Client(WebApplicationFactory<Program> app, string user)
+    {
+        var client = app.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token(user));
+        return client;
+    }
+
+    private const string wh = "ME_API仓";
+    private const string 年月 = "202603";
+    private void SeedDocs()
+    {
+        using var c = new SqlConnection(fx.ConnectionString); c.Open();
+        Clean();
+        c.Execute("IF NOT EXISTS (SELECT 1 FROM [款号总表] WHERE [款号]=N'MEK') INSERT INTO [款号总表]([款号],[款式]) VALUES(N'MEK',N'演示')");
+        c.Execute("INSERT INTO [成品入仓单]([单号],[日期],[仓库],[审核]) VALUES(N'APIR',@d,@wh,'1')", new { d = "2026-03-10", wh });
+        c.Execute("INSERT INTO [成品入仓明细单]([单号],[日期],[仓库],[款号],[款式],[色号],[颜色],[尺码],[数量],[审核]) VALUES(N'APIR',@d,@wh,N'MEK',N'演示',N'01',N'黑',N'M',40,'1')", new { d = "2026-03-10", wh });
+    }
+    private void Clean()
+    {
+        using var c = new SqlConnection(fx.ConnectionString); c.Open();
+        c.Execute("DELETE FROM [成品入仓明细单] WHERE [仓库]=@wh", new { wh });
+        c.Execute("DELETE FROM [成品入仓单] WHERE [仓库]=@wh", new { wh });
+        c.Execute("DELETE FROM [结存快照表] WHERE [仓库]=@wh", new { wh });
+        c.Execute("DELETE FROM [款号总表] WHERE [款号]=N'MEK'");
+    }
+
+    [SkippableFact]
+    public async Task Close_without_func_forbidden()
+    {
+        using var app = Factory();
+        SeedDocs();
+        SeedPerms("me_nofunc", open: true, del: false, func: false);
+        try
+        {
+            var resp = await Client(app, "me_nofunc").PostAsJsonAsync("/api/month-end/close",
+                new { 年月, 口径 = "成品", 仓库 = wh });
+            Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
+        }
+        finally { Clean(); }
+    }
+
+    [SkippableFact]
+    public async Task Close_report_reopen_lifecycle()
+    {
+        using var app = Factory();
+        SeedDocs();
+        SeedPerms("me_full");
+        var client = Client(app, "me_full");
+        try
+        {
+            var close = await client.PostAsJsonAsync("/api/month-end/close", new { 年月, 口径 = "成品", 仓库 = wh });
+            Assert.Equal(HttpStatusCode.OK, close.StatusCode);
+
+            var url = $"/api/month-end?{Uri.EscapeDataString("年月")}={年月}&{Uri.EscapeDataString("口径")}={Uri.EscapeDataString("成品")}&{Uri.EscapeDataString("仓库")}={Uri.EscapeDataString(wh)}";
+            var report = await client.GetFromJsonAsync<JsonElement>(url);
+            decimal sum = 0; foreach (var r in report.EnumerateArray()) sum += r.GetProperty("结存").GetDecimal();
+            Assert.Equal(40m, sum);
+
+            var dup = await client.PostAsJsonAsync("/api/month-end/close", new { 年月, 口径 = "成品", 仓库 = wh });
+            Assert.Equal(HttpStatusCode.Conflict, dup.StatusCode);
+
+            var reopen = await client.PostAsJsonAsync("/api/month-end/reopen", new { 年月, 口径 = "成品", 仓库 = wh });
+            Assert.Equal(HttpStatusCode.OK, reopen.StatusCode);
+
+            var bad = await client.PostAsJsonAsync("/api/month-end/close", new { 年月 = "2026", 口径 = "成品", 仓库 = wh });
+            Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);
+        }
+        finally { Clean(); }
+    }
+}
