@@ -9,6 +9,7 @@ import {
   SendOutlined, RollbackOutlined, ReconciliationOutlined,
   InboxOutlined, AuditOutlined,
   SwapOutlined, UndoOutlined, CalendarOutlined,
+  MoneyCollectOutlined,
 } from "@ant-design/icons";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { can } from "../auth/permissions";
@@ -83,6 +84,8 @@ export default function MainLayout() {
   const saleChildren = [
     ...(can(perms, "销售出货", "打开") ? [{ key: "/sales-shipments", label: "销售出货", icon: <ShoppingCartOutlined /> }] : []),
     ...(can(perms, "销售退货", "打开") ? [{ key: "/sales-returns", label: "销售退货", icon: <RollbackOutlined /> }] : []),
+    ...(can(perms, "销售收款", "打开") ? [{ key: "/sales-receipts", label: "销售收款", icon: <MoneyCollectOutlined /> }] : []),
+    ...(can(perms, "应收对账", "打开") ? [{ key: "/receivables", label: "应收对账", icon: <ReconciliationOutlined /> }] : []),
   ];
   const items = [
     { key: "base", label: "基础资料", icon: <DatabaseOutlined />, children },
@@ -172,6 +175,8 @@ export default function MainLayout() {
               : loc.pathname.startsWith("/month-end") ? "库存月结"
               : loc.pathname.startsWith("/sales-shipments") ? "销售出货"
               : loc.pathname.startsWith("/sales-returns") ? "销售退货"
+              : loc.pathname.startsWith("/sales-receipts") ? "销售收款"
+              : loc.pathname.startsWith("/receivables") ? "应收对账"
               : "基础资料"}
           </span>
           <span style={{ display: "flex", alignItems: "center", gap: 16 }}>

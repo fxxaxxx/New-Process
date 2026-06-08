@@ -14,6 +14,15 @@ export interface SRHeader { id: number; 单号?: string; 销售单号?: string; 
 export interface SRDetail { 单头: SRHeader | null; 明细: { id: number; 销售单号?: string; 物料编号?: string; 物料名称?: string; 规格?: string; 颜色?: string; 单位?: string; 数量?: number; 库存单价?: number | null; 库存金额?: number | null; 单价?: number | null; 金额?: number | null; 备注?: string }[] }
 export interface SRBasisRow { 物料编号?: string; 物料名称?: string; 规格?: string; 颜色?: string; 单位?: string; 数量: number; 单价?: number | null }
 
+// ---- 销售收款 ----
+export interface SKLine { 客户编号?: string; 客户名称?: string; 收款金额: number }
+export interface SKCreate { 出仓单号?: string; 备注?: string; 明细: SKLine[] }
+export interface SKHeader { id: number; 单号?: string; 出仓单号?: string; 日期?: string; 金额?: number | null; 审核?: string; 审核人?: string; 备注?: string }
+export interface SKDetail { 单头: SKHeader | null; 明细: { id: number; 客户编号?: string; 客户名称?: string; 货款金额?: number | null; 收款金额?: number | null; 应收金额?: number | null; 备注?: string }[] }
+
+// ---- 应收对账 ----
+export interface ReceivableRow { 客户编号?: string; 客户名称?: string; 出货金额: number; 收款金额: number; 退货金额: number; 应收余额: number }
+
 const enc = encodeURIComponent;
 export const salesShipmentApi = {
   list: (page = 1, size = 20, keyword = "") => api.get<Paged<SSHeader>>("/sales-shipments", { params: { page, size, keyword } }).then(r => r.data),
@@ -31,4 +40,15 @@ export const salesReturnApi = {
   remove: (单号: string) => api.delete(`/sales-returns/${enc(单号)}`),
   approve: (单号: string) => api.post(`/sales-returns/${enc(单号)}/approve`),
   unapprove: (单号: string) => api.post(`/sales-returns/${enc(单号)}/unapprove`),
+};
+export const salesReceiptApi = {
+  list: (page = 1, size = 20, keyword = "") => api.get<Paged<SKHeader>>("/sales-receipts", { params: { page, size, keyword } }).then(r => r.data),
+  get: (单号: string) => api.get<SKDetail>(`/sales-receipts/${enc(单号)}`).then(r => r.data),
+  create: (body: SKCreate) => api.post<{ 单号: string }>("/sales-receipts", body).then(r => r.data),
+  remove: (单号: string) => api.delete(`/sales-receipts/${enc(单号)}`),
+  approve: (单号: string) => api.post(`/sales-receipts/${enc(单号)}/approve`),
+  unapprove: (单号: string) => api.post(`/sales-receipts/${enc(单号)}/unapprove`),
+};
+export const receivablesApi = {
+  list: (客户编号?: string) => api.get<ReceivableRow[]>("/receivables", { params: { 客户编号 } }).then(r => r.data),
 };
