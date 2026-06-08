@@ -5,3 +5,8 @@ export function toYearMonth(d: { year: () => number; month: () => number } | nul
   const m = d.month() + 1;
   return `${y}${String(m).padStart(2, "0")}`;
 }
+
+// 实出勤 = 应出勤 - 缺勤
+export function netAttendance(应出勤: number, 缺勤: number): number {
+  return 应出勤 - 缺勤;
+}

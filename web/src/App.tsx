@@ -36,6 +36,8 @@ import PurchasePaymentPage from "./pages/payables/PurchasePaymentPage";
 import OutsourcePaymentPage from "./pages/payables/OutsourcePaymentPage";
 import PayablesPage from "./pages/payables/PayablesPage";
 import PieceworkPayrollPage from "./pages/payroll/PieceworkPayrollPage";
+import AbsencePage from "./pages/payroll/AbsencePage";
+import AttendancePage from "./pages/payroll/AttendancePage";
 
 export default function App() {
   return (
@@ -76,6 +78,8 @@ export default function App() {
           <Route path="outsource-payments" element={<OutsourcePaymentPage />} />
           <Route path="payables" element={<PayablesPage />} />
           <Route path="payroll/piecework" element={<PieceworkPayrollPage />} />
+          <Route path="payroll/absences" element={<AbsencePage />} />
+          <Route path="payroll/attendance" element={<AttendancePage />} />
         </Route>
       </Routes>
     </BrowserRouter>
