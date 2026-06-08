@@ -59,6 +59,7 @@ builder.Services.AddScoped<ErpApi.Features.Sales.SalesShipmentService>();
 builder.Services.AddScoped<ErpApi.Features.Sales.SalesReturnService>();
 builder.Services.AddScoped<ErpApi.Features.Sales.SalesReceiptService>();
 builder.Services.AddScoped<ErpApi.Features.Sales.ReceivablesService>();
+builder.Services.AddScoped<ErpApi.Features.Payables.PurchasePaymentService>();
 
 // JWT 认证（密钥来自环境变量，无硬编码）
 var jwtKey = Environment.GetEnvironmentVariable(JwtTokenService.KeyEnvVar)
