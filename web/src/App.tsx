@@ -30,6 +30,8 @@ import SemiInventoryPage from "./pages/warehouse/SemiInventoryPage";
 import MonthEnd from "./pages/warehouse/MonthEnd";
 import SalesShipmentPage from "./pages/sales/SalesShipmentPage";
 import SalesReturnPage from "./pages/sales/SalesReturnPage";
+import SalesReceiptPage from "./pages/sales/SalesReceiptPage";
+import ReceivablesPage from "./pages/sales/ReceivablesPage";
 
 export default function App() {
   return (
@@ -64,6 +66,8 @@ export default function App() {
           <Route path="month-end" element={<MonthEnd />} />
           <Route path="sales-shipments" element={<SalesShipmentPage />} />
           <Route path="sales-returns" element={<SalesReturnPage />} />
+          <Route path="sales-receipts" element={<SalesReceiptPage />} />
+          <Route path="receivables" element={<ReceivablesPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
