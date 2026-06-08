@@ -241,4 +241,46 @@ public class P5MonthEndApiIntegrationTests(DbFixture fx)
             c.Execute("DELETE FROM [userbqrpower] WHERE [用户]=N'pl_semi'");
         }
     }
+
+    [SkippableFact]
+    public async Task 成品_月结后锁期_审核被拒()
+    {
+        using var app = Factory();
+        const string wh = "PL_API成品仓";
+        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open();
+            c.Execute("DELETE FROM [成品入仓明细单] WHERE [仓库]=@wh", new { wh });
+            c.Execute("DELETE FROM [成品入仓单] WHERE [仓库]=@wh", new { wh });
+            c.Execute("DELETE FROM [结存快照表] WHERE [仓库]=@wh", new { wh });
+            c.Execute("IF NOT EXISTS (SELECT 1 FROM [款号总表] WHERE [款号]=N'PLK1') INSERT INTO [款号总表]([款号],[款式]) VALUES(N'PLK1',N'锁款')");
+            c.Execute("DELETE FROM [userbqrpower] WHERE [用户]=N'pl_fin'");
+            c.Execute(@"INSERT INTO [userbqrpower]([用户],[菜单],[打开],[保存],[删除],[审核],[反审核],[功能],[单价])
+                        VALUES(N'pl_fin',N'成品入仓',1,1,1,1,1,1,1),(N'pl_fin',N'库存月结',1,1,1,1,1,1,1)");
+        }
+        var client = Client(app, "pl_fin");
+        var ym = DateTime.Now.ToString("yyyyMM");
+        string? rk = null;
+        try
+        {
+            // 款号/款式在单头；明细仅 色号/颜色/尺码/数量/单价
+            var body = new { 仓库 = wh, 款号 = "PLK1", 款式 = "锁款", 明细 = new[] { new { 色号 = "01", 颜色 = "黑", 尺码 = "M", 数量 = 10, 单价 = 5 } } };
+            var cr = await client.PostAsJsonAsync("/api/finished-receipts", body);
+            Assert.Equal(HttpStatusCode.Created, cr.StatusCode);
+            rk = (await cr.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("单号").GetString();
+            Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/api/finished-receipts/{rk}/approve", null)).StatusCode);
+
+            Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync("/api/month-end/close", new { 年月 = ym, 口径 = "成品", 仓库 = wh })).StatusCode);
+
+            Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsync($"/api/finished-receipts/{rk}/unapprove", null)).StatusCode);
+            Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync("/api/finished-receipts", body)).StatusCode);
+        }
+        finally
+        {
+            using var c = new SqlConnection(fx.ConnectionString); c.Open();
+            c.Execute("DELETE FROM [结存快照表] WHERE [仓库]=@wh", new { wh });
+            c.Execute("DELETE FROM [成品入仓明细单] WHERE [仓库]=@wh", new { wh });
+            c.Execute("DELETE FROM [成品入仓单] WHERE [仓库]=@wh", new { wh });
+            c.Execute("DELETE FROM [款号总表] WHERE [款号]=N'PLK1'");
+            c.Execute("DELETE FROM [userbqrpower] WHERE [用户]=N'pl_fin'");
+        }
+    }
 }
