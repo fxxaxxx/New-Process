@@ -238,6 +238,50 @@ public class MonthEndServiceDbTests(DbFixture fx)
         finally { Clean成品(c, wh); }
     }
 
+    private static void Clean物料(Microsoft.Data.SqlClient.SqlConnection c, string wh)
+    {
+        c.Execute("DELETE FROM [采购入仓明细单] WHERE [仓库]=@wh", new { wh });
+        c.Execute("DELETE FROM [采购入仓单]   WHERE [仓库]=@wh", new { wh });
+        c.Execute("DELETE FROM [领料明细单]   WHERE [仓库]=@wh", new { wh });
+        c.Execute("DELETE FROM [领料单]       WHERE [仓库]=@wh", new { wh });
+        c.Execute("DELETE FROM [结存快照表]   WHERE [仓库]=@wh", new { wh });
+        c.Execute("DELETE FROM [物料资料]     WHERE [物料编号]=N'MM1'");
+    }
+    private static void Seed物料MM1(Microsoft.Data.SqlClient.SqlConnection c)
+    {
+        c.Execute("IF NOT EXISTS (SELECT 1 FROM [物料资料] WHERE [物料编号]=N'MM1') INSERT INTO [物料资料]([物料编号],[物料名称],[规格],[单位]) VALUES(N'MM1',N'原料甲',N'规X',N'KG')");
+    }
+
+    [SkippableFact]
+    public async Task Close_物料_单仓_期初本期入本期出结存()
+    {
+        Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
+        const string wh = "ME原料仓A";
+        using var c = fx.Open();
+        Clean物料(c, wh); Seed物料MM1(c);
+        try
+        {
+            c.Execute("INSERT INTO [采购入仓单]([单号],[日期],[仓库],[审核]) VALUES(N'MMR_L',@d,@wh,'1')", new { d = 上月日期, wh });
+            c.Execute("INSERT INTO [采购入仓明细单]([单号],[日期],[仓库],[物料编号],[物料名称],[规格],[单位],[数量]) VALUES(N'MMR_L',@d,@wh,N'MM1',N'原料甲',N'规X',N'KG',100)", new { d = 上月日期, wh });
+            c.Execute("INSERT INTO [领料单]([单号],[日期],[仓库],[审核]) VALUES(N'MML_T',@d,@wh,'1')", new { d = 本月日期, wh });
+            c.Execute("INSERT INTO [领料明细单]([单号],[日期],[仓库],[物料编号],[物料名称],[规格],[单位],[数量]) VALUES(N'MML_T',@d,@wh,N'MM1',N'原料甲',N'规X',N'KG',30)", new { d = 本月日期, wh });
+
+            var res = await Svc().CloseAsync(new MonthEndCloseRequest { 年月 = 年月, 口径 = "物料", 仓库 = wh }, "tester");
+            Assert.Equal(1, res.结数);
+
+            var row = c.QueryFirst<(decimal 期初, decimal 本期入, decimal 本期出, decimal 结存)>(
+                "SELECT [期初],[本期入],[本期出],[结存] FROM [结存快照表] WHERE [年月]=@年月 AND [口径]=N'物料' AND [仓库]=@wh", new { 年月, wh });
+            Assert.Equal(100m, row.期初);
+            Assert.Equal(0m,   row.本期入);
+            Assert.Equal(30m,  row.本期出);
+            Assert.Equal(70m,  row.结存);
+
+            var 单位 = c.QueryFirst<string>("SELECT [单位] FROM [结存快照表] WHERE [年月]=@年月 AND [口径]=N'物料' AND [仓库]=@wh", new { 年月, wh });
+            Assert.Equal("KG", 单位);
+        }
+        finally { Clean物料(c, wh); }
+    }
+
     [SkippableFact]
     public async Task Report_and_Periods()
     {
