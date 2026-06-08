@@ -2,7 +2,9 @@ using System.Security.Claims;
 using Dapper;
 using ErpApi.Engines.Authorization;
 using ErpApi.Engines.Posting;
+using ErpApi.Features.MonthEnd;
 using ErpApi.Infrastructure.Db;
+using System.Linq;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
@@ -13,10 +15,11 @@ namespace ErpApi.Features.Warehouse.Finished;
 [Route("api/finished-transfers")]
 public sealed class FinishedTransferController(
     FinishedTransferService svc, IPostingEngine posting, IPermissionService perms,
-    IAuditLogger audit, ISqlConnectionFactory factory) : ControllerBase
+    IAuditLogger audit, ISqlConnectionFactory factory, PeriodLockService periodLock) : ControllerBase
 {
     private const string Menu = "成品调拨";
     private const string Table = "成品调拨单";
+    private const string 口径 = "成品";
     private string CurrentUser => User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub") ?? "";
     private Task<bool> AllowAsync(PermissionAction a) => perms.HasAsync(CurrentUser, Menu, a);
     private async Task AuditAsync(string behavior, string record)
@@ -53,6 +56,11 @@ public sealed class FinishedTransferController(
     public async Task<IActionResult> Create([FromBody] FinishedTransferCreateDto dto)
     {
         if (!await AllowAsync(PermissionAction.保存)) return Forbid();
+        try {
+            foreach (var w in new[] { dto.源仓库, dto.目标仓库 }
+                         .Where(x => !string.IsNullOrWhiteSpace(x)).Distinct())
+                await periodLock.EnsureWarehouseOpenAsync(口径, w, DateTime.Now);
+        } catch (PeriodLockedException ex) { return Conflict(new { 消息 = ex.Message }); }
         string 单号;
         try { 单号 = await svc.CreateAsync(dto, CurrentUser); }
         catch (ArgumentException ex) { return BadRequest(new { 消息 = ex.Message }); }
@@ -75,6 +83,8 @@ public sealed class FinishedTransferController(
     public async Task<IActionResult> Approve(string 单号)
     {
         if (!await AllowAsync(PermissionAction.审核)) return Forbid();
+        try { await periodLock.EnsureTransferOpenAsync(单号); }
+        catch (PeriodLockedException ex) { return Conflict(new { 消息 = ex.Message }); }
         if (!await posting.ApproveAsync(Table, 单号, CurrentUser))
             return Conflict(new { 消息 = "审核失败：单不存在或已审核。" });
         await SyncLineApprovalAsync(单号, "1");
@@ -85,6 +95,8 @@ public sealed class FinishedTransferController(
     public async Task<IActionResult> Unapprove(string 单号)
     {
         if (!await AllowAsync(PermissionAction.反审核)) return Forbid();
+        try { await periodLock.EnsureTransferOpenAsync(单号); }
+        catch (PeriodLockedException ex) { return Conflict(new { 消息 = ex.Message }); }
         if (!await posting.UnapproveAsync(Table, 单号, CurrentUser))
             return Conflict(new { 消息 = "反审核失败：单不存在或未审核。" });
         await SyncLineApprovalAsync(单号, "0");

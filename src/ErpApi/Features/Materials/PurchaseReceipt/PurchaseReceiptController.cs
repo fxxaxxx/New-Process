@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using ErpApi.Engines.Authorization;
 using ErpApi.Engines.Posting;
+using ErpApi.Features.MonthEnd;
 using ErpApi.Infrastructure.Db;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -12,10 +13,11 @@ namespace ErpApi.Features.Materials.PurchaseReceipt;
 [Route("api/purchase-receipts")]
 public sealed class PurchaseReceiptController(
     PurchaseReceiptService svc, IPostingEngine posting, IPermissionService perms,
-    IAuditLogger audit, ISqlConnectionFactory factory) : ControllerBase
+    IAuditLogger audit, ISqlConnectionFactory factory, PeriodLockService periodLock) : ControllerBase
 {
     private const string Menu = "采购入仓单";
     private const string Table = "采购入仓单";
+    private const string 口径 = "物料";
 
     private string CurrentUser =>
         User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub") ?? "";
@@ -60,6 +62,8 @@ public sealed class PurchaseReceiptController(
     public async Task<IActionResult> Create([FromBody] PurchaseReceiptCreateDto dto)
     {
         if (!await AllowAsync(PermissionAction.保存)) return Forbid();
+        try { await periodLock.EnsureWarehouseOpenAsync(口径, dto.仓库, DateTime.Now); }
+        catch (PeriodLockedException ex) { return Conflict(new { 消息 = ex.Message }); }
         string 单号;
         try { 单号 = await svc.CreateAsync(dto, CurrentUser); }
         catch (ArgumentException ex) { return BadRequest(new { 消息 = ex.Message }); }
@@ -82,6 +86,8 @@ public sealed class PurchaseReceiptController(
     public async Task<IActionResult> Approve(string 单号)
     {
         if (!await AllowAsync(PermissionAction.审核)) return Forbid();
+        try { await periodLock.EnsureHeaderOpenAsync(口径, Table, 单号); }
+        catch (PeriodLockedException ex) { return Conflict(new { 消息 = ex.Message }); }
         if (!await posting.ApproveAsync(Table, 单号, CurrentUser))
             return Conflict(new { 消息 = "审核失败：单不存在或已审核。" });
         return NoContent();
@@ -91,6 +97,8 @@ public sealed class PurchaseReceiptController(
     public async Task<IActionResult> Unapprove(string 单号)
     {
         if (!await AllowAsync(PermissionAction.反审核)) return Forbid();
+        try { await periodLock.EnsureHeaderOpenAsync(口径, Table, 单号); }
+        catch (PeriodLockedException ex) { return Conflict(new { 消息 = ex.Message }); }
         if (!await posting.UnapproveAsync(Table, 单号, CurrentUser))
             return Conflict(new { 消息 = "反审核失败：单不存在或未审核。" });
         return NoContent();
