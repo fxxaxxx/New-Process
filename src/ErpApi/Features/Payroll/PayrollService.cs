@@ -158,4 +158,17 @@ VALUES(@工资表编号,@月份,@部门编号,@模板编号,@开始日期,@结�
         tx.Commit();
         return 工资表编号;
     }
+
+    // 反生成：删 工资明细表/工资总表/工资表项目公式。返回 工资总表 受影响行数(0=不存在)。
+    public async Task<int> DeleteAsync(string 工资表编号)
+    {
+        using var c = factory.Create();
+        await c.OpenAsync();
+        using var tx = c.BeginTransaction();
+        await c.ExecuteAsync("DELETE FROM [工资明细表] WHERE [工资表编号]=@工资表编号", new { 工资表编号 }, tx);
+        await c.ExecuteAsync("DELETE FROM [工资表项目公式] WHERE [工资表编号]=@工资表编号", new { 工资表编号 }, tx);
+        var n = await c.ExecuteAsync("DELETE FROM [工资总表] WHERE [工资表编号]=@工资表编号", new { 工资表编号 }, tx);
+        tx.Commit();
+        return n;
+    }
 }
