@@ -131,4 +131,54 @@ SELECT DISTINCT 仓库 FROM (
     UNION SELECT d.仓库 FROM [半成品领料明细单] d JOIN [半成品领料单] h ON h.单号=d.单号 WHERE ISNULL(h.审核,'0')='1' AND d.[日期] < @下月初
     UNION SELECT d.仓库 FROM [半成品盘点明细单] d JOIN [半成品盘点单] h ON h.单号=d.单号 WHERE ISNULL(h.审核,'0')='1' AND d.[日期] < @下月初
 ) t WHERE 仓库 IS NOT NULL AND 仓库 <> N'';";
+
+    public async Task<int> ReopenAsync(MonthEndReopenRequest req, string user)
+    {
+        ParsePeriod(req.年月);                 // 校验年月格式
+        var 口径 = NormalizeKind(req.口径);
+        using var c = factory.Create();
+        await c.OpenAsync();
+        using var tx = c.BeginTransaction();
+
+        List<string> whs = string.IsNullOrWhiteSpace(req.仓库)
+            ? (await c.QueryAsync<string>(
+                "SELECT DISTINCT 仓库 FROM [结存快照表] WHERE 年月=@年月 AND 口径=@口径", new { 年月 = req.年月, 口径 }, tx)).ToList()
+            : [req.仓库.Trim()];
+        if (whs.Count == 0) { tx.Commit(); return 0; }
+
+        // 护栏：存在更晚月份的快照则拒绝（年月为 yyyyMM，字符串比较=时序比较）
+        var later = (await c.QueryAsync<string>(
+            "SELECT DISTINCT 仓库 FROM [结存快照表] WHERE 口径=@口径 AND 年月 > @年月 AND 仓库 IN @whs",
+            new { 年月 = req.年月, 口径, whs }, tx)).ToList();
+        if (later.Count > 0)
+            throw new InvalidOperationException($"以下仓库存在更晚月份的快照，不能反月结：{string.Join("、", later)}");
+
+        var n = await c.ExecuteAsync(
+            "DELETE FROM [结存快照表] WHERE 年月=@年月 AND 口径=@口径 AND 仓库 IN @whs",
+            new { 年月 = req.年月, 口径, whs }, tx);
+        tx.Commit();
+        return n;
+    }
+
+    public async Task<IReadOnlyList<MonthEndRow>> ReportAsync(string 年月, string 口径, string? 仓库)
+    {
+        var k = NormalizeKind(口径);
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<MonthEndRow>(@"
+SELECT [年月],[仓库],[口径],[款号],[款式],[色号],[颜色],[尺码],[物料编号],[物料名称],[规格],[单位],[期初],[本期入],[本期出],[结存]
+FROM [结存快照表]
+WHERE [年月]=@年月 AND [口径]=@k AND (@仓库 IS NULL OR [仓库]=@仓库)
+ORDER BY [仓库],[款号],[物料编号],[色号],[颜色],[尺码]",
+            new { 年月, k, 仓库 = string.IsNullOrWhiteSpace(仓库) ? null : 仓库.Trim() });
+        return rows.AsList();
+    }
+
+    public async Task<IReadOnlyList<string>> PeriodsAsync(string 口径)
+    {
+        var k = NormalizeKind(口径);
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<string>(
+            "SELECT DISTINCT [年月] FROM [结存快照表] WHERE [口径]=@k ORDER BY [年月] DESC", new { k });
+        return rows.AsList();
+    }
 }

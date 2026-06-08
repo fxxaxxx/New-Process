@@ -173,4 +173,91 @@ public class MonthEndServiceDbTests(DbFixture fx)
         }
         finally { Clean成品(c, wh); }
     }
+
+    [SkippableFact]
+    public async Task Close_缺省全仓_两仓各生成_重复close冲突()
+    {
+        Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
+        const string w1 = "ME全仓1", w2 = "ME全仓2";
+        using var c = fx.Open();
+        // 先删两仓子表行（两仓共享 MEK 父行；须先清空全部引用再删 MEK，否则 FK 冲突）
+        Clean全仓(c, w1, w2); Seed款号(c);
+        try
+        {
+            foreach (var wh in new[] { w1, w2 })
+            {
+                c.Execute("INSERT INTO [成品入仓单]([单号],[日期],[仓库],[审核]) VALUES(@n,@d,@wh,'1')", new { n = "MER_" + wh, d = 本月日期, wh });
+                c.Execute("INSERT INTO [成品入仓明细单]([单号],[日期],[仓库],[款号],[款式],[色号],[颜色],[尺码],[数量],[审核]) VALUES(@n,@d,@wh,N'MEK',N'演示',N'01',N'黑',N'M',20,'1')", new { n = "MER_" + wh, d = 本月日期, wh });
+            }
+            var res = await Svc().CloseAsync(new MonthEndCloseRequest { 年月 = 年月, 口径 = "成品" }, "tester"); // 不传仓库=全仓
+            Assert.Contains(w1, res.仓库);
+            Assert.Contains(w2, res.仓库);
+
+            await Assert.ThrowsAsync<System.InvalidOperationException>(() =>
+                Svc().CloseAsync(new MonthEndCloseRequest { 年月 = 年月, 口径 = "成品" }, "tester"));
+        }
+        finally { Clean全仓(c, w1, w2); }
+    }
+
+    // 两仓共享 MEK 父行时的清理：先删两仓全部子表行，最后只删一次 MEK 父行（避免 Clean成品 逐仓删父行时的 FK 冲突）
+    private static void Clean全仓(Microsoft.Data.SqlClient.SqlConnection c, params string[] whs)
+    {
+        foreach (var wh in whs)
+        {
+            c.Execute("DELETE FROM [成品入仓明细单] WHERE [仓库]=@wh", new { wh });
+            c.Execute("DELETE FROM [成品入仓单]   WHERE [仓库]=@wh", new { wh });
+            c.Execute("DELETE FROM [成品出仓明细单] WHERE [仓库]=@wh", new { wh });
+            c.Execute("DELETE FROM [成品出仓单]   WHERE [仓库]=@wh", new { wh });
+            c.Execute("DELETE FROM [结存快照表] WHERE [仓库]=@wh", new { wh });
+        }
+        c.Execute("DELETE FROM [款号总表] WHERE [款号]=N'MEK'");
+    }
+
+    [SkippableFact]
+    public async Task Reopen_删除_存在更晚月被拒()
+    {
+        Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
+        const string wh = "ME反结仓";
+        using var c = fx.Open();
+        Clean成品(c, wh); Seed款号(c);
+        try
+        {
+            c.Execute("INSERT INTO [成品入仓单]([单号],[日期],[仓库],[审核]) VALUES(N'R_L',@d,@wh,'1')", new { d = 上月日期, wh });
+            c.Execute("INSERT INTO [成品入仓明细单]([单号],[日期],[仓库],[款号],[款式],[色号],[颜色],[尺码],[数量],[审核]) VALUES(N'R_L',@d,@wh,N'MEK',N'演示',N'01',N'黑',N'M',10,'1')", new { d = 上月日期, wh });
+            c.Execute("INSERT INTO [成品入仓单]([单号],[日期],[仓库],[审核]) VALUES(N'R_T',@d,@wh,'1')", new { d = 本月日期, wh });
+            c.Execute("INSERT INTO [成品入仓明细单]([单号],[日期],[仓库],[款号],[款式],[色号],[颜色],[尺码],[数量],[审核]) VALUES(N'R_T',@d,@wh,N'MEK',N'演示',N'01',N'黑',N'M',5,'1')", new { d = 本月日期, wh });
+            await Svc().CloseAsync(new MonthEndCloseRequest { 年月 = "202601", 口径 = "成品", 仓库 = wh }, "tester");
+            await Svc().CloseAsync(new MonthEndCloseRequest { 年月 = "202602", 口径 = "成品", 仓库 = wh }, "tester");
+
+            await Assert.ThrowsAsync<System.InvalidOperationException>(() =>
+                Svc().ReopenAsync(new MonthEndReopenRequest { 年月 = "202601", 口径 = "成品", 仓库 = wh }, "tester"));
+
+            var n = await Svc().ReopenAsync(new MonthEndReopenRequest { 年月 = "202602", 口径 = "成品", 仓库 = wh }, "tester");
+            Assert.Equal(1, n);
+        }
+        finally { Clean成品(c, wh); }
+    }
+
+    [SkippableFact]
+    public async Task Report_and_Periods()
+    {
+        Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
+        const string wh = "ME月报仓";
+        using var c = fx.Open();
+        Clean成品(c, wh); Seed款号(c);
+        try
+        {
+            c.Execute("INSERT INTO [成品入仓单]([单号],[日期],[仓库],[审核]) VALUES(N'RP_T',@d,@wh,'1')", new { d = 本月日期, wh });
+            c.Execute("INSERT INTO [成品入仓明细单]([单号],[日期],[仓库],[款号],[款式],[色号],[颜色],[尺码],[数量],[审核]) VALUES(N'RP_T',@d,@wh,N'MEK',N'演示',N'01',N'黑',N'M',7,'1')", new { d = 本月日期, wh });
+            await Svc().CloseAsync(new MonthEndCloseRequest { 年月 = 年月, 口径 = "成品", 仓库 = wh }, "tester");
+
+            var report = await Svc().ReportAsync(年月, "成品", wh);
+            Assert.Single(report);
+            Assert.Equal(7m, report[0].结存);
+
+            var periods = await Svc().PeriodsAsync("成品");
+            Assert.Contains(年月, periods);
+        }
+        finally { Clean成品(c, wh); }
+    }
 }
