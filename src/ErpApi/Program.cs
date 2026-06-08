@@ -55,6 +55,8 @@ builder.Services.AddScoped<ErpApi.Features.Warehouse.Semi.SemiIssueService>();
 builder.Services.AddScoped<ErpApi.Features.Warehouse.Semi.SemiStocktakeService>();
 builder.Services.AddScoped<ErpApi.Features.MonthEnd.MonthEndService>();
 builder.Services.AddScoped<ErpApi.Features.MonthEnd.PeriodLockService>();
+builder.Services.AddScoped<ErpApi.Features.Sales.SalesShipmentService>();
+builder.Services.AddScoped<ErpApi.Features.Sales.SalesReturnService>();
 
 // JWT 认证（密钥来自环境变量，无硬编码）
 var jwtKey = Environment.GetEnvironmentVariable(JwtTokenService.KeyEnvVar)
