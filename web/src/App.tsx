@@ -27,6 +27,7 @@ import SemiReceiptPage from "./pages/warehouse/SemiReceiptPage";
 import SemiIssuePage from "./pages/warehouse/SemiIssuePage";
 import SemiStocktakePage from "./pages/warehouse/SemiStocktakePage";
 import SemiInventoryPage from "./pages/warehouse/SemiInventoryPage";
+import MonthEnd from "./pages/warehouse/MonthEnd";
 
 export default function App() {
   return (
@@ -58,6 +59,7 @@ export default function App() {
           <Route path="semi-issues" element={<SemiIssuePage />} />
           <Route path="semi-stocktakes" element={<SemiStocktakePage />} />
           <Route path="semi-inventory" element={<SemiInventoryPage />} />
+          <Route path="month-end" element={<MonthEnd />} />
         </Route>
       </Routes>
     </BrowserRouter>

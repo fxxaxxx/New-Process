@@ -8,7 +8,7 @@ import {
   ScissorOutlined, FormOutlined, BarChartOutlined,
   SendOutlined, RollbackOutlined, ReconciliationOutlined,
   InboxOutlined, AuditOutlined,
-  SwapOutlined, UndoOutlined,
+  SwapOutlined, UndoOutlined, CalendarOutlined,
 } from "@ant-design/icons";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { can } from "../auth/permissions";
@@ -77,6 +77,9 @@ export default function MainLayout() {
     ...(can(perms, "半成品盘点", "打开") ? [{ key: "/semi-stocktakes", label: "半成品盘点", icon: <AuditOutlined /> }] : []),
     ...(can(perms, "半成品库存", "打开") ? [{ key: "/semi-inventory", label: "半成品库存", icon: <DatabaseOutlined /> }] : []),
   ];
+  const meChildren = [
+    ...(can(perms, "库存月结", "打开") ? [{ key: "/month-end", label: "库存月结", icon: <CalendarOutlined /> }] : []),
+  ];
   const items = [
     { key: "base", label: "基础资料", icon: <DatabaseOutlined />, children },
     ...(bizChildren.length
@@ -86,6 +89,7 @@ export default function MainLayout() {
     ...(osChildren.length ? [{ key: "os", label: "发外加工", icon: <SendOutlined />, children: osChildren }] : []),
     ...(fgChildren.length ? [{ key: "fg", label: "成品仓储", icon: <InboxOutlined />, children: fgChildren }] : []),
     ...(sfChildren.length ? [{ key: "sf", label: "半成品仓储", icon: <InboxOutlined />, children: sfChildren }] : []),
+    ...(meChildren.length ? [{ key: "me", label: "月结管理", icon: <CalendarOutlined />, children: meChildren }] : []),
   ];
 
   const logout = () => {
@@ -160,6 +164,7 @@ export default function MainLayout() {
               : loc.pathname.startsWith("/semi-issues") ? "半成品领料"
               : loc.pathname.startsWith("/semi-stocktakes") ? "半成品盘点"
               : loc.pathname.startsWith("/semi-inventory") ? "半成品库存"
+              : loc.pathname.startsWith("/month-end") ? "库存月结"
               : "基础资料"}
           </span>
           <span style={{ display: "flex", alignItems: "center", gap: 16 }}>
