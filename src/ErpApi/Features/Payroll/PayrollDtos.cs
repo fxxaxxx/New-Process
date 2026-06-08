@@ -58,3 +58,13 @@ public sealed class WageTemplateHeaderDto
 { public string? 模板编号 { get; set; } public string? 模板名称 { get; set; } public int 项目数 { get; set; } }
 public sealed class WageTemplateDetailDto
 { public string? 模板编号 { get; set; } public string? 模板名称 { get; set; } public List<WageTemplateItemDto> 明细 { get; set; } = []; }
+
+// ---- 工资表生成/查询 ----
+public sealed class PayrollGenerateDto
+{ public string 月份 { get; set; } = ""; public string 部门编号 { get; set; } = ""; public string 模板编号 { get; set; } = ""; public decimal 应出勤天数 { get; set; } }
+public sealed class PayrollSummaryRow
+{ public string? 工资表编号 { get; set; } public string? 月份 { get; set; } public string? 部门编号 { get; set; } public string? 模板编号 { get; set; } public decimal? 基本工资 { get; set; } public decimal? 计件工资 { get; set; } public decimal? 应发合计 { get; set; } public decimal? 应扣合计 { get; set; } public decimal? 实发合计 { get; set; } }
+public sealed class PayrollItemCol
+{ public string? 列名 { get; set; } public string? 台头项目 { get; set; } public string? 类型 { get; set; } }
+public sealed class PayrollDetailDto
+{ public PayrollSummaryRow? 单头 { get; set; } public List<PayrollItemCol> 项目 { get; set; } = []; public List<Dictionary<string, object?>> 明细 { get; set; } = []; }
