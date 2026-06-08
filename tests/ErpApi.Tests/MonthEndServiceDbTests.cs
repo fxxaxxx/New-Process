@@ -283,6 +283,50 @@ public class MonthEndServiceDbTests(DbFixture fx)
     }
 
     [SkippableFact]
+    public async Task Close_物料_全月加权_序贯成本()
+    {
+        Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
+        const string wh = "ME成本仓";
+        using var c = fx.Open();
+        Clean物料(c, wh); Seed物料MM1(c);
+        try
+        {
+            c.Execute("INSERT INTO [采购入仓单]([单号],[日期],[仓库],[审核]) VALUES(N'CST_R1',N'2026-01-15',@wh,'1')", new { wh });
+            c.Execute("INSERT INTO [采购入仓明细单]([单号],[日期],[仓库],[物料编号],[物料名称],[规格],[单位],[数量],[单价],[金额]) VALUES(N'CST_R1',N'2026-01-15',@wh,N'MM1',N'原料甲',N'规X',N'KG',100,10,1000)", new { wh });
+            await Svc().CloseAsync(new MonthEndCloseRequest { 年月 = "202601", 口径 = "物料", 仓库 = wh }, "tester");
+            var m1 = c.QueryFirst<(decimal 结存数量, decimal 结存金额, decimal 加权单价)>(
+                "SELECT [结存],[结存金额],[加权单价] FROM [结存快照表] WHERE [年月]='202601' AND [口径]=N'物料' AND [仓库]=@wh", new { wh });
+            Assert.Equal(100m, m1.结存数量);
+            Assert.Equal(1000m, m1.结存金额);
+            Assert.Equal(10m, m1.加权单价);
+
+            c.Execute("INSERT INTO [采购入仓单]([单号],[日期],[仓库],[审核]) VALUES(N'CST_R2',N'2026-02-10',@wh,'1')", new { wh });
+            c.Execute("INSERT INTO [采购入仓明细单]([单号],[日期],[仓库],[物料编号],[物料名称],[规格],[单位],[数量],[单价],[金额]) VALUES(N'CST_R2',N'2026-02-10',@wh,N'MM1',N'原料甲',N'规X',N'KG',50,14,700)", new { wh });
+            c.Execute("INSERT INTO [领料单]([单号],[日期],[仓库],[审核]) VALUES(N'CST_L1',N'2026-02-10',@wh,'1')", new { wh });
+            c.Execute("INSERT INTO [领料明细单]([单号],[日期],[仓库],[物料编号],[物料名称],[规格],[单位],[数量]) VALUES(N'CST_L1',N'2026-02-10',@wh,N'MM1',N'原料甲',N'规X',N'KG',30)", new { wh });
+            await Svc().CloseAsync(new MonthEndCloseRequest { 年月 = "202602", 口径 = "物料", 仓库 = wh }, "tester");
+
+            var m2 = c.QueryFirst<(decimal 期初金额, decimal 本期入金额, decimal 本期出金额, decimal 结存金额, decimal 加权单价, decimal 结存数量)>(
+                "SELECT [期初金额],[本期入金额],[本期出金额],[结存金额],[加权单价],[结存] FROM [结存快照表] WHERE [年月]='202602' AND [口径]=N'物料' AND [仓库]=@wh", new { wh });
+            Assert.Equal(1000m, m2.期初金额);
+            Assert.Equal(700m, m2.本期入金额);
+            Assert.Equal(11.3333m, m2.加权单价);
+            Assert.Equal(340.00m, Math.Round(m2.本期出金额, 2));
+            Assert.Equal(120m, m2.结存数量);
+            Assert.Equal(1360m, Math.Round(m2.结存金额, 0));
+        }
+        finally
+        {
+            c.Execute("DELETE FROM [采购入仓明细单] WHERE [仓库]=@wh", new { wh });
+            c.Execute("DELETE FROM [采购入仓单] WHERE [仓库]=@wh", new { wh });
+            c.Execute("DELETE FROM [领料明细单] WHERE [仓库]=@wh", new { wh });
+            c.Execute("DELETE FROM [领料单] WHERE [仓库]=@wh", new { wh });
+            c.Execute("DELETE FROM [结存快照表] WHERE [仓库]=@wh", new { wh });
+            c.Execute("DELETE FROM [物料资料] WHERE [物料编号]=N'MM1'");
+        }
+    }
+
+    [SkippableFact]
     public async Task Report_and_Periods()
     {
         Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
