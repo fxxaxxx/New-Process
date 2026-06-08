@@ -48,3 +48,13 @@ public sealed class AttendanceMonthlyRow
     public decimal 缺勤天数 { get; set; }
     public decimal 实出勤天数 { get; set; }
 }
+
+// ---- 工资模板 ----
+public sealed class WageTemplateItemDto
+{ public int 序号 { get; set; } public string? 台头项目 { get; set; } public string? 类型 { get; set; } public string? 公式 { get; set; } }
+public sealed class WageTemplateSaveDto
+{ public string 模板编号 { get; set; } = ""; public string? 模板名称 { get; set; } public List<WageTemplateItemDto> 明细 { get; set; } = []; }
+public sealed class WageTemplateHeaderDto
+{ public string? 模板编号 { get; set; } public string? 模板名称 { get; set; } public int 项目数 { get; set; } }
+public sealed class WageTemplateDetailDto
+{ public string? 模板编号 { get; set; } public string? 模板名称 { get; set; } public List<WageTemplateItemDto> 明细 { get; set; } = []; }
