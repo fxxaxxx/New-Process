@@ -19,6 +19,11 @@ public sealed class MonthEndRow
     public decimal 本期入 { get; set; }
     public decimal 本期出 { get; set; }
     public decimal 结存 { get; set; }
+    public decimal? 期初金额 { get; set; }
+    public decimal? 本期入金额 { get; set; }
+    public decimal? 本期出金额 { get; set; }
+    public decimal? 结存金额 { get; set; }
+    public decimal? 加权单价 { get; set; }
 }
 
 public sealed class MonthEndCloseRequest

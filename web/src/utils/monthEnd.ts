@@ -33,3 +33,15 @@ export function toYearMonth(d: { year: () => number; month: () => number } | nul
   const m = d.month() + 1;
   return `${y}${String(m).padStart(2, "0")}`;
 }
+
+// 物料口径的金额列(成本保密由服务端置 null 落地)；其它口径无金额列
+export function moneyColumns(kind: Kind): { title: string; dataIndex: string }[] {
+  if (kind !== "物料") return [];
+  return [
+    { title: "加权单价", dataIndex: "加权单价" },
+    { title: "期初金额", dataIndex: "期初金额" },
+    { title: "本期入金额", dataIndex: "本期入金额" },
+    { title: "本期出金额", dataIndex: "本期出金额" },
+    { title: "结存金额", dataIndex: "结存金额" },
+  ];
+}

@@ -49,8 +49,8 @@ HAVING SUM(CASE WHEN [日期] < @下月初 THEN 签 ELSE 0 END) <> 0
     OR SUM(CASE WHEN [日期] >= @月初 AND [日期] < @下月初 THEN ABS(签) ELSE 0 END) > 0;";
 
     private const string InsertSql = @"
-INSERT INTO [结存快照表]([年月],[仓库],[口径],[款号],[款式],[色号],[颜色],[尺码],[物料编号],[物料名称],[规格],[单位],[期初],[本期入],[本期出],[结存],[生成时间])
-VALUES(@年月,@仓库,@口径,@款号,@款式,@色号,@颜色,@尺码,@物料编号,@物料名称,@规格,@单位,@期初,@本期入,@本期出,@结存,@生成时间);";
+INSERT INTO [结存快照表]([年月],[仓库],[口径],[款号],[款式],[色号],[颜色],[尺码],[物料编号],[物料名称],[规格],[单位],[期初],[本期入],[本期出],[结存],[期初金额],[本期入金额],[本期出金额],[结存金额],[加权单价],[生成时间])
+VALUES(@年月,@仓库,@口径,@款号,@款式,@色号,@颜色,@尺码,@物料编号,@物料名称,@规格,@单位,@期初,@本期入,@本期出,@结存,@期初金额,@本期入金额,@本期出金额,@结存金额,@加权单价,@生成时间);";
 
     private static (DateTime 月初, DateTime 下月初) ParsePeriod(string 年月)
     {
@@ -98,14 +98,37 @@ VALUES(@年月,@仓库,@口径,@款号,@款式,@色号,@颜色,@尺码,@物料�
         foreach (var wh in whs)
         {
             var rows = (await c.QueryAsync<MonthEndRow>(ledger, new { 仓 = wh, 月初, 下月初 }, tx)).ToList();
+
+            // 物料口径：全月一次加权平均。期初金额取上期快照结存金额（序贯）。
+            Dictionary<string, decimal> 期初金额表 = new();
+            if (口径 == "物料")
+            {
+                var prior = await c.QueryAsync(物料期初金额Sql, new { 仓 = wh, 年月 = req.年月 }, tx);
+                foreach (var p in prior)
+                    期初金额表[(string)p.物料编号] = (decimal)p.结存金额;
+            }
+
             foreach (var r in rows)
             {
                 r.年月 = req.年月; r.仓库 = wh; r.口径 = 口径;
                 r.结存 = r.期初 + r.本期入 - r.本期出;
+                if (口径 == "物料")
+                {
+                    var 期初额 = (r.物料编号 != null && 期初金额表.TryGetValue(r.物料编号, out var pv)) ? pv : 0m;
+                    var 入额 = r.本期入金额 ?? 0m;
+                    var 分母 = r.期初 + r.本期入;
+                    var 加权 = 分母 > 0 ? (期初额 + 入额) / 分母 : 0m;
+                    r.期初金额 = 期初额;
+                    r.本期入金额 = 入额;
+                    r.加权单价 = decimal.Round(加权, 4);
+                    r.本期出金额 = decimal.Round(r.本期出 * r.加权单价.Value, 4);
+                    r.结存金额 = 期初额 + 入额 - r.本期出金额.Value;
+                }
                 await c.ExecuteAsync(InsertSql, new
                 {
                     r.年月, r.仓库, r.口径, r.款号, r.款式, r.色号, r.颜色, r.尺码,
-                    r.物料编号, r.物料名称, r.规格, r.单位, r.期初, r.本期入, r.本期出, r.结存, 生成时间 = now
+                    r.物料编号, r.物料名称, r.规格, r.单位, r.期初, r.本期入, r.本期出, r.结存,
+                    r.期初金额, r.本期入金额, r.本期出金额, r.结存金额, r.加权单价, 生成时间 = now
                 }, tx);
                 结数++;
             }
@@ -136,19 +159,20 @@ SELECT DISTINCT 仓库 FROM (
     // ---- 物料(原料)账本：物料编号×仓库(忽略颜色，与 MaterialInventoryService 一致)。审核在单头→JOIN 单头。----
     private const string 物料账本Sql = @"
 WITH 账本 AS (
-    SELECT d.物料编号,d.物料名称,d.规格,d.单位,d.[日期], ISNULL(d.数量,0)    AS 签
+    SELECT d.物料编号,d.物料名称,d.规格,d.单位,d.[日期], ISNULL(d.数量,0)    AS 签, ISNULL(d.金额,0) AS 金额签
       FROM [采购入仓明细单] d JOIN [采购入仓单] h ON h.单号=d.单号 WHERE d.仓库=@仓 AND ISNULL(h.审核,'0')='1'
     UNION ALL
-    SELECT d.物料编号,d.物料名称,d.规格,d.单位,d.[日期], ISNULL(d.数量,0)
+    SELECT d.物料编号,d.物料名称,d.规格,d.单位,d.[日期], ISNULL(d.数量,0),    ISNULL(d.金额,0)
       FROM [退料明细单] d JOIN [退料单] h ON h.单号=d.单号 WHERE d.仓库=@仓 AND ISNULL(h.审核,'0')='1'
     UNION ALL
-    SELECT d.物料编号,d.物料名称,d.规格,d.单位,d.[日期], ISNULL(d.数量,0)*-1
+    SELECT d.物料编号,d.物料名称,d.规格,d.单位,d.[日期], ISNULL(d.数量,0)*-1, 0
       FROM [领料明细单] d JOIN [领料单] h ON h.单号=d.单号 WHERE d.仓库=@仓 AND ISNULL(h.审核,'0')='1'
 )
 SELECT 物料编号, MAX(物料名称) AS 物料名称, MAX(规格) AS 规格, MAX(单位) AS 单位,
        SUM(CASE WHEN [日期] <  @月初 THEN 签 ELSE 0 END)                                  AS 期初,
        SUM(CASE WHEN [日期] >= @月初 AND [日期] < @下月初 AND 签 > 0 THEN 签  ELSE 0 END) AS 本期入,
-       SUM(CASE WHEN [日期] >= @月初 AND [日期] < @下月初 AND 签 < 0 THEN -签 ELSE 0 END) AS 本期出
+       SUM(CASE WHEN [日期] >= @月初 AND [日期] < @下月初 AND 签 < 0 THEN -签 ELSE 0 END) AS 本期出,
+       SUM(CASE WHEN [日期] >= @月初 AND [日期] < @下月初 THEN 金额签 ELSE 0 END)         AS 本期入金额
 FROM 账本
 GROUP BY 物料编号
 HAVING SUM(CASE WHEN [日期] < @下月初 THEN 签 ELSE 0 END) <> 0
@@ -160,6 +184,18 @@ SELECT DISTINCT 仓库 FROM (
     UNION SELECT d.仓库 FROM [退料明细单] d JOIN [退料单] h ON h.单号=d.单号 WHERE ISNULL(h.审核,'0')='1' AND d.[日期] < @下月初
     UNION SELECT d.仓库 FROM [领料明细单] d JOIN [领料单] h ON h.单号=d.单号 WHERE ISNULL(h.审核,'0')='1' AND d.[日期] < @下月初
 ) t WHERE 仓库 IS NOT NULL AND 仓库 <> N'';";
+
+    // ---- 物料期初金额：上一期快照(同仓+口径'物料'，年月<当前的最近一条)的结存金额。无上期→该物料编号取0。----
+    private const string 物料期初金额Sql = @"
+SELECT s.物料编号, s.结存金额
+FROM [结存快照表] s
+JOIN (
+    SELECT 物料编号, MAX(年月) AS m
+    FROM [结存快照表]
+    WHERE 仓库=@仓 AND 口径=N'物料' AND 年月 < @年月
+    GROUP BY 物料编号
+) x ON x.物料编号 = s.物料编号 AND x.m = s.年月
+WHERE s.仓库=@仓 AND s.口径=N'物料' AND s.年月 < @年月;";
 
     public async Task<int> ReopenAsync(MonthEndReopenRequest req, string user)
     {
@@ -194,7 +230,7 @@ SELECT DISTINCT 仓库 FROM (
         var k = NormalizeKind(口径);
         using var c = factory.Create();
         var rows = await c.QueryAsync<MonthEndRow>(@"
-SELECT [年月],[仓库],[口径],[款号],[款式],[色号],[颜色],[尺码],[物料编号],[物料名称],[规格],[单位],[期初],[本期入],[本期出],[结存]
+SELECT [年月],[仓库],[口径],[款号],[款式],[色号],[颜色],[尺码],[物料编号],[物料名称],[规格],[单位],[期初],[本期入],[本期出],[结存],[期初金额],[本期入金额],[本期出金额],[结存金额],[加权单价]
 FROM [结存快照表]
 WHERE [年月]=@年月 AND [口径]=@k AND (@仓库 IS NULL OR [仓库]=@仓库)
 ORDER BY [仓库],[款号],[物料编号],[色号],[颜色],[尺码]",

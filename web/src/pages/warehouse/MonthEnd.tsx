@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Card, Select, DatePicker, Input, Button, Table, Space, Popconfirm, message } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import { monthEndApi, type MonthEndRow } from "../../api/monthEnd";
-import { dimColumns, toYearMonth, type Kind } from "../../utils/monthEnd";
+import { dimColumns, moneyColumns, toYearMonth, type Kind } from "../../utils/monthEnd";
 import { usePerms } from "../../auth/PermissionContext";
 import { can } from "../../auth/permissions";
 
@@ -55,6 +55,7 @@ export default function MonthEnd() {
     } finally { setBusy(false); }
   };
 
+  const money = (v: number | null | undefined) => (v == null ? "—" : v);
   const columns = [
     ...dimColumns(kind),
     { title: "期初", dataIndex: "期初", render: (v: number) => <span className="erp-num">{v}</span> },
@@ -62,6 +63,7 @@ export default function MonthEnd() {
     { title: "本期出", dataIndex: "本期出" },
     { title: "结存", dataIndex: "结存",
       render: (v: number) => <span style={{ fontWeight: 600, color: v < 0 ? "#cf1322" : undefined }}>{v}</span> },
+    ...moneyColumns(kind).map((col) => ({ ...col, render: (v: number | null) => money(v) })),
   ];
 
   return (
