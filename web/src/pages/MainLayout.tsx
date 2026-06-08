@@ -9,7 +9,7 @@ import {
   SendOutlined, RollbackOutlined, ReconciliationOutlined,
   InboxOutlined, AuditOutlined,
   SwapOutlined, UndoOutlined, CalendarOutlined,
-  MoneyCollectOutlined, AccountBookOutlined,
+  MoneyCollectOutlined, AccountBookOutlined, WalletOutlined,
 } from "@ant-design/icons";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { can } from "../auth/permissions";
@@ -92,6 +92,9 @@ export default function MainLayout() {
     ...(can(perms, "发外付款", "打开") ? [{ key: "/outsource-payments", label: "发外付款", icon: <MoneyCollectOutlined /> }] : []),
     ...(can(perms, "应付对账", "打开") ? [{ key: "/payables", label: "应付对账", icon: <ReconciliationOutlined /> }] : []),
   ];
+  const prChildren = [
+    ...(can(perms, "计件归集", "打开") ? [{ key: "/payroll/piecework", label: "计件归集", icon: <BarChartOutlined /> }] : []),
+  ];
   const items = [
     { key: "base", label: "基础资料", icon: <DatabaseOutlined />, children },
     ...(bizChildren.length
@@ -104,6 +107,7 @@ export default function MainLayout() {
     ...(meChildren.length ? [{ key: "me", label: "月结管理", icon: <CalendarOutlined />, children: meChildren }] : []),
     ...(saleChildren.length ? [{ key: "sale", label: "销售管理", icon: <ShoppingCartOutlined />, children: saleChildren }] : []),
     ...(apChildren.length ? [{ key: "ap", label: "应付管理", icon: <AccountBookOutlined />, children: apChildren }] : []),
+    ...(prChildren.length ? [{ key: "pr", label: "工资管理", icon: <WalletOutlined />, children: prChildren }] : []),
   ];
 
   const logout = () => {
@@ -186,6 +190,7 @@ export default function MainLayout() {
               : loc.pathname.startsWith("/purchase-payments") ? "采购付款"
               : loc.pathname.startsWith("/outsource-payments") ? "发外付款"
               : loc.pathname.startsWith("/payables") ? "应付对账"
+              : loc.pathname.startsWith("/payroll/piecework") ? "计件归集"
               : "基础资料"}
           </span>
           <span style={{ display: "flex", alignItems: "center", gap: 16 }}>
