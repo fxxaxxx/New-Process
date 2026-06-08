@@ -80,6 +80,10 @@ export default function MainLayout() {
   const meChildren = [
     ...(can(perms, "库存月结", "打开") ? [{ key: "/month-end", label: "库存月结", icon: <CalendarOutlined /> }] : []),
   ];
+  const saleChildren = [
+    ...(can(perms, "销售出货", "打开") ? [{ key: "/sales-shipments", label: "销售出货", icon: <ShoppingCartOutlined /> }] : []),
+    ...(can(perms, "销售退货", "打开") ? [{ key: "/sales-returns", label: "销售退货", icon: <RollbackOutlined /> }] : []),
+  ];
   const items = [
     { key: "base", label: "基础资料", icon: <DatabaseOutlined />, children },
     ...(bizChildren.length
@@ -90,6 +94,7 @@ export default function MainLayout() {
     ...(fgChildren.length ? [{ key: "fg", label: "成品仓储", icon: <InboxOutlined />, children: fgChildren }] : []),
     ...(sfChildren.length ? [{ key: "sf", label: "半成品仓储", icon: <InboxOutlined />, children: sfChildren }] : []),
     ...(meChildren.length ? [{ key: "me", label: "月结管理", icon: <CalendarOutlined />, children: meChildren }] : []),
+    ...(saleChildren.length ? [{ key: "sale", label: "销售管理", icon: <ShoppingCartOutlined />, children: saleChildren }] : []),
   ];
 
   const logout = () => {
@@ -165,6 +170,8 @@ export default function MainLayout() {
               : loc.pathname.startsWith("/semi-stocktakes") ? "半成品盘点"
               : loc.pathname.startsWith("/semi-inventory") ? "半成品库存"
               : loc.pathname.startsWith("/month-end") ? "库存月结"
+              : loc.pathname.startsWith("/sales-shipments") ? "销售出货"
+              : loc.pathname.startsWith("/sales-returns") ? "销售退货"
               : "基础资料"}
           </span>
           <span style={{ display: "flex", alignItems: "center", gap: 16 }}>
