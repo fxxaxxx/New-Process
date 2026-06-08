@@ -10,6 +10,7 @@ import {
   InboxOutlined, AuditOutlined,
   SwapOutlined, UndoOutlined, CalendarOutlined,
   MoneyCollectOutlined, AccountBookOutlined, WalletOutlined,
+  ScheduleOutlined,
 } from "@ant-design/icons";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { can } from "../auth/permissions";
@@ -94,6 +95,8 @@ export default function MainLayout() {
   ];
   const prChildren = [
     ...(can(perms, "计件归集", "打开") ? [{ key: "/payroll/piecework", label: "计件归集", icon: <BarChartOutlined /> }] : []),
+    ...(can(perms, "缺勤登记", "打开") ? [{ key: "/payroll/absences", label: "缺勤登记", icon: <CalendarOutlined /> }] : []),
+    ...(can(perms, "出勤汇总", "打开") ? [{ key: "/payroll/attendance", label: "出勤汇总", icon: <ScheduleOutlined /> }] : []),
   ];
   const items = [
     { key: "base", label: "基础资料", icon: <DatabaseOutlined />, children },
@@ -191,6 +194,8 @@ export default function MainLayout() {
               : loc.pathname.startsWith("/outsource-payments") ? "发外付款"
               : loc.pathname.startsWith("/payables") ? "应付对账"
               : loc.pathname.startsWith("/payroll/piecework") ? "计件归集"
+              : loc.pathname.startsWith("/payroll/absences") ? "缺勤登记"
+              : loc.pathname.startsWith("/payroll/attendance") ? "出勤汇总"
               : "基础资料"}
           </span>
           <span style={{ display: "flex", alignItems: "center", gap: 16 }}>
