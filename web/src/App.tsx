@@ -35,6 +35,7 @@ import ReceivablesPage from "./pages/sales/ReceivablesPage";
 import PurchasePaymentPage from "./pages/payables/PurchasePaymentPage";
 import OutsourcePaymentPage from "./pages/payables/OutsourcePaymentPage";
 import PayablesPage from "./pages/payables/PayablesPage";
+import PieceworkPayrollPage from "./pages/payroll/PieceworkPayrollPage";
 
 export default function App() {
   return (
@@ -74,6 +75,7 @@ export default function App() {
           <Route path="purchase-payments" element={<PurchasePaymentPage />} />
           <Route path="outsource-payments" element={<OutsourcePaymentPage />} />
           <Route path="payables" element={<PayablesPage />} />
+          <Route path="payroll/piecework" element={<PieceworkPayrollPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
