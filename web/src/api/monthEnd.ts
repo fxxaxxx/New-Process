@@ -5,6 +5,7 @@ export interface MonthEndRow {
   款号?: string; 款式?: string; 色号?: string; 颜色?: string; 尺码?: string;
   物料编号?: string; 物料名称?: string; 规格?: string; 单位?: string;
   期初: number; 本期入: number; 本期出: number; 结存: number;
+  期初金额?: number | null; 本期入金额?: number | null; 本期出金额?: number | null; 结存金额?: number | null; 加权单价?: number | null;
 }
 export interface MonthEndCloseResult { 结数: number; 仓库: string[] }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dimColumns, toYearMonth } from "../utils/monthEnd";
+import { dimColumns, moneyColumns, toYearMonth } from "../utils/monthEnd";
 
 describe("月结工具", () => {
   it("dimColumns 按口径切换维度列", () => {
@@ -19,5 +19,12 @@ describe("月结工具", () => {
     expect(toYearMonth({ year: () => 2026, month: () => 5 })).toBe("202606");
     expect(toYearMonth({ year: () => 2026, month: () => 0 })).toBe("202601");
     expect(toYearMonth(null)).toBe("");
+  });
+  it("moneyColumns 仅物料口径有金额列", () => {
+    const m = moneyColumns("物料").map(c => c.dataIndex);
+    expect(m).toContain("加权单价");
+    expect(m).toContain("结存金额");
+    expect(moneyColumns("成品")).toHaveLength(0);
+    expect(moneyColumns("半成品")).toHaveLength(0);
   });
 });
