@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import {
-  Button, Card, Drawer, Form, Input, Popconfirm, Select, Space, Table, message,
+  Alert, Button, Card, Drawer, Form, Input, Popconfirm, Select, Space, Table, message,
 } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
 import {
@@ -164,6 +164,9 @@ function EditDrawer({ open, 模板编号, onClose, onSaved }: {
         <Form.Item label="模板名称">
           <Input value={名称} placeholder="可选" onChange={(e) => set名称(e.target.value)} />
         </Form.Item>
+        <Alert type="info" showIcon style={{ marginBottom: 12 }}
+          message="公式可用变量"
+          description="基本工资、计件工资、应出勤天数、实出勤天数、缺勤天数、加班工时、出勤工时、迟到次数、早退次数，以及排在前面的台头项目名。支持 + - * / ( )。例:加班工时*15 或 基本工资-迟到次数*20" />
         <Form.Item label="明细项目">
           <Table size="small" rowKey={(_: WageTemplateItem, i?: number) => String(i)} loading={loading}
             pagination={false} dataSource={items} columns={columns} />
