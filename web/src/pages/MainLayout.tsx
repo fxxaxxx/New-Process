@@ -124,8 +124,10 @@ export default function MainLayout() {
     ...(adminChildren.length ? [{ key: "admin", label: "管理后台", icon: <SafetyCertificateOutlined />, children: adminChildren }] : []),
   ];
 
+  const currentUser = localStorage.getItem("erp_user") || "用户";
   const logout = () => {
     localStorage.removeItem("erp_token");
+    localStorage.removeItem("erp_user");
     nav("/login");
   };
 
@@ -215,8 +217,8 @@ export default function MainLayout() {
           </span>
           <span style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <Avatar size={28} style={{ background: primary, fontSize: 13 }}>管</Avatar>
-              <span style={{ color: theme.headerColor, opacity: 0.85, fontSize: 13, fontWeight: 600 }}>admin</span>
+              <Avatar size={28} style={{ background: primary, fontSize: 13 }}>{currentUser.slice(0, 1)}</Avatar>
+              <span style={{ color: theme.headerColor, opacity: 0.85, fontSize: 13, fontWeight: 600 }}>{currentUser}</span>
             </span>
             <Button size="small" onClick={logout}>退出</Button>
           </span>

@@ -14,6 +14,7 @@ api.interceptors.response.use(
   (err) => {
     if (err.response?.status === 401) {
       localStorage.removeItem("erp_token");
+      localStorage.removeItem("erp_user");
       if (window.location.pathname !== "/login") window.location.href = "/login";
     }
     return Promise.reject(err);
@@ -22,6 +23,6 @@ api.interceptors.response.use(
 
 export async function login(用户: string, 密码: string) {
   const { data } = await api.post("/auth/login", { 用户, 密码 });
-  if (data.令牌) localStorage.setItem("erp_token", data.令牌);
+  if (data.令牌) { localStorage.setItem("erp_token", data.令牌); localStorage.setItem("erp_user", 用户); }
   return data as { 成功: boolean; 令牌?: string; 消息?: string };
 }
