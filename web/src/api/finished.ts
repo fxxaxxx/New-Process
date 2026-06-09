@@ -62,10 +62,12 @@ export interface FTDetail { 单头: FTHeader | null; 明细: { id: number; 源�
 export interface FSRLine { 色号?: string; 颜色?: string; 尺码?: string; 数量: number; 单价?: number }
 export interface FSRCreate { 仓库: string; 出仓单号?: string; 客户编号?: string; 客户名称?: string; 生产单号?: string; 款号?: string; 款式?: string; 床号?: string; 备注?: string; 明细: FSRLine[] }
 export interface FSRHeader { id: number; 单号?: string; 客户名称?: string; 仓库?: string; 日期?: string; 审核?: string; 备注?: string }
+export interface FSRBasisRow { 客户编号?: string; 客户名称?: string; 仓库?: string; 生产单号?: string; 款号?: string; 款式?: string; 床号?: string; 色号?: string; 颜色?: string; 尺码?: string; 数量: number; 单价?: number }
 // ---- 退仓 ----
 export interface FVRLine { 色号?: string; 颜色?: string; 尺码?: string; 数量: number; 单价?: number }
 export interface FVRCreate { 仓库: string; 入仓单号?: string; 供应商编号?: string; 供应商名称?: string; 生产单号?: string; 款号?: string; 款式?: string; 床号?: string; 备注?: string; 明细: FVRLine[] }
 export interface FVRHeader { id: number; 单号?: string; 供应商名称?: string; 仓库?: string; 日期?: string; 审核?: string; 备注?: string }
+export interface FVRBasisRow { 供应商编号?: string; 供应商名称?: string; 仓库?: string; 生产单号?: string; 款号?: string; 款式?: string; 床号?: string; 色号?: string; 颜色?: string; 尺码?: string; 数量: number; 单价?: number }
 
 export const finishedTransferApi = {
   list: (page = 1, size = 20, keyword = "") => api.get<Paged<FTHeader>>("/finished-transfers", { params: { page, size, keyword } }).then(r => r.data),
@@ -76,6 +78,7 @@ export const finishedTransferApi = {
   unapprove: (单号: string) => api.post(`/finished-transfers/${enc(单号)}/unapprove`),
 };
 export const finishedSalesReturnApi = {
+  basis: (出仓单号: string) => api.get<FSRBasisRow[]>("/finished-sales-returns/basis", { params: { 出仓单号 } }).then(r => r.data),
   list: (page = 1, size = 20, keyword = "") => api.get<Paged<FSRHeader>>("/finished-sales-returns", { params: { page, size, keyword } }).then(r => r.data),
   create: (body: FSRCreate) => api.post<{ 单号: string }>("/finished-sales-returns", body).then(r => r.data),
   remove: (单号: string) => api.delete(`/finished-sales-returns/${enc(单号)}`),
@@ -83,6 +86,7 @@ export const finishedSalesReturnApi = {
   unapprove: (单号: string) => api.post(`/finished-sales-returns/${enc(单号)}/unapprove`),
 };
 export const finishedVendorReturnApi = {
+  basis: (入仓单号: string) => api.get<FVRBasisRow[]>("/finished-vendor-returns/basis", { params: { 入仓单号 } }).then(r => r.data),
   list: (page = 1, size = 20, keyword = "") => api.get<Paged<FVRHeader>>("/finished-vendor-returns", { params: { page, size, keyword } }).then(r => r.data),
   create: (body: FVRCreate) => api.post<{ 单号: string }>("/finished-vendor-returns", body).then(r => r.data),
   remove: (单号: string) => api.delete(`/finished-vendor-returns/${enc(单号)}`),

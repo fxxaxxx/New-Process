@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { Button, Col, Drawer, Form, Input, InputNumber, Row, Select, Space, Statistic, Table, message } from "antd";
+import { Button, Col, Drawer, Form, Input, InputNumber, Modal, Row, Select, Space, Statistic, Table, message } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
 import { productionApi, type ProductionHeader } from "../../api/production";
 import { finishedVendorReturnApi, type FVRLine } from "../../api/finished";
 
-interface Picked { 款号?: string; 款式?: string }
+interface Picked { 款号?: string; 款式?: string; 供应商编号?: string; 床号?: string }
 
 export default function FinishedVendorReturnCreateDrawer({ open, onClose, onCreated }: {
   open: boolean; onClose: () => void; onCreated: () => void;
@@ -30,6 +30,24 @@ export default function FinishedVendorReturnCreateDrawer({ open, onClose, onCrea
   };
   const setLine = (i: number, patch: Partial<FVRLine>) =>
     setLines(prev => prev.map((l, j) => (j === i ? { ...l, ...patch } : l)));
+
+  const loadBasis = async () => {
+    const 入仓单号 = (form.getFieldValue("入仓单号") as string | undefined)?.trim();
+    if (!入仓单号) { message.warning("请先填原入仓单号"); return; }
+    let rows;
+    try { rows = await finishedVendorReturnApi.basis(入仓单号); }
+    catch { message.error("带出原单失败"); return; }
+    if (!rows || rows.length === 0) { message.warning("原单无明细"); return; }
+    const apply = () => {
+      const first = rows[0];
+      form.setFieldsValue({ 仓库: first.仓库, 生产单号: first.生产单号, 供应商名称: first.供应商名称, 入仓单号 });
+      setPicked({ 款号: first.款号, 款式: first.款式, 供应商编号: first.供应商编号, 床号: first.床号 });
+      setLines(rows.map(r => ({ 色号: r.色号, 颜色: r.颜色, 尺码: r.尺码, 数量: Number(r.数量 ?? 0), 单价: r.单价 ?? undefined })));
+    };
+    if (lines.length > 0) {
+      Modal.confirm({ title: "将替换现有明细?", onOk: apply });
+    } else apply();
+  };
 
   const submit = async () => {
     let v: { 仓库: string; 生产单号?: string; 入仓单号?: string; 供应商名称?: string; 备注?: string };
@@ -75,7 +93,11 @@ export default function FinishedVendorReturnCreateDrawer({ open, onClose, onCrea
         </Row>
         <Row gutter={16}>
           <Col span={8}><Form.Item label="款号"><Input value={`${picked.款号 ?? ""} ${picked.款式 ?? ""}`} disabled /></Form.Item></Col>
-          <Col span={8}><Form.Item name="入仓单号" label="原入仓单号"><Input /></Form.Item></Col>
+          <Col span={8}>
+            <Form.Item name="入仓单号" label="原入仓单号">
+              <Input.Search enterButton="带出原单" onSearch={loadBasis} />
+            </Form.Item>
+          </Col>
           <Col span={8}><Form.Item name="备注" label="备注"><Input /></Form.Item></Col>
         </Row>
       </Form>
