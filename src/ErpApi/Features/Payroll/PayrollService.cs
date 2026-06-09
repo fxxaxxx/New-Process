@@ -91,6 +91,21 @@ WHERE [日期]>=@月初 AND [日期]<@下月初
 GROUP BY [工号]", new { 月初, 下月初 }, tx))
             .ToDictionary(r => (string)r.工号, r => (decimal)r.缺勤);
 
+        // 8b. 日报(刷卡)月聚合字典:出勤工时/加班工时/迟到次数/早退次数
+        // 注:迟到次数/早退次数为 int 列,SUM 经驱动可能呈现为 int 或 long,统一用 Convert.ToDecimal 防类型意外。
+        var 日报 = (await c.QueryAsync(@"
+SELECT [工号],
+       ISNULL(SUM(CAST([合计时间] AS decimal(18,4))),0) AS 出勤工时,
+       ISNULL(SUM(CAST([加班] AS decimal(18,4))),0)     AS 加班工时,
+       ISNULL(SUM(ISNULL([迟到次数],0)),0)              AS 迟到次数,
+       ISNULL(SUM(ISNULL([早退次数],0)),0)              AS 早退次数
+FROM [日报表] WHERE [日期]>=@月初 AND [日期]<@下月初 GROUP BY [工号]", new { 月初, 下月初 }, tx))
+            .ToDictionary(r => (string)r.工号, r => (
+                出勤工时: (decimal)Convert.ToDecimal(r.出勤工时),
+                加班工时: (decimal)Convert.ToDecimal(r.加班工时),
+                迟到次数: (decimal)Convert.ToDecimal(r.迟到次数),
+                早退次数: (decimal)Convert.ToDecimal(r.早退次数)));
+
         // 动态 INSERT 工资明细表 的列名片段（列名内部生成，安全）
         var zgCols = string.Concat(items.Select(it => $",[{it.列名}]"));
         var zgParams = string.Concat(items.Select(it => $",@{it.列名}"));
@@ -117,6 +132,12 @@ VALUES(@工资表编号,@月份,@编号,@姓名,@部门编号,@部门,@职称,@�
                 ["缺勤天数"] = 缺勤天数,
                 ["实出勤天数"] = 实出勤天数,
             };
+
+            var 日 = 日报.TryGetValue(编号, out var dv) ? dv : default;
+            vars["加班工时"] = 日.加班工时;
+            vars["出勤工时"] = 日.出勤工时;
+            vars["迟到次数"] = 日.迟到次数;
+            vars["早退次数"] = 日.早退次数;
 
             decimal 应发合计 = 0, 应扣合计 = 0;
             var p = new DynamicParameters();
