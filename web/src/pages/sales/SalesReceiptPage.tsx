@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type Key } from "react";
 import {
-  Button, Card, Col, Descriptions, Drawer, Form, Input, InputNumber, Popconfirm,
+  Button, Card, Col, Descriptions, Drawer, Form, Input, InputNumber, Modal, Popconfirm,
   Row, Space, Statistic, Table, Tag, message,
 } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
-import { salesReceiptApi, type SKDetail, type SKHeader, type SKLine } from "../../api/sales";
+import {
+  receivablesApi, salesReceiptApi,
+  type SKDetail, type SKHeader, type SKLine, type UnsettledShipmentRow,
+} from "../../api/sales";
 import { sumReceipt } from "../../utils/salesLines";
 import { can } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
@@ -72,23 +75,58 @@ export default function SalesReceiptPage() {
 function CreateDrawer({ open, showAmount, onClose, onCreated }: {
   open: boolean; showAmount: boolean; onClose: () => void; onCreated: () => void;
 }) {
-  const [form] = Form.useForm<{ 出仓单号?: string; 备注?: string }>();
+  const [form] = Form.useForm<{ 出仓单号?: string; 客户编号?: string; 客户名称?: string; 备注?: string }>();
   const [lines, setLines] = useState<SKLine[]>([]);
   const [saving, setSaving] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [unsettled, setUnsettled] = useState<UnsettledShipmentRow[]>([]);
+  const [picked, setPicked] = useState<Record<string, number>>({});
+  const [selectedKeys, setSelectedKeys] = useState<Key[]>([]);
 
   useEffect(() => { if (!open) return; form.resetFields(); setLines([]); }, [open, form]);
 
   const setLine = (i: number, patch: Partial<SKLine>) =>
     setLines(prev => prev.map((l, j) => (j === i ? { ...l, ...patch } : l)));
 
+  const openPicker = async () => {
+    const 客户编号 = (form.getFieldValue("客户编号") as string | undefined)?.trim();
+    if (!客户编号) { message.warning("请先填写客户编号"); return; }
+    try {
+      const rows = await receivablesApi.unsettled(客户编号);
+      if (rows.length === 0) { message.warning("无待核销出货单"); return; }
+      setUnsettled(rows);
+      setPicked(Object.fromEntries(rows.map(r => [String(r.出货单号), r.未核销余额])));
+      setSelectedKeys([]);
+      setPickerOpen(true);
+    } catch { message.error("加载待核销出货单失败"); }
+  };
+
+  const confirmPicker = () => {
+    const 客户编号 = (form.getFieldValue("客户编号") as string | undefined)?.trim();
+    const 客户名称 = (form.getFieldValue("客户名称") as string | undefined)?.trim();
+    const chosen = unsettled.filter(r => selectedKeys.includes(String(r.出货单号)));
+    if (chosen.length === 0) { message.warning("请勾选要核销的出货单"); return; }
+    const built: SKLine[] = chosen.map(r => {
+      const 本次收款 = Number(picked[String(r.出货单号)] ?? r.未核销余额);
+      return {
+        出仓单号: r.出货单号, 客户编号, 客户名称,
+        货款金额: r.应收金额, 收款金额: 本次收款, 应收金额: r.未核销余额 - 本次收款,
+      };
+    });
+    const apply = () => { setLines(built); setPickerOpen(false); };
+    if (lines.length > 0) {
+      Modal.confirm({ title: "替换现有明细?", content: "带出的待核销出货单将替换当前明细行。", onOk: apply });
+    } else { apply(); }
+  };
+
   const submit = async () => {
-    let v: { 出仓单号?: string; 备注?: string };
+    let v: { 出仓单号?: string; 客户编号?: string; 客户名称?: string; 备注?: string };
     try { v = await form.validateFields(); } catch { return; }
     const ok = lines.filter(l => Number(l.收款金额) > 0);
     if (ok.length === 0) { message.error("请至少录入一行收款金额>0的明细"); return; }
     setSaving(true);
     try {
-      await salesReceiptApi.create({ ...v, 明细: ok });
+      await salesReceiptApi.create({ 出仓单号: v.出仓单号, 备注: v.备注, 明细: ok });
       message.success("销售收款单已创建"); onClose(); onCreated();
     } catch (e) {
       message.error((e as { response?: { data?: { 消息?: string } } }).response?.data?.消息 ?? "创建收款单失败");
@@ -96,12 +134,15 @@ function CreateDrawer({ open, showAmount, onClose, onCreated }: {
   };
 
   const columns = [
+    { title: "出仓单号", dataIndex: "出仓单号", width: 140, render: (v?: string) => v ?? "-" },
     { title: "客户编号", dataIndex: "客户编号", width: 160, render: (_: unknown, r: SKLine, i: number) =>
       <Input style={{ width: 144 }} value={r.客户编号 ?? ""} onChange={e => setLine(i, { 客户编号: e.target.value })} /> },
     { title: "客户名称", dataIndex: "客户名称", width: 200, render: (_: unknown, r: SKLine, i: number) =>
       <Input style={{ width: 184 }} value={r.客户名称 ?? ""} onChange={e => setLine(i, { 客户名称: e.target.value })} /> },
+    { title: "货款金额", dataIndex: "货款金额", width: 110, render: (v?: number) => (v == null ? "-" : v) },
     { title: "收款金额", dataIndex: "收款金额", width: 140, render: (_: unknown, r: SKLine, i: number) =>
       <InputNumber min={0} style={{ width: 124 }} value={r.收款金额 ?? 0} onChange={n => setLine(i, { 收款金额: Number(n ?? 0) })} /> },
+    { title: "应收金额", dataIndex: "应收金额", width: 110, render: (v?: number) => (v == null ? "-" : v) },
     { title: "", key: "_op", width: 50, render: (_: unknown, __: SKLine, i: number) =>
       <a onClick={() => setLines(prev => prev.filter((_, j) => j !== i))}>删除</a> },
   ];
@@ -111,15 +152,39 @@ function CreateDrawer({ open, showAmount, onClose, onCreated }: {
       extra={<Button type="primary" loading={saving} onClick={submit}>保存</Button>}>
       <Form form={form} layout="vertical">
         <Row gutter={16}>
+          <Col span={8}><Form.Item name="客户编号" label="客户编号"><Input placeholder="带出待核销出货单需填写" /></Form.Item></Col>
+          <Col span={8}><Form.Item name="客户名称" label="客户名称"><Input /></Form.Item></Col>
           <Col span={8}><Form.Item name="出仓单号" label="出仓单号"><Input placeholder="可选,关联销售出货单" /></Form.Item></Col>
-          <Col span={16}><Form.Item name="备注" label="备注"><Input /></Form.Item></Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={24}><Form.Item name="备注" label="备注"><Input /></Form.Item></Col>
         </Row>
       </Form>
-      <Table size="small" rowKey={(_, i) => String(i)} pagination={false} dataSource={lines} columns={columns} />
+      <Space style={{ marginBottom: 12 }}>
+        <Button onClick={openPicker}>带出待核销出货单</Button>
+      </Space>
+      <Table size="small" rowKey={(_, i) => String(i)} pagination={false} dataSource={lines} columns={columns} scroll={{ x: true }} />
       <Space style={{ marginTop: 12 }} size={24}>
         <Button icon={<PlusOutlined />} onClick={() => setLines(prev => [...prev, { 收款金额: 0 }])}>加一行</Button>
         {showAmount && <Statistic title="收款金额合计" value={sumReceipt(lines)} />}
       </Space>
+
+      <Modal title="待核销出货单" width={760} open={pickerOpen}
+        onCancel={() => setPickerOpen(false)} onOk={confirmPicker} okText="带出">
+        <Table size="small" rowKey={r => String(r.出货单号)} pagination={false} dataSource={unsettled}
+          rowSelection={{ selectedRowKeys: selectedKeys, onChange: setSelectedKeys }}
+          columns={[
+            { title: "出货单号", dataIndex: "出货单号", render: (v: string) => <span className="erp-num">{v}</span> },
+            { title: "出货日期", dataIndex: "出货日期", render: (v?: string) => v?.slice(0, 10) },
+            { title: "应收金额", dataIndex: "应收金额" },
+            { title: "已收金额", dataIndex: "已收金额" },
+            { title: "未核销余额", dataIndex: "未核销余额" },
+            { title: "本次收款", key: "_pay", width: 140, render: (_: unknown, r: UnsettledShipmentRow) =>
+              <InputNumber min={0} max={r.未核销余额} style={{ width: 120 }}
+                value={picked[String(r.出货单号)] ?? r.未核销余额}
+                onChange={n => setPicked(prev => ({ ...prev, [String(r.出货单号)]: Number(n ?? 0) }))} /> },
+          ]} />
+      </Modal>
     </Drawer>
   );
 }

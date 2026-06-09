@@ -15,13 +15,16 @@ export interface SRDetail { 单头: SRHeader | null; 明细: { id: number; 销�
 export interface SRBasisRow { 物料编号?: string; 物料名称?: string; 规格?: string; 颜色?: string; 单位?: string; 数量: number; 单价?: number | null }
 
 // ---- 销售收款 ----
-export interface SKLine { 客户编号?: string; 客户名称?: string; 收款金额: number }
+export interface SKLine { 客户编号?: string; 客户名称?: string; 收款金额: number; 货款金额?: number; 应收金额?: number; 出仓单号?: string }
 export interface SKCreate { 出仓单号?: string; 备注?: string; 明细: SKLine[] }
 export interface SKHeader { id: number; 单号?: string; 出仓单号?: string; 日期?: string; 金额?: number | null; 审核?: string; 审核人?: string; 备注?: string }
 export interface SKDetail { 单头: SKHeader | null; 明细: { id: number; 客户编号?: string; 客户名称?: string; 货款金额?: number | null; 收款金额?: number | null; 应收金额?: number | null; 备注?: string }[] }
 
 // ---- 应收对账 ----
 export interface ReceivableRow { 客户编号?: string; 客户名称?: string; 出货金额: number; 收款金额: number; 退货金额: number; 应收余额: number }
+export interface ReceivableSettlementRow { 出货单号?: string; 出货日期?: string; 客户编号?: string; 客户名称?: string; 应收金额: number; 退货金额: number; 已收金额: number; 未核销余额: number }
+export interface ReceivableAgingRow { 客户编号?: string; 客户名称?: string; 账龄0_30: number; 账龄31_60: number; 账龄61_90: number; "账龄90以上": number; 合计: number }
+export interface UnsettledShipmentRow { 出货单号?: string; 出货日期?: string; 应收金额: number; 已收金额: number; 未核销余额: number }
 
 const enc = encodeURIComponent;
 export const salesShipmentApi = {
@@ -51,4 +54,10 @@ export const salesReceiptApi = {
 };
 export const receivablesApi = {
   list: (客户编号?: string) => api.get<ReceivableRow[]>("/receivables", { params: { 客户编号 } }).then(r => r.data),
+  settlement: (客户编号?: string, 仅未结清?: boolean) =>
+    api.get<ReceivableSettlementRow[]>("/receivables/settlement", { params: { 客户编号, 仅未结清 } }).then(r => r.data),
+  aging: (客户编号?: string, 基准日?: string) =>
+    api.get<ReceivableAgingRow[]>("/receivables/aging", { params: { 客户编号, 基准日 } }).then(r => r.data),
+  unsettled: (客户编号: string) =>
+    api.get<UnsettledShipmentRow[]>("/receivables/unsettled", { params: { 客户编号 } }).then(r => r.data),
 };
