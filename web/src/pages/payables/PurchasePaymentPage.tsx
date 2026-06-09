@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type Key } from "react";
 import {
-  Button, Card, Col, Descriptions, Drawer, Form, Input, InputNumber, Popconfirm,
+  Button, Card, Col, Descriptions, Drawer, Form, Input, InputNumber, Modal, Popconfirm,
   Row, Space, Statistic, Table, Tag, message,
 } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
-import { purchasePaymentApi, type PPDetail, type PPHeader, type PPLine } from "../../api/payables";
+import {
+  payablesApi, purchasePaymentApi,
+  type PPDetail, type PPHeader, type PPLine, type UnpaidPurchaseRow,
+} from "../../api/payables";
 import { sumPay } from "../../utils/payLines";
 import { can } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
@@ -72,23 +75,58 @@ export default function PurchasePaymentPage() {
 function CreateDrawer({ open, showAmount, onClose, onCreated }: {
   open: boolean; showAmount: boolean; onClose: () => void; onCreated: () => void;
 }) {
-  const [form] = Form.useForm<{ 入仓单号?: string; 备注?: string }>();
+  const [form] = Form.useForm<{ 入仓单号?: string; 供应商编号?: string; 供应商名称?: string; 备注?: string }>();
   const [lines, setLines] = useState<PPLine[]>([]);
   const [saving, setSaving] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [unpaid, setUnpaid] = useState<UnpaidPurchaseRow[]>([]);
+  const [picked, setPicked] = useState<Record<string, number>>({});
+  const [selectedKeys, setSelectedKeys] = useState<Key[]>([]);
 
   useEffect(() => { if (!open) return; form.resetFields(); setLines([]); }, [open, form]);
 
   const setLine = (i: number, patch: Partial<PPLine>) =>
     setLines(prev => prev.map((l, j) => (j === i ? { ...l, ...patch } : l)));
 
+  const openPicker = async () => {
+    const 供应商编号 = (form.getFieldValue("供应商编号") as string | undefined)?.trim();
+    if (!供应商编号) { message.warning("请先填写供应商编号"); return; }
+    try {
+      const rows = await payablesApi.supplierUnpaid(供应商编号);
+      if (rows.length === 0) { message.warning("无待付入仓单"); return; }
+      setUnpaid(rows);
+      setPicked(Object.fromEntries(rows.map(r => [String(r.入仓单号), r.未付余额])));
+      setSelectedKeys([]);
+      setPickerOpen(true);
+    } catch { message.error("加载待付入仓单失败"); }
+  };
+
+  const confirmPicker = () => {
+    const 供应商编号 = (form.getFieldValue("供应商编号") as string | undefined)?.trim();
+    const 供应商名称 = (form.getFieldValue("供应商名称") as string | undefined)?.trim();
+    const chosen = unpaid.filter(r => selectedKeys.includes(String(r.入仓单号)));
+    if (chosen.length === 0) { message.warning("请勾选要付款的入仓单"); return; }
+    const built: PPLine[] = chosen.map(r => {
+      const 本次付款 = Number(picked[String(r.入仓单号)] ?? r.未付余额);
+      return {
+        入仓单号: r.入仓单号, 供应商编号, 供应商名称,
+        货款金额: r.应付金额, 付款金额: 本次付款, 尚欠金额: r.未付余额 - 本次付款,
+      };
+    });
+    const apply = () => { setLines(built); setPickerOpen(false); };
+    if (lines.length > 0) {
+      Modal.confirm({ title: "替换现有明细?", content: "带出的待付入仓单将替换当前明细行。", onOk: apply });
+    } else { apply(); }
+  };
+
   const submit = async () => {
-    let v: { 入仓单号?: string; 备注?: string };
+    let v: { 入仓单号?: string; 供应商编号?: string; 供应商名称?: string; 备注?: string };
     try { v = await form.validateFields(); } catch { return; }
     const ok = lines.filter(l => Number(l.付款金额) > 0);
     if (ok.length === 0) { message.error("请至少录入一行付款金额>0的明细"); return; }
     setSaving(true);
     try {
-      await purchasePaymentApi.create({ ...v, 明细: ok });
+      await purchasePaymentApi.create({ 入仓单号: v.入仓单号, 备注: v.备注, 明细: ok });
       message.success("采购付款单已创建"); onClose(); onCreated();
     } catch (e) {
       message.error((e as { response?: { data?: { 消息?: string } } }).response?.data?.消息 ?? "创建付款单失败");
@@ -96,12 +134,15 @@ function CreateDrawer({ open, showAmount, onClose, onCreated }: {
   };
 
   const columns = [
+    { title: "入仓单号", dataIndex: "入仓单号", width: 140, render: (v?: string) => v ?? "-" },
     { title: "供应商编号", dataIndex: "供应商编号", width: 160, render: (_: unknown, r: PPLine, i: number) =>
       <Input style={{ width: 144 }} value={r.供应商编号 ?? ""} onChange={e => setLine(i, { 供应商编号: e.target.value })} /> },
     { title: "供应商名称", dataIndex: "供应商名称", width: 200, render: (_: unknown, r: PPLine, i: number) =>
       <Input style={{ width: 184 }} value={r.供应商名称 ?? ""} onChange={e => setLine(i, { 供应商名称: e.target.value })} /> },
+    { title: "货款金额", dataIndex: "货款金额", width: 110, render: (v?: number) => (v == null ? "-" : v) },
     { title: "付款金额", dataIndex: "付款金额", width: 140, render: (_: unknown, r: PPLine, i: number) =>
       <InputNumber min={0} style={{ width: 124 }} value={r.付款金额 ?? 0} onChange={n => setLine(i, { 付款金额: Number(n ?? 0) })} /> },
+    { title: "尚欠金额", dataIndex: "尚欠金额", width: 110, render: (v?: number) => (v == null ? "-" : v) },
     { title: "", key: "_op", width: 50, render: (_: unknown, __: PPLine, i: number) =>
       <a onClick={() => setLines(prev => prev.filter((_, j) => j !== i))}>删除</a> },
   ];
@@ -111,15 +152,39 @@ function CreateDrawer({ open, showAmount, onClose, onCreated }: {
       extra={<Button type="primary" loading={saving} onClick={submit}>保存</Button>}>
       <Form form={form} layout="vertical">
         <Row gutter={16}>
+          <Col span={8}><Form.Item name="供应商编号" label="供应商编号"><Input placeholder="带出待付入仓单需填写" /></Form.Item></Col>
+          <Col span={8}><Form.Item name="供应商名称" label="供应商名称"><Input /></Form.Item></Col>
           <Col span={8}><Form.Item name="入仓单号" label="入仓单号"><Input placeholder="可选,关联采购入仓单" /></Form.Item></Col>
-          <Col span={16}><Form.Item name="备注" label="备注"><Input /></Form.Item></Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={24}><Form.Item name="备注" label="备注"><Input /></Form.Item></Col>
         </Row>
       </Form>
-      <Table size="small" rowKey={(_, i) => String(i)} pagination={false} dataSource={lines} columns={columns} />
+      <Space style={{ marginBottom: 12 }}>
+        <Button onClick={openPicker}>带出待付入仓单</Button>
+      </Space>
+      <Table size="small" rowKey={(_, i) => String(i)} pagination={false} dataSource={lines} columns={columns} scroll={{ x: true }} />
       <Space style={{ marginTop: 12 }} size={24}>
         <Button icon={<PlusOutlined />} onClick={() => setLines(prev => [...prev, { 付款金额: 0 }])}>加一行</Button>
         {showAmount && <Statistic title="付款金额合计" value={sumPay(lines)} />}
       </Space>
+
+      <Modal title="待付入仓单" width={760} open={pickerOpen}
+        onCancel={() => setPickerOpen(false)} onOk={confirmPicker} okText="带出">
+        <Table size="small" rowKey={r => String(r.入仓单号)} pagination={false} dataSource={unpaid}
+          rowSelection={{ selectedRowKeys: selectedKeys, onChange: setSelectedKeys }}
+          columns={[
+            { title: "入仓单号", dataIndex: "入仓单号", render: (v: string) => <span className="erp-num">{v}</span> },
+            { title: "入仓日期", dataIndex: "入仓日期", render: (v?: string) => v?.slice(0, 10) },
+            { title: "应付金额", dataIndex: "应付金额" },
+            { title: "已付金额", dataIndex: "已付金额" },
+            { title: "未付余额", dataIndex: "未付余额" },
+            { title: "本次付款", key: "_pay", width: 140, render: (_: unknown, r: UnpaidPurchaseRow) =>
+              <InputNumber min={0} max={r.未付余额} style={{ width: 120 }}
+                value={picked[String(r.入仓单号)] ?? r.未付余额}
+                onChange={n => setPicked(prev => ({ ...prev, [String(r.入仓单号)]: Number(n ?? 0) }))} /> },
+          ]} />
+      </Modal>
     </Drawer>
   );
 }
