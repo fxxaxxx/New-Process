@@ -148,3 +148,34 @@ public sealed class ReceivableRow
     public decimal 退货金额 { get; set; }
     public decimal 应收余额 { get; set; }
 }
+
+// ---- 应收逐单核销 / 账龄 / 待核销出货单 ----
+public sealed class ReceivableSettlementRow
+{
+    public string? 出货单号 { get; set; }
+    public DateTime? 出货日期 { get; set; }
+    public string? 客户编号 { get; set; }
+    public string? 客户名称 { get; set; }
+    public decimal 应收金额 { get; set; }
+    public decimal 退货金额 { get; set; }
+    public decimal 已收金额 { get; set; }
+    public decimal 未核销余额 { get; set; }
+}
+public sealed class ReceivableAgingRow
+{
+    public string? 客户编号 { get; set; }
+    public string? 客户名称 { get; set; }
+    public decimal 账龄0_30 { get; set; }
+    public decimal 账龄31_60 { get; set; }
+    public decimal 账龄61_90 { get; set; }
+    public decimal 账龄90以上 { get; set; }
+    public decimal 合计 { get; set; }
+}
+public sealed class UnsettledShipmentRow
+{
+    public string? 出货单号 { get; set; }
+    public DateTime? 出货日期 { get; set; }
+    public decimal 应收金额 { get; set; }
+    public decimal 已收金额 { get; set; }
+    public decimal 未核销余额 { get; set; }
+}
