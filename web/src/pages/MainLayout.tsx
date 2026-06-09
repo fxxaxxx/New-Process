@@ -11,6 +11,7 @@ import {
   SwapOutlined, UndoOutlined, CalendarOutlined,
   MoneyCollectOutlined, AccountBookOutlined, WalletOutlined,
   ScheduleOutlined, ControlOutlined, SettingOutlined,
+  SafetyCertificateOutlined,
 } from "@ant-design/icons";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { can } from "../auth/permissions";
@@ -103,6 +104,9 @@ export default function MainLayout() {
   const sysChildren = [
     ...(can(perms, "系统配置", "打开") ? [{ key: "/sys-config", label: "系统参数", icon: <ControlOutlined /> }] : []),
   ];
+  const adminChildren = [
+    ...(can(perms, "账号管理", "打开") ? [{ key: "/admin/accounts", label: "账号管理", icon: <TeamOutlined /> }] : []),
+  ];
   const items = [
     { key: "base", label: "基础资料", icon: <DatabaseOutlined />, children },
     ...(bizChildren.length
@@ -117,6 +121,7 @@ export default function MainLayout() {
     ...(apChildren.length ? [{ key: "ap", label: "应付管理", icon: <AccountBookOutlined />, children: apChildren }] : []),
     ...(prChildren.length ? [{ key: "pr", label: "工资管理", icon: <WalletOutlined />, children: prChildren }] : []),
     ...(sysChildren.length ? [{ key: "sys", label: "系统管理", icon: <SettingOutlined />, children: sysChildren }] : []),
+    ...(adminChildren.length ? [{ key: "admin", label: "管理后台", icon: <SafetyCertificateOutlined />, children: adminChildren }] : []),
   ];
 
   const logout = () => {
@@ -205,6 +210,7 @@ export default function MainLayout() {
               : loc.pathname.startsWith("/payroll/wage-templates") ? "工资模板"
               : loc.pathname.startsWith("/payroll/wages") ? "工资表"
               : loc.pathname.startsWith("/sys-config") ? "系统参数"
+              : loc.pathname.startsWith("/admin/accounts") ? "账号管理"
               : "基础资料"}
           </span>
           <span style={{ display: "flex", alignItems: "center", gap: 16 }}>

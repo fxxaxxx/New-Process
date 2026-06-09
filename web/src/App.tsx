@@ -41,6 +41,7 @@ import AttendancePage from "./pages/payroll/AttendancePage";
 import WageTemplatePage from "./pages/payroll/WageTemplatePage";
 import PayrollRunPage from "./pages/payroll/PayrollRunPage";
 import SysConfigPage from "./pages/system/SysConfigPage";
+import AccountPage from "./pages/admin/AccountPage";
 
 export default function App() {
   return (
@@ -86,6 +87,7 @@ export default function App() {
           <Route path="payroll/wage-templates" element={<WageTemplatePage />} />
           <Route path="payroll/wages" element={<PayrollRunPage />} />
           <Route path="sys-config" element={<SysConfigPage />} />
+          <Route path="admin/accounts" element={<AccountPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
