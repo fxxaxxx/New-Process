@@ -10,6 +10,15 @@ public sealed class FinishedSalesReturnService(ISqlConnectionFactory factory, ID
     public const string DocType = "成品退货单";
     public const string Prefix = "TH";
 
+    // 从原成品出仓明细单带出退货基准（首版不做累计已退校验）
+    public async Task<IReadOnlyList<FinishedSalesReturnBasisRow>> BasisAsync(string 出仓单号)
+    {
+        using var c = factory.Create();
+        return (await c.QueryAsync<FinishedSalesReturnBasisRow>(@"
+SELECT [客户编号],[客户名称],[仓库],[生产单号],[款号],[款式],[床号],[色号],[颜色],[尺码],[数量],[单价]
+FROM [成品出仓明细单] WHERE [单号]=@出仓单号 ORDER BY [ID]", new { 出仓单号 })).AsList();
+    }
+
     public async Task<string> CreateAsync(FinishedSalesReturnCreateDto dto, string user)
     {
         if (dto.明细.Count == 0) throw new ArgumentException("成品退货至少要有一行明细");
