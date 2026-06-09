@@ -2,13 +2,13 @@ import { api } from "./client";
 import type { Paged } from "./master";
 
 // ---- 采购付款 ----
-export interface PPLine { 供应商编号?: string; 供应商名称?: string; 付款金额: number }
+export interface PPLine { 入仓单号?: string; 供应商编号?: string; 供应商名称?: string; 付款金额: number; 货款金额?: number; 尚欠金额?: number }
 export interface PPCreate { 入仓单号?: string; 备注?: string; 明细: PPLine[] }
 export interface PPHeader { id: number; 单号?: string; 入仓单号?: string; 日期?: string; 金额?: number | null; 审核?: string; 审核人?: string; 备注?: string }
 export interface PPDetail { 单头: PPHeader | null; 明细: { id: number; 供应商编号?: string; 供应商名称?: string; 货款金额?: number | null; 付款金额?: number | null; 应付金额?: number | null; 备注?: string }[] }
 
 // ---- 发外付款 ----
-export interface OPLine { 加工厂编号?: string; 加工厂名称?: string; 付款金额: number }
+export interface OPLine { 发外单号?: string; 加工厂编号?: string; 加工厂名称?: string; 付款金额: number; 货款金额?: number; 尚欠金额?: number }
 export interface OPCreate { 发外单号?: string; 备注?: string; 明细: OPLine[] }
 export interface OPHeader { id: number; 单号?: string; 发外单号?: string; 日期?: string; 金额?: number | null; 审核?: string; 审核人?: string; 备注?: string }
 export interface OPDetail { 单头: OPHeader | null; 明细: { id: number; 加工厂编号?: string; 加工厂名称?: string; 货款金额?: number | null; 付款金额?: number | null; 应付金额?: number | null; 备注?: string }[] }
@@ -16,6 +16,12 @@ export interface OPDetail { 单头: OPHeader | null; 明细: { id: number; 加�
 // ---- 应付对账 ----
 export interface PayableSupplierRow { 供应商编号?: string; 供应商名称?: string; 入仓金额: number; 付款金额: number; 应付余额: number }
 export interface PayableFactoryRow { 加工厂编号?: string; 加工厂名称?: string; 回收金额: number; 付款金额: number; 应付余额: number }
+export interface PayableSupplierSettlementRow { 入仓单号?: string; 入仓日期?: string; 供应商编号?: string; 供应商名称?: string; 应付金额: number; 已付金额: number; 未付余额: number }
+export interface PayableFactorySettlementRow { 发外单号?: string; 回收日期?: string; 加工厂编号?: string; 加工厂名称?: string; 应付金额: number; 已付金额: number; 未付余额: number }
+export interface PayableSupplierAgingRow { 供应商编号?: string; 供应商名称?: string; 账龄0_30: number; 账龄31_60: number; 账龄61_90: number; "账龄90以上": number; 合计: number }
+export interface PayableFactoryAgingRow { 加工厂编号?: string; 加工厂名称?: string; 账龄0_30: number; 账龄31_60: number; 账龄61_90: number; "账龄90以上": number; 合计: number }
+export interface UnpaidPurchaseRow { 入仓单号?: string; 入仓日期?: string; 应付金额: number; 已付金额: number; 未付余额: number }
+export interface UnpaidOutsourceRow { 发外单号?: string; 回收日期?: string; 应付金额: number; 已付金额: number; 未付余额: number }
 
 const enc = encodeURIComponent;
 export const purchasePaymentApi = {
@@ -37,4 +43,16 @@ export const outsourcePaymentApi = {
 export const payablesApi = {
   supplier: (供应商编号?: string) => api.get<PayableSupplierRow[]>("/payables/supplier", { params: { 供应商编号 } }).then(r => r.data),
   factory: (加工厂编号?: string) => api.get<PayableFactoryRow[]>("/payables/factory", { params: { 加工厂编号 } }).then(r => r.data),
+  supplierSettlement: (供应商编号?: string, 仅未结清?: boolean) =>
+    api.get<PayableSupplierSettlementRow[]>("/payables/supplier-settlement", { params: { 供应商编号, 仅未结清 } }).then(r => r.data),
+  supplierAging: (供应商编号?: string, 基准日?: string) =>
+    api.get<PayableSupplierAgingRow[]>("/payables/supplier-aging", { params: { 供应商编号, 基准日 } }).then(r => r.data),
+  supplierUnpaid: (供应商编号: string) =>
+    api.get<UnpaidPurchaseRow[]>("/payables/supplier-unpaid", { params: { 供应商编号 } }).then(r => r.data),
+  factorySettlement: (加工厂编号?: string, 仅未结清?: boolean) =>
+    api.get<PayableFactorySettlementRow[]>("/payables/factory-settlement", { params: { 加工厂编号, 仅未结清 } }).then(r => r.data),
+  factoryAging: (加工厂编号?: string, 基准日?: string) =>
+    api.get<PayableFactoryAgingRow[]>("/payables/factory-aging", { params: { 加工厂编号, 基准日 } }).then(r => r.data),
+  factoryUnpaid: (加工厂编号: string) =>
+    api.get<UnpaidOutsourceRow[]>("/payables/factory-unpaid", { params: { 加工厂编号 } }).then(r => r.data),
 };
