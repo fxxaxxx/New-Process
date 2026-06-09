@@ -70,6 +70,8 @@ builder.Services.AddScoped<ErpApi.Features.Payroll.PayrollService>();
 builder.Services.AddScoped<ErpApi.Features.Payroll.PayrollQueryService>();
 builder.Services.AddSingleton<ErpApi.Infrastructure.Security.IConfigProtector, ErpApi.Infrastructure.Security.ConfigProtector>();
 builder.Services.AddScoped<ErpApi.Features.SystemConfig.SysConfigService>();
+builder.Services.AddScoped<ErpApi.Features.Admin.AccountService>();
+builder.Services.AddScoped<ErpApi.Features.Admin.PermissionAdminService>();
 
 // JWT 认证（密钥来自环境变量，无硬编码）
 var jwtKey = Environment.GetEnvironmentVariable(JwtTokenService.KeyEnvVar)
