@@ -47,6 +47,10 @@ public sealed class AttendanceMonthlyRow
     public decimal 应出勤天数 { get; set; }
     public decimal 缺勤天数 { get; set; }
     public decimal 实出勤天数 { get; set; }
+    public decimal? 出勤工时 { get; set; }
+    public decimal? 加班工时 { get; set; }
+    public int? 迟到次数 { get; set; }
+    public int? 早退次数 { get; set; }
 }
 
 // ---- 工资模板 ----

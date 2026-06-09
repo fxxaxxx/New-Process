@@ -7,13 +7,21 @@ namespace ErpApi.Features.Payroll;
 public sealed class AttendanceService(ISqlConnectionFactory factory)
 {
     private const string Sql = @"
-SELECT b.[编号] AS 工号, MAX(b.[姓名]) AS 姓名, b.[部门编号], MAX(d.[部门]) AS 部门,
+SELECT b.[编号] AS 工号, MAX(b.[姓名]) AS 姓名, b.[部门编号], MAX(dep.[部门]) AS 部门,
        @应出勤天数 AS 应出勤天数,
        ISNULL(SUM(TRY_CONVERT(decimal(18,4), q.[计算出勤])),0) AS 缺勤天数,
-       @应出勤天数 - ISNULL(SUM(TRY_CONVERT(decimal(18,4), q.[计算出勤])),0) AS 实出勤天数
+       @应出勤天数 - ISNULL(SUM(TRY_CONVERT(decimal(18,4), q.[计算出勤])),0) AS 实出勤天数,
+       MAX(ISNULL(d.出勤工时,0)) AS 出勤工时,
+       MAX(ISNULL(d.加班工时,0)) AS 加班工时,
+       MAX(ISNULL(d.迟到次数,0)) AS 迟到次数,
+       MAX(ISNULL(d.早退次数,0)) AS 早退次数
 FROM [人事档案] b
 LEFT JOIN [b缺勤登记明细] q ON q.[工号]=b.[编号] AND q.[日期] >= @月初 AND q.[日期] < @下月初
-LEFT JOIN [部门信息] d ON d.[编号]=b.[部门编号]
+LEFT JOIN [部门信息] dep ON dep.[编号]=b.[部门编号]
+LEFT JOIN (SELECT [工号], SUM(CAST([合计时间] AS decimal(18,4))) AS 出勤工时,
+              SUM(CAST([加班] AS decimal(18,4))) AS 加班工时,
+              SUM(ISNULL([迟到次数],0)) AS 迟到次数, SUM(ISNULL([早退次数],0)) AS 早退次数
+              FROM [日报表] WHERE [日期]>=@月初 AND [日期]<@下月初 GROUP BY [工号]) d ON d.[工号]=b.[编号]
 WHERE ISNULL(b.[在职],'1')='1' AND (@部门编号 IS NULL OR b.[部门编号]=@部门编号)
 GROUP BY b.[编号], b.[部门编号]
 ORDER BY b.[部门编号], b.[编号];";
