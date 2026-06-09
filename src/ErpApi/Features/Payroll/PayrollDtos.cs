@@ -89,3 +89,13 @@ public sealed class RosterRow
 { public string? 工号 { get; set; } public string? 姓名 { get; set; } public DateTime? 日期 { get; set; } public string? 班次 { get; set; } }
 public sealed class RosterAssignDto
 { public List<string> 工号集合 { get; set; } = []; public DateTime 开始日期 { get; set; } public DateTime 结束日期 { get; set; } public string 班次 { get; set; } = ""; }
+
+// ---- 考勤·日报 ----
+public sealed class DailySaveDto
+{ public string 工号 { get; set; } = ""; public DateTime 日期 { get; set; } public List<string> 刷卡 { get; set; } = []; }  // 刷卡 "HH:mm"
+public sealed class DailyRow
+{
+    public string? 工号 { get; set; } public string? 姓名 { get; set; } public string? 部门 { get; set; } public DateTime? 日期 { get; set; }
+    public decimal? 上午 { get; set; } public decimal? 下午 { get; set; } public decimal? 合计时间 { get; set; } public decimal? 加班 { get; set; }
+    public int? 迟到分 { get; set; } public int? 早退分 { get; set; } public int? 迟到次数 { get; set; } public int? 早退次数 { get; set; }
+}
