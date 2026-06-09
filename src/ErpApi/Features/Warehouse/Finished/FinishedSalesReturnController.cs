@@ -40,6 +40,16 @@ public sealed class FinishedSalesReturnController(
         return Ok(await svc.ListAsync(page, size, keyword));
     }
 
+    [HttpGet("basis")]
+    public async Task<IActionResult> Basis(string 出仓单号)
+    {
+        if (!await AllowAsync(PermissionAction.打开)) return Forbid();
+        var rows = await svc.BasisAsync(出仓单号);
+        if (!await AllowAsync(PermissionAction.单价))
+            foreach (var r in rows) r.单价 = null;
+        return Ok(rows);
+    }
+
     [HttpGet("{单号}")]
     public async Task<IActionResult> Get(string 单号)
     {

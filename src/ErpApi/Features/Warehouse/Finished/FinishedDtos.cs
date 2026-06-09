@@ -290,3 +290,13 @@ public sealed class FinishedVendorReturnLineRowDto
 }
 public sealed class FinishedVendorReturnDetailDto
 { public FinishedVendorReturnHeaderDto? 单头 { get; set; } public List<FinishedVendorReturnLineRowDto> 明细 { get; set; } = []; }
+
+// ===== 退类带出原单基准（从原 出仓/入仓 明细单带行）=====
+public sealed class FinishedSalesReturnBasisRow
+{ public string? 客户编号 {get;set;} public string? 客户名称 {get;set;} public string? 仓库 {get;set;} public string? 生产单号 {get;set;}
+  public string? 款号 {get;set;} public string? 款式 {get;set;} public string? 床号 {get;set;} public string? 色号 {get;set;}
+  public string? 颜色 {get;set;} public string? 尺码 {get;set;} public decimal? 数量 {get;set;} public decimal? 单价 {get;set;} }
+public sealed class FinishedVendorReturnBasisRow
+{ public string? 供应商编号 {get;set;} public string? 供应商名称 {get;set;} public string? 仓库 {get;set;} public string? 生产单号 {get;set;}
+  public string? 款号 {get;set;} public string? 款式 {get;set;} public string? 床号 {get;set;} public string? 色号 {get;set;}
+  public string? 颜色 {get;set;} public string? 尺码 {get;set;} public decimal? 数量 {get;set;} public decimal? 单价 {get;set;} }
