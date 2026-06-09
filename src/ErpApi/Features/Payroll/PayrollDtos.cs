@@ -68,3 +68,24 @@ public sealed class PayrollItemCol
 { public string? 列名 { get; set; } public string? 台头项目 { get; set; } public string? 类型 { get; set; } }
 public sealed class PayrollDetailDto
 { public PayrollSummaryRow? 单头 { get; set; } public List<PayrollItemCol> 项目 { get; set; } = []; public List<Dictionary<string, object?>> 明细 { get; set; } = []; }
+
+// ---- 考勤·班次 ----
+public sealed class ShiftDto
+{
+    public string 识别 { get; set; } = ""; public string? 名称 { get; set; }
+    public string? 上午上班 { get; set; } public string? 上午下班 { get; set; }   // "HH:mm"
+    public string? 下午上班 { get; set; } public string? 下午下班 { get; set; }
+    public decimal? 总小时 { get; set; } public decimal? 迟到分钟 { get; set; } public decimal? 早退分钟 { get; set; }
+}
+public sealed class ShiftRow
+{
+    public string? 识别 { get; set; } public string? 名称 { get; set; }
+    public string? 上午上班 { get; set; } public string? 上午下班 { get; set; }
+    public string? 下午上班 { get; set; } public string? 下午下班 { get; set; }
+    public decimal? 总小时 { get; set; } public decimal? 迟到分钟 { get; set; } public decimal? 早退分钟 { get; set; }
+}
+// ---- 考勤·排班 ----
+public sealed class RosterRow
+{ public string? 工号 { get; set; } public string? 姓名 { get; set; } public DateTime? 日期 { get; set; } public string? 班次 { get; set; } }
+public sealed class RosterAssignDto
+{ public List<string> 工号集合 { get; set; } = []; public DateTime 开始日期 { get; set; } public DateTime 结束日期 { get; set; } public string 班次 { get; set; } = ""; }
