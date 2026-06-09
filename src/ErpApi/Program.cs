@@ -70,6 +70,7 @@ builder.Services.AddScoped<ErpApi.Features.Payroll.PayrollService>();
 builder.Services.AddScoped<ErpApi.Features.Payroll.PayrollQueryService>();
 builder.Services.AddScoped<ErpApi.Features.Payroll.ShiftService>();
 builder.Services.AddScoped<ErpApi.Features.Payroll.RosterService>();
+builder.Services.AddScoped<ErpApi.Features.Payroll.DailyReportService>();
 builder.Services.AddSingleton<ErpApi.Infrastructure.Security.IConfigProtector, ErpApi.Infrastructure.Security.ConfigProtector>();
 builder.Services.AddScoped<ErpApi.Features.SystemConfig.SysConfigService>();
 builder.Services.AddScoped<ErpApi.Features.Admin.AccountService>();

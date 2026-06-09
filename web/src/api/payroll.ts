@@ -18,6 +18,7 @@ export interface AbsenceCreate {
 export interface AttendanceMonthlyRow {
   工号?: string; 姓名?: string; 部门编号?: string; 部门?: string;
   应出勤天数: number; 缺勤天数: number; 实出勤天数: number;
+  出勤工时?: number; 加班工时?: number; 迟到次数?: number; 早退次数?: number;
 }
 
 export const absenceApi = {
