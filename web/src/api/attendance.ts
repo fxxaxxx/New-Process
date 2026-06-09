@@ -26,3 +26,16 @@ export const rosterApi = {
   remove: (工号: string, 日期: string) =>
     api.delete("/attendance/rosters", { params: { 工号, 日期 } }),
 };
+
+export interface DailyRow {
+  工号?: string; 姓名?: string; 部门?: string; 日期?: string;
+  上午?: number | string; 下午?: number | string; 合计时间?: number | string; 加班?: number | string;
+  迟到分?: number | string; 早退分?: number | string; 迟到次数?: number | string; 早退次数?: number | string;
+}
+export interface DailySave { 工号: string; 日期: string; 刷卡: string[] }
+
+export const dailyApi = {
+  list: (工号: string | undefined, 开始: string, 结束: string, 部门?: string) =>
+    api.get<DailyRow[]>("/attendance/daily", { params: { 工号, 开始, 结束, 部门 } }).then(r => r.data),
+  save: (body: DailySave) => api.post("/attendance/daily", body),
+};

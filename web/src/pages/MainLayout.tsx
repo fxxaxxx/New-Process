@@ -11,7 +11,7 @@ import {
   SwapOutlined, UndoOutlined, CalendarOutlined,
   MoneyCollectOutlined, AccountBookOutlined, WalletOutlined,
   ScheduleOutlined, ControlOutlined, SettingOutlined,
-  SafetyCertificateOutlined, ClockCircleOutlined,
+  SafetyCertificateOutlined, ClockCircleOutlined, FieldTimeOutlined,
 } from "@ant-design/icons";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { can } from "../auth/permissions";
@@ -104,6 +104,7 @@ export default function MainLayout() {
   const attChildren = [
     ...(can(perms, "班次管理", "打开") ? [{ key: "/attendance/shifts", label: "班次管理", icon: <ClockCircleOutlined /> }] : []),
     ...(can(perms, "排班", "打开") ? [{ key: "/attendance/rosters", label: "排班", icon: <ScheduleOutlined /> }] : []),
+    ...(can(perms, "刷卡录入", "打开") ? [{ key: "/attendance/daily", label: "刷卡录入", icon: <FieldTimeOutlined /> }] : []),
   ];
   const sysChildren = [
     ...(can(perms, "系统配置", "打开") ? [{ key: "/sys-config", label: "系统参数", icon: <ControlOutlined /> }] : []),
@@ -218,6 +219,7 @@ export default function MainLayout() {
               : loc.pathname.startsWith("/payroll/wages") ? "工资表"
               : loc.pathname.startsWith("/attendance/shifts") ? "班次管理"
               : loc.pathname.startsWith("/attendance/rosters") ? "排班"
+              : loc.pathname.startsWith("/attendance/daily") ? "刷卡录入"
               : loc.pathname.startsWith("/sys-config") ? "系统参数"
               : loc.pathname.startsWith("/admin/accounts") ? "账号管理"
               : "基础资料"}

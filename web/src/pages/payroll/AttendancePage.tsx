@@ -30,6 +30,10 @@ export default function AttendancePage() {
       render: (v: number, r: AttendanceMonthlyRow) =>
         v < r.应出勤天数 ? <span style={{ color: "#fa8c16", fontWeight: 700 }}>{v}</span> : v,
     },
+    { title: "出勤工时", dataIndex: "出勤工时" },
+    { title: "加班工时", dataIndex: "加班工时" },
+    { title: "迟到次数", dataIndex: "迟到次数" },
+    { title: "早退次数", dataIndex: "早退次数" },
   ];
 
   return (

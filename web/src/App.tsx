@@ -42,6 +42,7 @@ import WageTemplatePage from "./pages/payroll/WageTemplatePage";
 import PayrollRunPage from "./pages/payroll/PayrollRunPage";
 import ShiftPage from "./pages/attendance/ShiftPage";
 import RosterPage from "./pages/attendance/RosterPage";
+import DailyPage from "./pages/attendance/DailyPage";
 import SysConfigPage from "./pages/system/SysConfigPage";
 import AccountPage from "./pages/admin/AccountPage";
 
@@ -90,6 +91,7 @@ export default function App() {
           <Route path="payroll/wages" element={<PayrollRunPage />} />
           <Route path="attendance/shifts" element={<ShiftPage />} />
           <Route path="attendance/rosters" element={<RosterPage />} />
+          <Route path="attendance/daily" element={<DailyPage />} />
           <Route path="sys-config" element={<SysConfigPage />} />
           <Route path="admin/accounts" element={<AccountPage />} />
         </Route>
