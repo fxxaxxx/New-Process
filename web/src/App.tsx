@@ -7,7 +7,7 @@ import MasterRouter from "./pages/master/MasterRouter";
 import Dashboard from "./pages/Dashboard";
 import StyleDetailPage from "./pages/styles/StyleDetailPage";
 import OrdersPage from "./pages/orders/OrdersPage";
-import ProductionPage from "./pages/production/ProductionPage";
+import ProductionNoticePage from "./pages/production/ProductionNoticePage";
 import MaterialDocRouter from "./pages/materials/MaterialDocRouter";
 import MaterialInventoryPage from "./pages/materials/MaterialInventoryPage";
 import CuttingPage from "./pages/workshop/CuttingPage";
@@ -57,7 +57,7 @@ export default function App() {
           <Route path="master/:menu" element={<MasterRouter />} />
           <Route path="styles/:styleNo" element={<StyleDetailPage />} />
           <Route path="orders" element={<OrdersPage />} />
-          <Route path="production" element={<ProductionPage />} />
+          <Route path="production" element={<ProductionNoticePage />} />
           <Route path="materials/:doc" element={<MaterialDocRouter />} />
           <Route path="material-inventory" element={<MaterialInventoryPage />} />
           <Route path="cuttings" element={<CuttingPage />} />
