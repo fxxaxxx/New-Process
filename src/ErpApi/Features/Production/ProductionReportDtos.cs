@@ -66,6 +66,27 @@ public sealed class IssueOverRow
     public decimal? 超数 { get; set; }
 }
 
+// 采购分析明细查询：生产BOM物料清单（算法4 缺料/需求 output）扁平明细行
+public sealed class PurchaseAnalysisRow
+{
+    public DateTime? 制单日期 { get; set; }
+    public string? 生产单号 { get; set; }
+    public string? 款号 { get; set; }
+    public string? 合同号 { get; set; }
+    public string? 物料编号 { get; set; }
+    public string? 物料名称 { get; set; }
+    public string? 规格 { get; set; }
+    public string? 颜色 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 总数量 { get; set; }
+    public decimal? 库存数量 { get; set; }
+    public decimal? 可用库存 { get; set; }
+    public decimal? 需订数量 { get; set; }
+    public decimal? 预算单价 { get; set; }
+    public decimal? 金额 { get; set; }
+    public string? 供应商名称 { get; set; }
+}
+
 // 生产单跟踪表：生产制单 进度行（计划/裁床/录入/未完成数 + 审核完成状态）
 public sealed class ProductionTrackingRow
 {

@@ -52,6 +52,14 @@ public sealed class ProductionReportController(
         return Ok(await svc.IssueOverAsync(keyword));
     }
 
+    // 采购分析明细查询：生产BOM物料清单（算法4）扁平明细
+    [HttpGet("purchase-analysis")]
+    public async Task<IActionResult> PurchaseAnalysis(string? keyword = null)
+    {
+        if (!await perms.HasAsync(CurrentUser, Menu, PermissionAction.打开)) return Forbid();
+        return Ok(await svc.PurchaseAnalysisAsync(keyword));
+    }
+
     // 生产单跟踪表：进度报表（计划/裁床/录入/未完成数 + 审核完成筛选）
     [HttpGet("tracking")]
     public async Task<IActionResult> Tracking(

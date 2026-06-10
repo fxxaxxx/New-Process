@@ -17,6 +17,7 @@ import OrderSummaryPage from "./pages/production/OrderSummaryPage";
 import PurchaseOverQueryPage from "./pages/production/PurchaseOverQueryPage";
 import IssueOverQueryPage from "./pages/production/IssueOverQueryPage";
 import MaterialUsageQueryPage from "./pages/production/MaterialUsageQueryPage";
+import PurchaseAnalysisQueryPage from "./pages/production/PurchaseAnalysisQueryPage";
 import MaterialDocRouter from "./pages/materials/MaterialDocRouter";
 import MaterialInventoryPage from "./pages/materials/MaterialInventoryPage";
 import CuttingPage from "./pages/workshop/CuttingPage";
@@ -76,6 +77,7 @@ export default function App() {
           <Route path="purchase-over-query" element={<PurchaseOverQueryPage />} />
           <Route path="issue-over-query" element={<IssueOverQueryPage />} />
           <Route path="material-usage-query" element={<MaterialUsageQueryPage />} />
+          <Route path="purchase-analysis-query" element={<PurchaseAnalysisQueryPage />} />
           <Route path="materials/:doc" element={<MaterialDocRouter />} />
           <Route path="material-inventory" element={<MaterialInventoryPage />} />
           <Route path="cuttings" element={<CuttingPage />} />

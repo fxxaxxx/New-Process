@@ -92,6 +92,19 @@ ORDER BY b.[生产单号], b.[物料编号]", new { kw = Kw(keyword) });
         return rows.AsList();
     }
 
+    // 采购分析明细查询：生产BOM物料清单（算法4 缺料/需求 output）跨全部生产单扁平明细，按 生产单号/款号/物料编号/物料名称 模糊
+    public async Task<List<PurchaseAnalysisRow>> PurchaseAnalysisAsync(string? keyword)
+    {
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<PurchaseAnalysisRow>(@"
+SELECT [制单日期],[生产单号],[款号],[合同号],[物料编号],[物料名称],[规格],[颜色],[单位],
+       [总数量],[库存数量],[可用库存],[需订数量],[预算单价],[金额],[供应商名称]
+FROM [生产BOM物料清单]
+WHERE (@kw IS NULL OR [生产单号] LIKE @kw OR [款号] LIKE @kw OR [物料编号] LIKE @kw OR [物料名称] LIKE @kw)
+ORDER BY [生产单号],[ID]", new { kw = Kw(keyword) });
+        return rows.AsList();
+    }
+
     // 生产单跟踪表：生产制单 进度（未完成数=计划数量-录入数量）。
     // 审核参数传 '1'/'0' 或 null；完成列存 N'是'/N'否'，参数传 '是'/'否' 或 null（空字符串视为 null=全部）。
     public async Task<List<ProductionTrackingRow>> TrackingAsync(string? keyword, string? 审核, string? 完成)
