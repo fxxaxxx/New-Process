@@ -105,6 +105,20 @@ ORDER BY [生产单号],[ID]", new { kw = Kw(keyword) });
         return rows.AsList();
     }
 
+    // 物料订单制作工作表：生产BOM物料清单 中 需订数量>0 的待订物料行，按 生产单号/款号/物料编号/物料名称 模糊。
+    // 只读；前端勾选行后按 (生产单号,供应商编号) 分组复用采购订单 create 端点生成采购订单。
+    public async Task<List<OrderWorksheetRow>> OrderWorksheetAsync(string? keyword)
+    {
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<OrderWorksheetRow>(@"
+SELECT [生产单号],[款号],[物料编号],[物料名称],[规格],[颜色],[单位],[总数量],[库存数量],[可用库存],[需订数量],[预算单价],[供应商编号],[供应商名称]
+FROM [生产BOM物料清单]
+WHERE ISNULL([需订数量],0) > 0
+  AND (@kw IS NULL OR [生产单号] LIKE @kw OR [款号] LIKE @kw OR [物料编号] LIKE @kw OR [物料名称] LIKE @kw)
+ORDER BY [生产单号],[物料编号]", new { kw = Kw(keyword) });
+        return rows.AsList();
+    }
+
     // 生产单跟踪表：生产制单 进度（未完成数=计划数量-录入数量）。
     // 审核参数传 '1'/'0' 或 null；完成列存 N'是'/N'否'，参数传 '是'/'否' 或 null（空字符串视为 null=全部）。
     public async Task<List<ProductionTrackingRow>> TrackingAsync(string? keyword, string? 审核, string? 完成)

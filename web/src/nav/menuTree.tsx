@@ -60,7 +60,7 @@ export const MENU_TREE: MenuGroup[] = [
   { key: "g-purchase", label: "采购管理", children: [
     M("采购物料分析", "/purchase-material-analysis", "生产制单"),
     M("采购物料设置"),
-    M("BOM订单制作"),
+    M("BOM订单制作", "/material-order-make", "生产制单"),
     M("采购订单", "/purchase-orders", "采购订单"),
     M("订单进度表"),
     M("进度明细表"),

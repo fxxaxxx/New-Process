@@ -56,6 +56,7 @@ public class P_ProductionReportsApiTests(DbFixture fx)
         Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/production-reports/purchase-over")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/production-reports/issue-over")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/production-reports/purchase-analysis")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/production-reports/order-worksheet")).StatusCode);
     }
 
     [SkippableFact]
@@ -75,6 +76,8 @@ public class P_ProductionReportsApiTests(DbFixture fx)
             Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/production-reports/issue-over")).StatusCode);
             Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/production-reports/purchase-analysis")).StatusCode);
             Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/production-reports/purchase-analysis?keyword=x")).StatusCode);
+            Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/production-reports/order-worksheet")).StatusCode);
+            Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/production-reports/order-worksheet?keyword=x")).StatusCode);
         }
         finally { CleanupPerms("prodrpt_ok"); }
     }
