@@ -87,6 +87,25 @@ public sealed class PurchaseAnalysisRow
     public string? 供应商名称 { get; set; }
 }
 
+// 物料订单制作工作表：生产BOM物料清单 需订数量>0 的待订物料行（勾选→按生产单×供应商生成采购订单）
+public sealed class OrderWorksheetRow
+{
+    public string? 生产单号 { get; set; }
+    public string? 款号 { get; set; }
+    public string? 物料编号 { get; set; }
+    public string? 物料名称 { get; set; }
+    public string? 规格 { get; set; }
+    public string? 颜色 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 总数量 { get; set; }
+    public decimal? 库存数量 { get; set; }
+    public decimal? 可用库存 { get; set; }
+    public decimal? 需订数量 { get; set; }
+    public decimal? 预算单价 { get; set; }
+    public string? 供应商编号 { get; set; }
+    public string? 供应商名称 { get; set; }
+}
+
 // 生产单跟踪表：生产制单 进度行（计划/裁床/录入/未完成数 + 审核完成状态）
 public sealed class ProductionTrackingRow
 {
