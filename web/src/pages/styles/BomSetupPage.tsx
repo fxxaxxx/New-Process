@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Button, Card, Col, DatePicker, Form, Input, InputNumber, Modal, Popconfirm,
   Result, Row, Select, Space, Table, Tabs, message,
@@ -58,6 +59,8 @@ export default function BomSetupPage() {
   const canOpen = can(perms, MENU, "打开");
   const canSave = can(perms, MENU, "保存");
   const [form] = Form.useForm<HeaderForm>();
+  const [sp] = useSearchParams();
+  const 款号Param = sp.get("款号");
 
   const currentUser = localStorage.getItem("erp_user") || "用户";
 
@@ -79,7 +82,7 @@ export default function BomSetupPage() {
     setRows([newRow()]);
   }, [form]);
 
-  useEffect(() => { reset(); }, [reset]);
+  // 初始载入 / URL 带款号自动载入 见 loadDoc 之后的 effect
 
   // —— 载入既有款号 BOM ——
   const loadDoc = useCallback(async (k: string) => {
@@ -116,6 +119,12 @@ export default function BomSetupPage() {
       message.error(errMsg(e, "款号不存在或加载失败"));
     }
   }, [form]);
+
+  // 初始：URL 带 ?款号= 则自动载入该款号 BOM,否则清空新建
+  useEffect(() => {
+    if (款号Param) loadDoc(款号Param);
+    else reset();
+  }, [款号Param, loadDoc, reset]);
 
   // —— 打开：列表 ——
   const loadOpenList = useCallback(async (kw: string) => {
