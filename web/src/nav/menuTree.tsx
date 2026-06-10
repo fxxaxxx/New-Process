@@ -1,7 +1,7 @@
-// 原系统(兴信B bmain.exe)菜单树复刻 + 我们已建功能映射。
+// 原系统(兴信B bmain.exe)菜单树·严格按截图复刻。
 // leaf.path 有值=已建页面路由(可选 perm=9位权限菜单名,无权限则隐藏);无 path=占位(功能开发中)。
-// 顺序尽量贴原系统顶层菜单;末尾为原树未列出但我们已建的额外组(销售/工资/考勤等)。
-// 维护提示:新增已建功能,把对应 leaf 的 path/perm 补上即可,占位会自动变成可用页面。
+// 仅含原系统截图里出现的菜单项;我们已建但原图未列的功能(销售/工资/考勤/应付/发外派工等)不在此菜单,页面仍可经 URL 访问。
+// 维护提示:新增/补全菜单以原系统截图为准;已建功能对上某项就把 path/perm 补上。
 
 export interface MenuLeaf {
   label: string;
@@ -30,19 +30,11 @@ export const MENU_TREE: MenuGroup[] = [
     M("客户资料", "/master/客户资料", "客户资料"),
     M("款号总表", "/master/款号资料", "款号资料"),
     M("部门人事", "/master/部门信息", "部门信息"),
-    M("人事档案", "/master/人事档案", "人事档案"),
-    M("报价资料", "/master/报价资料", "报价资料"),
-    M("调价", "/master/调价", "调价"),
-    M("客户类别", "/master/客户类别", "客户类别"),
-    M("供应商类别", "/master/供应商类别", "供应商类别"),
-    M("加工厂类别", "/master/加工厂类别", "加工厂类别"),
-    M("物料类别", "/master/物料类别", "物料类别"),
-    M("报价类别", "/master/报价类别", "报价类别"),
     M("用户修改密码"),
     M("系统用户", "/admin/accounts", "账号管理"),
     M("用户权限", "/admin/accounts", "账号管理"),
-    M("系统参数", "/sys-config", "系统配置"),
     M("网上升级"),
+    M("退出软件"),
   ]},
   // ② 生产管理
   { key: "g-prod", label: "生产管理", children: [
@@ -53,8 +45,6 @@ export const MENU_TREE: MenuGroup[] = [
     M("BOM货号查询"),
     M("货号接单汇总表"),
     M("BOM物料查询"),
-    M("裁床单", "/cuttings", "裁床单"),
-    M("计件录入", "/piecework", "计件"),
   ]},
   // ③ 生产报表
   { key: "g-prod-rpt", label: "生产报表", children: [
@@ -65,7 +55,6 @@ export const MENU_TREE: MenuGroup[] = [
     M("采购分析表"),
     M("成品余料统计表"),
     M("合同余料统计表"),
-    M("计件汇总", "/piecework-summary", "计件汇总"),
   ]},
   // ④ 采购管理
   { key: "g-purchase", label: "采购管理", children: [
@@ -100,18 +89,18 @@ export const MENU_TREE: MenuGroup[] = [
     M("报废单查询"),
     M("库存盘点查询"),
   ]},
-  // ⑦ 塑胶采购 (B线·无表)
+  // ⑦ 塑胶采购
   { key: "g-plastic-pur", label: "塑胶采购", children: [
     M("塑胶采购分析"), M("塑胶物料设置"), M("塑胶订单制作"), M("塑胶采购订单"),
     M("塑胶进度表"), M("塑胶进度明细表"), M("塑胶物料进出汇总"),
   ]},
-  // ⑧ 塑胶仓库 (B线·无表)
+  // ⑧ 塑胶仓库
   { key: "g-plastic-wh", label: "塑胶仓库", children: [
     M("工模表"), M("塑胶物料资料"), M("塑胶共用物料表"), M("塑胶标签单"),
     M("塑胶入仓单"), M("塑胶退仓单"), M("塑胶领料单"), M("塑胶退料单"),
     M("塑胶报废单"), M("塑胶盘点单"),
   ]},
-  // ⑨ 塑胶报表 (B线·无表)
+  // ⑨ 塑胶报表
   { key: "g-plastic-rpt", label: "塑胶报表", children: [
     M("塑胶库存统计表"), M("塑胶库存月报表"), M("塑胶进出库统计表"), M("塑胶类型客户统计"),
     M("原料本月库存汇总"), M("塑胶分析明细查询"), M("塑胶订购单查询"), M("塑胶标签查询"),
@@ -121,10 +110,6 @@ export const MENU_TREE: MenuGroup[] = [
   // ⑩ 发外加工
   { key: "g-outsource", label: "发外加工", children: [
     M("加工厂资料", "/master/加工厂资料", "加工厂资料"),
-    M("发外加工项目", "/master/发外加工项目", "发外加工项目"),
-    M("发外派工", "/outsourcing", "发外加工"),
-    M("发外回收", "/outsourcing-returns", "发外回收"),
-    M("发外对数", "/outsourcing-reconcile", "发外对数"),
     M("塑胶加工订单制作"),
     M("塑胶加工采购单"),
     M("加工采购查询"),
@@ -136,31 +121,31 @@ export const MENU_TREE: MenuGroup[] = [
     M("物料发外欠数表"),
     M("生产加工缺料表"),
   ]},
-  // ⑪ 原料仓库 (原料独立套·无表)
+  // ⑪ 原料仓库
   { key: "g-raw", label: "原料仓库", children: [
     M("原料资料"), M("原料生产需求表"), M("原料采购分析表"), M("原料采购订单"),
     M("原料采购进度表"), M("原料出库进度表"), M("原料入仓单"), M("原料退仓单"),
     M("原料出库表"), M("原料退库表"), M("原料盘点单"),
   ]},
-  // ⑫ 原料报表 (无表)
+  // ⑫ 原料报表
   { key: "g-raw-rpt", label: "原料报表", children: [
     M("原料库存统计表"), M("原料库存月报表"), M("原料生产需求汇总"), M("原料订货入库统计"),
     M("原料进度明细表"), M("出库进度明细表"), M("原料欠数统计表"), M("原料采购订单查询"),
     M("原料入仓查询"), M("原料退仓查询"), M("原料出库查询"), M("原料退库查询"), M("原料盘点查询"),
   ]},
-  // ⑬ 外发装配 (C线·无表)
+  // ⑬ 外发装配
   { key: "g-assembly", label: "外发装配", children: [
     M("装配物料设置"), M("装配物料汇总表"), M("装配加工采购单"), M("装配采购查询"),
     M("装配采购进度表"), M("装配物料跟踪表"), M("加工厂库存汇总表"), M("装配需领料明细表"),
     M("加工厂分类月报表"), M("加工厂分类明细表"),
   ]},
-  // ⑭ 辅料仓库 (无表)
+  // ⑭ 辅料仓库
   { key: "g-aux", label: "辅料仓库", children: [
     M("辅料资料"), M("辅料采购分析表"), M("辅料采购订单"), M("辅料采购进度表"),
     M("辅料出库进度表"), M("辅料入仓单"), M("辅料退仓单"), M("辅料出库单"),
     M("辅料退库单"), M("辅料盘点单"),
   ]},
-  // ⑮ 辅料报表 (无表)
+  // ⑮ 辅料报表
   { key: "g-aux-rpt", label: "辅料报表", children: [
     M("辅料库存统计表"), M("辅料库存月报表"), M("辅料订货入库统计"), M("辅料进度明细表"),
     M("辅料出库明细表"), M("辅料采购订单查询"), M("辅料入仓查询"), M("辅料退仓查询"),
@@ -177,7 +162,6 @@ export const MENU_TREE: MenuGroup[] = [
     M("半成品退库单"),
     M("半成品报废单"),
     M("半成品盘点单", "/semi-stocktakes", "半成品盘点"),
-    M("半成品库存", "/semi-inventory", "半成品库存"),
   ]},
   // ⑰ 半成品报表
   { key: "g-semi-rpt", label: "半成品报表", children: [
@@ -191,44 +175,9 @@ export const MENU_TREE: MenuGroup[] = [
     M("半成品报废查询"),
     M("半成品盘点查询"),
   ]},
-  // ⑱ 成品仓库 (截图截断,补我们已建成品功能)
+  // ⑱ 成品仓库 (原截图截断,仅含可见项)
   { key: "g-finished", label: "成品仓库", children: [
     M("成品入仓单", "/finished-receipts", "成品入仓"),
     M("成品入仓查询"),
-    M("成品出仓单", "/finished-issues", "成品出仓"),
-    M("成品退货单", "/finished-sales-returns", "成品退货"),
-    M("成品退仓单", "/finished-vendor-returns", "成品退仓"),
-    M("成品调拨单", "/finished-transfers", "成品调拨"),
-    M("成品盘点单", "/finished-stocktakes", "成品盘点"),
-    M("成品库存", "/finished-inventory", "成品库存"),
-  ]},
-
-  // ===== 原树未列出、我们已建的额外组 =====
-  // 销售管理
-  { key: "g-sales", label: "销售管理", children: [
-    M("销售出货", "/sales-shipments", "销售出货"),
-    M("销售退货", "/sales-returns", "销售退货"),
-    M("销售收款", "/sales-receipts", "销售收款"),
-    M("应收对账", "/receivables", "应收对账"),
-  ]},
-  // 应付管理
-  { key: "g-payable", label: "应付管理", children: [
-    M("采购付款", "/purchase-payments", "采购付款"),
-    M("发外付款", "/outsource-payments", "发外付款"),
-    M("应付对账", "/payables", "应付对账"),
-  ]},
-  // 工资管理
-  { key: "g-payroll", label: "工资管理", children: [
-    M("计件归集", "/payroll/piecework", "计件归集"),
-    M("缺勤登记", "/payroll/absences", "缺勤登记"),
-    M("出勤汇总", "/payroll/attendance", "出勤汇总"),
-    M("工资模板", "/payroll/wage-templates", "工资模板"),
-    M("工资表", "/payroll/wages", "工资表"),
-  ]},
-  // 考勤管理
-  { key: "g-att", label: "考勤管理", children: [
-    M("班次管理", "/attendance/shifts", "班次管理"),
-    M("排班", "/attendance/rosters", "排班"),
-    M("刷卡录入", "/attendance/daily", "刷卡录入"),
   ]},
 ];
