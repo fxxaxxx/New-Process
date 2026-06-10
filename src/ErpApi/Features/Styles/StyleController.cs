@@ -50,6 +50,16 @@ public sealed class StyleController(
         return NoContent();
     }
 
+    [HttpPut("{款号}/materials")]
+    public async Task<IActionResult> PutMaterials(string 款号, [FromBody] List<StyleMaterialDto> materials)
+    {
+        if (!await AllowAsync(PermissionAction.保存)) return Forbid();
+        try { await svc.ReplaceMaterialsAsync(款号, materials); }
+        catch (InvalidOperationException ex) { return NotFound(new { 消息 = ex.Message }); }
+        await AuditAsync("款号物料明细表", "修改", $"款号={款号}");
+        return NoContent();
+    }
+
     [HttpPut("{款号}/sizes")]
     public async Task<IActionResult> PutSizes(string 款号, [FromBody] List<string> sizes)
     {
