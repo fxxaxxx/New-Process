@@ -61,7 +61,7 @@ public sealed class ProductionController(
     }
 
     [HttpPost]
-    public async Task<IActionResult> Create([FromBody] ProductionCreateDto dto)
+    public async Task<IActionResult> Create([FromBody] ProductionNoticeCreateDto dto)
     {
         if (!await AllowAsync(PermissionAction.保存)) return Forbid();
         string 生产单号;

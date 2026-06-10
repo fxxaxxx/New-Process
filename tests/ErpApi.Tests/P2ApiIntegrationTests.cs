@@ -154,16 +154,23 @@ public class P2ApiIntegrationTests(DbFixture fx)
         using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P2TestData.Cleanup(c); }
     }
 
+    // 生产通知单（一单多货号）请求体：一个货号 = BOM款号 P2TK01，色码合计 100
     private static object ProductionBody() => new
     {
-        款号 = P2TestData.款号, 款式 = "P2测试款式",
         客户编号 = P2TestData.客户编号, 客户名称 = "P2测试客户",
         加工厂编号 = P2TestData.加工厂编号, 加工厂名称 = "P2测试加工厂",
-        出货单价 = 120,
-        数量明细 = new[]
+        默认单价 = "HK",
+        货号明细 = new[]
         {
-            new { 颜色 = "黑色", 尺码 = "S", 数量 = 50 },
-            new { 颜色 = "白色", 尺码 = "M", 数量 = 50 },
+            new
+            {
+                货号 = P2TestData.款号, BOM款号 = P2TestData.款号, 款号名称 = "P2测试款式", 比例 = 1, 分析 = true,
+                数量明细 = new[]
+                {
+                    new { 颜色 = "黑色", 尺码 = "S", 数量 = 50 },
+                    new { 颜色 = "白色", 尺码 = "M", 数量 = 50 },
+                }
+            }
         }
     };
 
@@ -227,9 +234,9 @@ public class P2ApiIntegrationTests(DbFixture fx)
         Assert.Equal(JsonValueKind.Null, detail.GetProperty("物料")[0].GetProperty("预算单价").ValueKind);
         Assert.Equal(JsonValueKind.Null, detail.GetProperty("物料")[0].GetProperty("金额").ValueKind);
 
-        // 有"单价"权限者能看到价格(正向断言)
+        // 有"单价"权限者能看到价格(正向断言：工序单价 = 1.5+2.5 = 4.0)
         var detail2 = await editor.GetFromJsonAsync<JsonElement>($"/api/production/{生产单号}");
-        Assert.Equal(120m, detail2.GetProperty("单头").GetProperty("出货单价").GetDecimal());
+        Assert.Equal(4.0m, detail2.GetProperty("单头").GetProperty("工序单价").GetDecimal());
 
         using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P2TestData.Cleanup(c); }
     }
