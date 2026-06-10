@@ -48,6 +48,28 @@ ORDER BY [款号]", new { kw = Kw(keyword) });
         return rows.AsList();
     }
 
+    // 采购超数查询：每(生产单 × 物料) 已采购数量(审核入仓) − BOM需求数量(算法4) > 0.005 的超采行。
+    // 需求按 (生产单号,物料编号) 聚合 Σ总数量；已采购按同键 Σ数量(仅审核='1' 入仓单)。
+    public async Task<List<PurchaseOverRow>> PurchaseOverAsync(string? keyword)
+    {
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<PurchaseOverRow>(@"
+SELECT b.[生产单号], MAX(b.[款号]) AS 款号, MAX(b.[合同号]) AS 合同号, MAX(b.[制单日期]) AS 制单日期,
+       b.[物料编号], MAX(b.[物料名称]) AS 物料名称, MAX(b.[规格]) AS 规格, MAX(b.[颜色]) AS 颜色, MAX(b.[单位]) AS 单位,
+       SUM(ISNULL(b.[总数量],0)) AS 需求数量, ISNULL(p.已采购,0) AS 已采购数量,
+       ISNULL(p.已采购,0) - SUM(ISNULL(b.[总数量],0)) AS 超数
+FROM [生产BOM物料清单] b
+LEFT JOIN (SELECT d.[生产单号], d.[物料编号], SUM(ISNULL(d.[数量],0)) AS 已采购
+           FROM [采购入仓明细单] d JOIN [采购入仓单] h ON h.[单号]=d.[单号]
+           WHERE ISNULL(h.[审核],'0')='1' GROUP BY d.[生产单号], d.[物料编号]) p
+  ON p.[生产单号]=b.[生产单号] AND p.[物料编号]=b.[物料编号]
+WHERE (@kw IS NULL OR b.[生产单号] LIKE @kw OR b.[款号] LIKE @kw OR b.[物料编号] LIKE @kw OR b.[物料名称] LIKE @kw)
+GROUP BY b.[生产单号], b.[物料编号], p.已采购
+HAVING ISNULL(p.已采购,0) - SUM(ISNULL(b.[总数量],0)) > 0.005
+ORDER BY b.[生产单号], b.[物料编号]", new { kw = Kw(keyword) });
+        return rows.AsList();
+    }
+
     // 生产单跟踪表：生产制单 进度（未完成数=计划数量-录入数量）。
     // 审核参数传 '1'/'0' 或 null；完成列存 N'是'/N'否'，参数传 '是'/'否' 或 null（空字符串视为 null=全部）。
     public async Task<List<ProductionTrackingRow>> TrackingAsync(string? keyword, string? 审核, string? 完成)

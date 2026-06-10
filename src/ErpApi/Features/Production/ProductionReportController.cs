@@ -36,6 +36,14 @@ public sealed class ProductionReportController(
         return Ok(await svc.OrderSummaryAsync(keyword));
     }
 
+    // 采购超数查询：每生产单×物料 已采购−BOM需求>0 列出超采
+    [HttpGet("purchase-over")]
+    public async Task<IActionResult> PurchaseOver(string? keyword = null)
+    {
+        if (!await perms.HasAsync(CurrentUser, Menu, PermissionAction.打开)) return Forbid();
+        return Ok(await svc.PurchaseOverAsync(keyword));
+    }
+
     // 生产单跟踪表：进度报表（计划/裁床/录入/未完成数 + 审核完成筛选）
     [HttpGet("tracking")]
     public async Task<IActionResult> Tracking(

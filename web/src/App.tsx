@@ -14,6 +14,7 @@ import ProductionTrackingPage from "./pages/production/ProductionTrackingPage";
 import BomMaterialQueryPage from "./pages/production/BomMaterialQueryPage";
 import BomStyleQueryPage from "./pages/production/BomStyleQueryPage";
 import OrderSummaryPage from "./pages/production/OrderSummaryPage";
+import PurchaseOverQueryPage from "./pages/production/PurchaseOverQueryPage";
 import MaterialDocRouter from "./pages/materials/MaterialDocRouter";
 import MaterialInventoryPage from "./pages/materials/MaterialInventoryPage";
 import CuttingPage from "./pages/workshop/CuttingPage";
@@ -70,6 +71,7 @@ export default function App() {
           <Route path="bom-material-query" element={<BomMaterialQueryPage />} />
           <Route path="bom-style-query" element={<BomStyleQueryPage />} />
           <Route path="order-summary" element={<OrderSummaryPage />} />
+          <Route path="purchase-over-query" element={<PurchaseOverQueryPage />} />
           <Route path="materials/:doc" element={<MaterialDocRouter />} />
           <Route path="material-inventory" element={<MaterialInventoryPage />} />
           <Route path="cuttings" element={<CuttingPage />} />
