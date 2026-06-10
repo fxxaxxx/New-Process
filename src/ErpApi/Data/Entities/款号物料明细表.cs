@@ -5,6 +5,9 @@ namespace ErpApi.Data.Entities;
 public sealed class 款号物料明细表 : MasterEntity
 {
     [Column("日期")] public DateTime? 日期 { get; set; }
+    [Column("顺序")] public string? 顺序 { get; set; }
+    [Column("客户编号")] public string? 客户编号 { get; set; }
+    [Column("客户名称")] public string? 客户名称 { get; set; }
     [Column("款号")] public string? 款号 { get; set; }
     [Column("款式")] public string? 款式 { get; set; }
     [Column("物料类别")] public string? 物料类别 { get; set; }

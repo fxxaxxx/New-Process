@@ -48,7 +48,8 @@ VALUES(@款号,@款式,@颜色编号,@颜色名称,@ID)",
     }
 
     // 整组替换 BOM 物料明细（先删后插；ID 自增由库分配，顺序写排序号保序）
-    public async Task ReplaceMaterialsAsync(string 款号, IReadOnlyList<StyleMaterialDto> materials)
+    // 单头(客户编号/客户名称/日期/单位)逐行落库；行级单位缺省时回退单头单位。
+    public async Task ReplaceMaterialsAsync(string 款号, BomSaveDto dto)
     {
         using var c = factory.Create();
         await c.OpenAsync();
@@ -59,16 +60,20 @@ VALUES(@款号,@款式,@颜色编号,@颜色名称,@ID)",
         var 款式 = await c.ExecuteScalarAsync<string?>(
             "SELECT [款式] FROM [款号总表] WHERE [款号]=@款号", new { 款号 }, tx);
         await c.ExecuteAsync("DELETE FROM [款号物料明细表] WHERE [款号]=@款号", new { 款号 }, tx);
+        var materials = dto.明细 ?? [];
         for (var i = 0; i < materials.Count; i++)
         {
             var m = materials[i];
             await c.ExecuteAsync(@"
-INSERT INTO [款号物料明细表]([款号],[款式],[顺序],[物料编号],[物料名称],[物料类别],[规格],[颜色],[单位],[使用数量])
-VALUES(@款号,@款式,@顺序,@物料编号,@物料名称,@物料类别,@规格,@颜色,@单位,@使用数量)",
+INSERT INTO [款号物料明细表]([款号],[款式],[顺序],[客户编号],[客户名称],[日期],[物料编号],[物料名称],[物料类别],[规格],[颜色],[单位],[使用数量])
+VALUES(@款号,@款式,@顺序,@客户编号,@客户名称,@日期,@物料编号,@物料名称,@物料类别,@规格,@颜色,@单位,@使用数量)",
                 new
                 {
                     款号, 款式, 顺序 = (i + 1).ToString(),
-                    m.物料编号, m.物料名称, m.物料类别, m.规格, m.颜色, m.单位, m.使用数量
+                    dto.客户编号, dto.客户名称, dto.日期,
+                    m.物料编号, m.物料名称, m.物料类别, m.规格, m.颜色,
+                    单位 = string.IsNullOrWhiteSpace(m.单位) ? dto.单位 : m.单位,
+                    m.使用数量
                 }, tx);
         }
         tx.Commit();
