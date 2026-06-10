@@ -48,7 +48,7 @@ export const MENU_TREE: MenuGroup[] = [
   ]},
   // ③ 生产报表
   { key: "g-prod-rpt", label: "生产报表", children: [
-    M("采购超数查询"),
+    M("采购超数查询", "/purchase-over-query", "生产制单"),
     M("领料超数查询"),
     M("制单用量查询"),
     M("采购分析明细查询"),
