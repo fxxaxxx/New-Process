@@ -8,6 +8,7 @@ import Dashboard from "./pages/Dashboard";
 import StyleDetailPage from "./pages/styles/StyleDetailPage";
 import OrdersPage from "./pages/orders/OrdersPage";
 import ProductionNoticePage from "./pages/production/ProductionNoticePage";
+import ProductionQueryPage from "./pages/production/ProductionQueryPage";
 import MaterialDocRouter from "./pages/materials/MaterialDocRouter";
 import MaterialInventoryPage from "./pages/materials/MaterialInventoryPage";
 import CuttingPage from "./pages/workshop/CuttingPage";
@@ -58,6 +59,7 @@ export default function App() {
           <Route path="styles/:styleNo" element={<StyleDetailPage />} />
           <Route path="orders" element={<OrdersPage />} />
           <Route path="production" element={<ProductionNoticePage />} />
+          <Route path="production-query" element={<ProductionQueryPage />} />
           <Route path="materials/:doc" element={<MaterialDocRouter />} />
           <Route path="material-inventory" element={<MaterialInventoryPage />} />
           <Route path="cuttings" element={<CuttingPage />} />

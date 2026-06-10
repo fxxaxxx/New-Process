@@ -39,8 +39,8 @@ export const MENU_TREE: MenuGroup[] = [
   // ② 生产管理
   { key: "g-prod", label: "生产管理", children: [
     M("生产通知单", "/production", "生产制单"),
-    M("查询生产单", "/production", "生产制单"),
-    M("生产单跟踪表"),
+    M("查询生产单", "/production-query", "生产制单"),
+    M("生产单跟踪表", "/production-query", "生产制单"),
     M("BOM物料设置"),
     M("BOM货号查询"),
     M("货号接单汇总表"),
