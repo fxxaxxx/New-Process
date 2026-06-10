@@ -89,12 +89,12 @@ export default function BomSetupPage() {
     const key = k.trim();
     if (!key) return;
     try {
-      const full = await stylesApi.full(key);
+      const full = await stylesApi.materials(key);
       const first = full.物料?.[0];
       setLoaded款号(key);
       form.setFieldsValue({
         款号: key,
-        款式: String(full.主档.款式 ?? ""),
+        款式: String(full.款式 ?? ""),
         客户编号: first?.客户编号 ?? undefined,
         客户名称: first?.客户名称 ?? undefined,
         日期: first?.日期 ? dayjs(first.日期) : dayjs(),

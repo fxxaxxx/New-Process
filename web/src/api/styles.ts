@@ -28,6 +28,9 @@ export interface StyleFull {
   物料: StyleBomLine[];
 }
 
+// BOM物料设置 轻量载入(仅 款式+物料,提速)
+export interface StyleMaterialsView { 款号: string; 款式?: string | null; 物料: StyleBomLine[] }
+
 // BOM物料设置保存载荷：单头(客户/日期/单位，逐行落库) + 明细
 export interface BomSave {
   客户编号?: string | null;
@@ -45,6 +48,7 @@ const enc = encodeURIComponent;
 
 export const stylesApi = {
   full: (款号: string) => api.get<StyleFull>(`/styles/${enc(款号)}/full`).then(r => r.data),
+  materials: (款号: string) => api.get<StyleMaterialsView>(`/styles/${enc(款号)}/materials`).then(r => r.data),
   list: (keyword = "", page = 1, size = 50) =>
     api.get<Paged<StyleListItem>>("/master/styles", { params: { page, size, keyword } }).then(r => r.data),
   saveColors: (款号: string, colors: StyleColor[]) => api.put(`/styles/${enc(款号)}/colors`, colors),

@@ -14,6 +14,9 @@ public sealed record BomSaveDto(
     string? 客户编号, string? 客户名称, DateTime? 日期, string? 单位,
     List<StyleMaterialDto> 明细);
 
+// BOM物料设置 轻量载入：仅 款式 + 物料明细(避免拉颜色/尺码/工序,提速)
+public sealed record StyleMaterialsViewDto(string 款号, string? 款式, IReadOnlyList<款号物料明细表> 物料);
+
 public sealed record StyleFullDto(
     款号总表 主档,
     IReadOnlyList<StyleColorDto> 颜色,

@@ -27,6 +27,18 @@ public sealed class StyleService(ISqlConnectionFactory factory, ErpDbContext db)
         return new StyleFullDto(主档, 颜色, 尺码, 工序, 物料);
     }
 
+    // BOM物料设置 轻量载入：仅 款式 + 物料明细(2 次查询,不拉颜色/尺码/工序,提速)
+    public async Task<StyleMaterialsViewDto?> GetMaterialsViewAsync(string 款号)
+    {
+        var 款式 = await db.款号总表.AsNoTracking()
+            .Where(s => s.款号 == 款号).Select(s => s.款式).FirstOrDefaultAsync();
+        if (款式 is null && !await db.款号总表.AsNoTracking().AnyAsync(s => s.款号 == 款号))
+            return null;
+        var 物料 = await db.款号物料明细表.AsNoTracking()
+            .Where(x => x.款号 == 款号).OrderBy(x => x.ID).ToListAsync();
+        return new StyleMaterialsViewDto(款号, 款式, 物料);
+    }
+
     // 整组替换颜色集（先删后插；ID 列无自增，写成排序号保证顺序稳定）
     public async Task ReplaceColorsAsync(string 款号, IReadOnlyList<StyleColorDto> colors)
     {

@@ -40,6 +40,16 @@ public sealed class StyleController(
         return Ok(dto);
     }
 
+    // BOM物料设置 轻量载入(仅 款式+物料,提速)
+    [HttpGet("{款号}/materials")]
+    public async Task<IActionResult> GetMaterials(string 款号)
+    {
+        if (!await AllowAsync(PermissionAction.打开)) return Forbid();
+        var dto = await svc.GetMaterialsViewAsync(款号);
+        if (dto is null) return NotFound();
+        return Ok(dto);
+    }
+
     [HttpPut("{款号}/colors")]
     public async Task<IActionResult> PutColors(string 款号, [FromBody] List<StyleColorDto> colors)
     {
