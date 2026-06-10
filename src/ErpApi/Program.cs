@@ -37,6 +37,7 @@ builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<ErpApi.Features.Styles.StyleService>();
 builder.Services.AddScoped<ErpApi.Features.Orders.OrderService>();
 builder.Services.AddScoped<ErpApi.Features.Production.ProductionService>();
+builder.Services.AddScoped<ErpApi.Features.Production.ProductionReportService>();
 builder.Services.AddScoped<ErpApi.Features.Materials.PurchaseReceipt.PurchaseReceiptService>();
 builder.Services.AddScoped<ErpApi.Features.Materials.MaterialIssue.MaterialIssueService>();
 builder.Services.AddScoped<ErpApi.Features.Materials.MaterialReturn.MaterialReturnService>();
