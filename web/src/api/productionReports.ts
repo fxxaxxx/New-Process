@@ -28,6 +28,12 @@ export interface PurchaseOverRow {
   需求数量?: number | null; 已采购数量?: number | null; 超数?: number | null;
 }
 
+export interface IssueOverRow {
+  生产单号?: string; 款号?: string; 合同号?: string; 制单日期?: string | null;
+  物料编号?: string; 物料名称?: string; 规格?: string; 颜色?: string; 单位?: string;
+  需求数量?: number | null; 已领数量?: number | null; 超数?: number | null;
+}
+
 export const productionReportApi = {
   bomMaterials: (keyword?: string) =>
     api.get<BomMaterialRow[]>("/production-reports/bom-materials", { params: { keyword } }).then(r => r.data),
@@ -41,4 +47,6 @@ export const productionReportApi = {
     }).then(r => r.data),
   purchaseOver: (keyword?: string) =>
     api.get<PurchaseOverRow[]>("/production-reports/purchase-over", { params: { keyword } }).then(r => r.data),
+  issueOver: (keyword?: string) =>
+    api.get<IssueOverRow[]>("/production-reports/issue-over", { params: { keyword } }).then(r => r.data),
 };
