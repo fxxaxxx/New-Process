@@ -46,6 +46,20 @@ export interface ProductionDetail {
   }[];
 }
 
+// MO单跟踪行（生产通知单MO单）
+export interface MoLine {
+  序号?: number | null;
+  接单日期?: string | null;
+  正单合同号?: string | null;
+  产品货号?: string | null;
+  产品名称?: string | null;
+  接单数量?: number | null;
+  装箱方式?: string | null;
+  订单总箱数?: number | null;
+  验货日期?: string | null;
+  备注?: string | null;
+}
+
 const enc = encodeURIComponent;
 
 export const productionApi = {
@@ -56,4 +70,8 @@ export const productionApi = {
   remove: (生产单号: string) => api.delete(`/production/${enc(生产单号)}`),
   approve: (生产单号: string) => api.post(`/production/${enc(生产单号)}/approve`),
   unapprove: (生产单号: string) => api.post(`/production/${enc(生产单号)}/unapprove`),
+  getMo: (生产单号: string) =>
+    api.get<MoLine[]>(`/production/${enc(生产单号)}/mo`).then(r => r.data),
+  saveMo: (生产单号: string, lines: MoLine[]) =>
+    api.put(`/production/${enc(生产单号)}/mo`, lines),
 };

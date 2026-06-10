@@ -139,6 +139,21 @@ public sealed class ProductionDetailDto
     public List<ProductionBomDto> 物料 { get; set; } = [];
 }
 
+// MO单跟踪行（生产通知单MO单；MO单录入页签）。ID 为 IDENTITY，保存时不传。
+public sealed class MoLineDto
+{
+    public int? 序号 { get; set; }
+    public DateTime? 接单日期 { get; set; }
+    public string? 正单合同号 { get; set; }
+    public string? 产品货号 { get; set; }
+    public string? 产品名称 { get; set; }
+    public decimal? 接单数量 { get; set; }
+    public string? 装箱方式 { get; set; }
+    public int? 订单总箱数 { get; set; }
+    public DateTime? 验货日期 { get; set; }
+    public string? 备注 { get; set; }
+}
+
 // BOM 展开的内部数据源行（款号物料明细表 LEFT JOIN 物料资料/供应商资料，Task 7 用）
 public sealed class BomSourceRow
 {
