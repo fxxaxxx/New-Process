@@ -15,6 +15,7 @@ public sealed class CuttingLineDto
 public sealed class CuttingCreateDto
 {
     public string 生产单号 { get; set; } = "";
+    public string? 货号 { get; set; }   // 该裁床单裁的货号(一单多货号);空则不写(由 10_production_notice.sql 回填)
     public string? 款号 { get; set; }
     public string? 款式 { get; set; }
     public string? 客户编号 { get; set; }
@@ -34,6 +35,7 @@ public sealed class CuttingHeaderDto
     public long ID { get; set; }
     public string? 裁床单号 { get; set; }
     public string? 生产单号 { get; set; }
+    public string? 货号 { get; set; }
     public string? 款号 { get; set; }
     public string? 款式 { get; set; }
     public string? 客户名称 { get; set; }

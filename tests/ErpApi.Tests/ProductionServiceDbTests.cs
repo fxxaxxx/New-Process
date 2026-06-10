@@ -3,6 +3,7 @@ using ErpApi.Engines.DocumentNumber;
 using ErpApi.Features.Orders;
 using ErpApi.Features.Production;
 using ErpApi.Infrastructure.Db;
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Xunit;
 
@@ -20,17 +21,24 @@ public class ProductionServiceDbTests(DbFixture fx)
         new(Factory(), new DocumentNumberGenerator(),
             new ErpApi.Engines.Inventory.MaterialInventoryService(Factory()));
 
-    private static ProductionCreateDto Dto() => new()
+    // 单货号 DTO（等价于旧的单款号覆盖）：货号=BOM款号=P2TK01，色码合计 100
+    private static ProductionNoticeCreateDto Dto() => new()
     {
-        款号 = P2TestData.款号, 款式 = "P2测试款式",
         客户编号 = P2TestData.客户编号, 客户名称 = "P2测试客户",
         加工厂编号 = P2TestData.加工厂编号, 加工厂名称 = "P2测试加工厂",
-        交货日期 = new DateTime(2026, 8, 1), 出货单价 = 120m,
-        数量明细 =
+        交货日期 = new DateTime(2026, 8, 1),
+        货号明细 =
         [
-            new ProductionQtyDto { 颜色 = "黑色", 尺码 = "S", 数量 = 40 },
-            new ProductionQtyDto { 颜色 = "黑色", 尺码 = "M", 数量 = 30 },
-            new ProductionQtyDto { 颜色 = "白色", 尺码 = "L", 数量 = 30 },
+            new ProductionGoodsLineDto
+            {
+                货号 = P2TestData.款号, BOM款号 = P2TestData.款号, 款号名称 = "P2测试款式", 比例 = 1m, 分析 = true,
+                数量明细 =
+                [
+                    new ProductionQtyDto { 颜色 = "黑色", 尺码 = "S", 数量 = 40 },
+                    new ProductionQtyDto { 颜色 = "黑色", 尺码 = "M", 数量 = 30 },
+                    new ProductionQtyDto { 颜色 = "白色", 尺码 = "L", 数量 = 30 },
+                ]
+            }
         ]
     };
 
@@ -83,7 +91,7 @@ public class ProductionServiceDbTests(DbFixture fx)
     {
         Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
         var dto = Dto();
-        dto.数量明细 = [];
+        dto.货号明细[0].数量明细 = [];
         await Assert.ThrowsAsync<ArgumentException>(() => Svc().CreateAsync(dto, "tester"));
     }
 
@@ -219,5 +227,123 @@ public class ProductionServiceDbTests(DbFixture fx)
         Assert.False(await Svc().DeleteAsync("SC不存在"));
 
         P2TestData.Cleanup(c);
+    }
+
+    // 第二个 BOM款号（用于多货号测试）：1 道工序(单价3) + 1 种物料(用量1, 单价5, 复用 P2TM01)
+    private const string 款号2 = "P2TK02";
+
+    private static void Seed款号2(SqlConnection c)
+    {
+        Cleanup款号2(c);
+        c.Execute("INSERT INTO [款号总表]([款号],[款式],[单价]) VALUES(N'P2TK02',N'P2测试款式2',80)");
+        c.Execute(@"INSERT INTO [款号明细表]([款号],[款式],[工序号],[工序名称],[单价],[工序类型])
+                    VALUES(N'P2TK02',N'P2测试款式2',N'01',N'整烫',3.0,N'整烫')");
+        c.Execute(@"INSERT INTO [款号物料明细表]([款号],[款式],[物料编号],[物料名称],[单位],[使用数量])
+                    VALUES(N'P2TK02',N'P2测试款式2',N'P2TM01',N'P2面料',N'米',1)");
+    }
+
+    private static void Cleanup款号2(SqlConnection c)
+    {
+        c.Execute("DELETE FROM [生产BOM物料清单] WHERE [款号]=N'P2TK02'");
+        c.Execute("DELETE FROM [生产制单工序表] WHERE [款号]=N'P2TK02'");
+        c.Execute("DELETE FROM [生产制单数量] WHERE [款号]=N'P2TK02'");
+        c.Execute("DELETE FROM [款号物料明细表] WHERE [款号]=N'P2TK02'");
+        c.Execute("DELETE FROM [款号明细表] WHERE [款号]=N'P2TK02'");
+        c.Execute("DELETE FROM [款号总表] WHERE [款号]=N'P2TK02'");
+    }
+
+    [SkippableFact]
+    public async Task Create_multi_货号_writes_two_货号_rows_with_per_货号_工序_and_BOM()
+    {
+        Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
+        using var c = fx.Open();
+        P2TestData.Seed(c);
+        Seed款号2(c);
+
+        var dto = new ProductionNoticeCreateDto
+        {
+            客户编号 = P2TestData.客户编号, 客户名称 = "P2测试客户",
+            加工厂编号 = P2TestData.加工厂编号, 加工厂名称 = "P2测试加工厂",
+            货号明细 =
+            [
+                new ProductionGoodsLineDto
+                {
+                    货号 = "HH-A", BOM款号 = P2TestData.款号, 款号名称 = "P2测试款式", 比例 = 1m, 分析 = true,
+                    数量明细 = [ new ProductionQtyDto { 颜色 = "黑色", 尺码 = "S", 数量 = 100 } ]
+                },
+                new ProductionGoodsLineDto
+                {
+                    货号 = "HH-B", BOM款号 = 款号2, 款号名称 = "P2测试款式2", 比例 = 1m, 分析 = true,
+                    数量明细 = [ new ProductionQtyDto { 颜色 = "蓝色", 尺码 = "M", 数量 = 50 } ]
+                },
+            ]
+        };
+
+        var 生产单号 = await Svc().CreateAsync(dto, "tester");
+        try
+        {
+            // 货号明细 2 行
+            Assert.Equal(2, c.ExecuteScalar<int>(
+                "SELECT COUNT(*) FROM [生产制单货号] WHERE [生产单号]=@生产单号", new { 生产单号 }));
+            Assert.Equal(P2TestData.款号, c.ExecuteScalar<string>(
+                "SELECT [BOM款号] FROM [生产制单货号] WHERE [生产单号]=@生产单号 AND [货号]=N'HH-A'", new { 生产单号 }));
+            Assert.Equal(100m, c.ExecuteScalar<decimal>(
+                "SELECT [数量] FROM [生产制单货号] WHERE [生产单号]=@生产单号 AND [货号]=N'HH-A'", new { 生产单号 }));
+            Assert.Equal(50m, c.ExecuteScalar<decimal>(
+                "SELECT [数量] FROM [生产制单货号] WHERE [生产单号]=@生产单号 AND [货号]=N'HH-B'", new { 生产单号 }));
+
+            // 计划数量 = Σ = 150
+            Assert.Equal(150m, c.ExecuteScalar<decimal>(
+                "SELECT [计划数量] FROM [生产制单] WHERE [生产单号]=@生产单号", new { 生产单号 }));
+
+            // 工序按货号：HH-A 2 道(P2TK01)、HH-B 1 道(P2TK02)；单头工序数=3、工序单价=1.5+2.5+3=7
+            Assert.Equal(2, c.ExecuteScalar<int>(
+                "SELECT COUNT(*) FROM [生产制单工序表] WHERE [生产单号]=@生产单号 AND [货号]=N'HH-A'", new { 生产单号 }));
+            Assert.Equal(1, c.ExecuteScalar<int>(
+                "SELECT COUNT(*) FROM [生产制单工序表] WHERE [生产单号]=@生产单号 AND [货号]=N'HH-B'", new { 生产单号 }));
+            Assert.Equal("P2TK02", c.ExecuteScalar<string>(
+                "SELECT [款号] FROM [生产制单工序表] WHERE [生产单号]=@生产单号 AND [货号]=N'HH-B'", new { 生产单号 }));
+            Assert.Equal(3m, Convert.ToDecimal(c.ExecuteScalar<object>(
+                "SELECT [工序数] FROM [生产制单] WHERE [生产单号]=@生产单号", new { 生产单号 })));
+            Assert.Equal(7.0m, c.ExecuteScalar<decimal>(
+                "SELECT [工序单价] FROM [生产制单] WHERE [生产单号]=@生产单号", new { 生产单号 }));
+
+            // 数量按货号
+            Assert.Equal("HH-A", c.ExecuteScalar<string>(
+                "SELECT [货号] FROM [生产制单数量] WHERE [生产单号]=@生产单号 AND [颜色]=N'黑色'", new { 生产单号 }));
+            Assert.Equal("HH-B", c.ExecuteScalar<string>(
+                "SELECT [货号] FROM [生产制单数量] WHERE [生产单号]=@生产单号 AND [颜色]=N'蓝色'", new { 生产单号 }));
+
+            // BOM 按货号：HH-A 面料200(2×100)+纽扣50(0.5×100)=金额2010；HH-B 面料50(1×50)×10=500
+            // 货号明细行：HH-A 2 行、HH-B 1 行
+            Assert.Equal(2, c.ExecuteScalar<int>(
+                "SELECT COUNT(*) FROM [生产BOM物料清单] WHERE [生产单号]=@生产单号 AND [货号]=N'HH-A'", new { 生产单号 }));
+            Assert.Equal(1, c.ExecuteScalar<int>(
+                "SELECT COUNT(*) FROM [生产BOM物料清单] WHERE [生产单号]=@生产单号 AND [货号]=N'HH-B'", new { 生产单号 }));
+            Assert.Equal(50m, c.ExecuteScalar<decimal>(
+                "SELECT [总数量] FROM [生产BOM物料清单] WHERE [生产单号]=@生产单号 AND [货号]=N'HH-B' AND [物料编号]=N'P2TM01'", new { 生产单号 }));
+            // 单头物料金额 = 2010 + 500 = 2510
+            Assert.Equal(2510m, c.ExecuteScalar<decimal>(
+                "SELECT [物料金额] FROM [生产制单] WHERE [生产单号]=@生产单号", new { 生产单号 }));
+
+            // GetAsync 返回 2 货号明细行 + 3 工序 + 3 BOM
+            var detail = await Svc().GetAsync(生产单号);
+            Assert.NotNull(detail);
+            Assert.Equal(2, detail!.货号明细.Count);
+            Assert.Equal(3, detail.工序.Count);
+            Assert.Equal(3, detail.物料.Count);
+            Assert.Contains(detail.工序, p => p.货号 == "HH-B" && p.工序名称 == "整烫");
+
+            // Delete 清空货号明细
+            Assert.True(await Svc().DeleteAsync(生产单号));
+            Assert.Equal(0, c.ExecuteScalar<int>(
+                "SELECT COUNT(*) FROM [生产制单货号] WHERE [生产单号]=@生产单号", new { 生产单号 }));
+        }
+        finally
+        {
+            await Svc().DeleteAsync(生产单号);
+            Cleanup款号2(c);
+            P2TestData.Cleanup(c);
+        }
     }
 }

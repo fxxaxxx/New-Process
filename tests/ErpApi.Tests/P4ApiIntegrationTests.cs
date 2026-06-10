@@ -47,7 +47,7 @@ public class P4ApiIntegrationTests(DbFixture fx)
 
     private static object CuttingBody() => new
     {
-        生产单号 = P4TestData.生产单号, 款号 = P4TestData.款号, 款式 = "P4测试款式",
+        生产单号 = P4TestData.生产单号, 货号 = P4TestData.货号, 款号 = P4TestData.款号, 款式 = "P4测试款式",
         客户编号 = P4TestData.客户编号, 客户名称 = "P4测试客户",
         加工厂编号 = P4TestData.加工厂编号, 加工厂名称 = "P4测试加工厂", 床号 = "1", 布种 = "全棉",
         明细 = new[]
@@ -104,8 +104,8 @@ public class P4ApiIntegrationTests(DbFixture fx)
         生产单号 = P4TestData.生产单号, 床号 = "1",
         明细 = new[]
         {
-            new { 工序号 = "02", 员工号 = P4TestData.员工号, 颜色 = "黑色", 尺码 = "M", 数量 = 40 },
-            new { 工序号 = "02", 员工号 = P4TestData.员工号, 颜色 = "白色", 尺码 = "L", 数量 = 30 },
+            new { 工序号 = "02", 货号 = P4TestData.货号, 员工号 = P4TestData.员工号, 颜色 = "黑色", 尺码 = "M", 数量 = 40 },
+            new { 工序号 = "02", 货号 = P4TestData.货号, 员工号 = P4TestData.员工号, 颜色 = "白色", 尺码 = "L", 数量 = 30 },
         }
     };
 
