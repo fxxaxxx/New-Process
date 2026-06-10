@@ -47,4 +47,28 @@ GROUP BY [款号]
 ORDER BY [款号]", new { kw = Kw(keyword) });
         return rows.AsList();
     }
+
+    // 生产单跟踪表：生产制单 进度（未完成数=计划数量-录入数量）。
+    // 审核参数传 '1'/'0' 或 null；完成列存 N'是'/N'否'，参数传 '是'/'否' 或 null（空字符串视为 null=全部）。
+    public async Task<List<ProductionTrackingRow>> TrackingAsync(string? keyword, string? 审核, string? 完成)
+    {
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<ProductionTrackingRow>(@"
+SELECT [生产单号],[标识],[款号],[款式],[客户编号],[客户名称],[日期],[下单日期],[交货日期],
+       [计划数量],[裁床数量],[录入数量],
+       (ISNULL([计划数量],0) - ISNULL([录入数量],0)) AS 未完成数,
+       [装箱方式],[订单总箱数],[完成],[审核]
+FROM [生产制单]
+WHERE (@kw IS NULL OR [生产单号] LIKE @kw OR [款号] LIKE @kw OR [客户名称] LIKE @kw OR [款式] LIKE @kw)
+  AND (@审核 IS NULL OR ISNULL([审核],'0')=@审核)
+  AND (@完成 IS NULL OR ISNULL([完成],N'否')=@完成)
+ORDER BY [日期] DESC, [生产单号] DESC",
+            new
+            {
+                kw = Kw(keyword),
+                审核 = string.IsNullOrWhiteSpace(审核) ? null : 审核.Trim(),
+                完成 = string.IsNullOrWhiteSpace(完成) ? null : 完成.Trim(),
+            });
+        return rows.AsList();
+    }
 }

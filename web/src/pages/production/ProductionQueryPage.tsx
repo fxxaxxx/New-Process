@@ -138,7 +138,7 @@ export default function ProductionQueryPage() {
   }
 
   return (
-    <Card title="查询生产单 / 生产单跟踪表" variant="borderless">
+    <Card title="查询生产单" variant="borderless">
       <Space wrap style={{ marginBottom: 16 }}>
         <Input.Search
           placeholder="生产单号 / 款号 / 客户" allowClear style={{ width: 280 }}
