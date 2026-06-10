@@ -10,10 +10,18 @@ import {
 } from "@ant-design/icons";
 import dayjs, { type Dayjs } from "dayjs";
 import { stylesApi, type BomSave, type StyleListItem } from "../../api/styles";
+import { masterApi } from "../../api/master";
 import { can } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
 
 const MENU = "款号资料";
+
+// 物料资料行（取自 GET /api/master/materials，物料资料·打开权限）
+const materialsApi = masterApi("materials");
+interface MaterialPick {
+  物料编号?: string; 物料名称?: string; 规格?: string;
+  物料类别?: string; 颜色?: string; 单位?: string;
+}
 
 function errMsg(e: unknown, fallback: string) {
   return (e as { response?: { data?: { 消息?: string } } }).response?.data?.消息 ?? fallback;
@@ -73,6 +81,14 @@ export default function BomSetupPage() {
   const [openRows, setOpenRows] = useState<StyleListItem[]>([]);
   const [openKw, setOpenKw] = useState("");
   const [openLoading, setOpenLoading] = useState(false);
+
+  // 物料资料选择弹窗（点物料编号搜索按钮触发，按行回填）
+  const [pickRowKey, setPickRowKey] = useState<number | null>(null);
+  const [pickRows, setPickRows] = useState<MaterialPick[]>([]);
+  const [pickKw, setPickKw] = useState("");
+  const [pickLoading, setPickLoading] = useState(false);
+  const [pickTotal, setPickTotal] = useState(0);
+  const [pickPage, setPickPage] = useState(1);
 
   // —— 新建：清空表单 ——
   const reset = useCallback(() => {
@@ -137,6 +153,37 @@ export default function BomSetupPage() {
   }, []);
 
   const onOpen = () => { setOpenModal(true); setOpenKw(""); loadOpenList(""); };
+
+  // —— 物料资料选择 ——
+  const loadPickList = useCallback(async (kw: string, page = 1) => {
+    setPickLoading(true);
+    try {
+      const r = await materialsApi.list(page, 50, kw);
+      setPickRows(r.items as MaterialPick[]);
+      setPickTotal(r.total);
+      setPickPage(page);
+    } catch { message.error("加载物料资料失败"); }
+    finally { setPickLoading(false); }
+  }, []);
+
+  const openPicker = (rowKey: number) => {
+    setPickRowKey(rowKey);
+    setPickKw("");
+    loadPickList("", 1);
+  };
+
+  const choosePick = (m: MaterialPick) => {
+    if (pickRowKey == null) return;
+    patch(pickRowKey, {
+      物料编号: m.物料编号 ?? "",
+      物料名称: m.物料名称 ?? "",
+      规格: m.规格 ?? "",
+      材料: m.物料类别 ?? "",
+      颜色: m.颜色 ?? "",
+      单位: m.单位 ?? "",
+    });
+    setPickRowKey(null);
+  };
 
   // —— 网格操作 ——
   const patch = (key: number, p: Partial<MatRow>) =>
@@ -243,7 +290,23 @@ export default function BomSetupPage() {
             ),
           },
           { title: "序号", width: 56, render: (_v: unknown, _r: MatRow, i: number) => i + 1 },
-          textCol("物料编号", "物料编号", 140),
+          {
+            title: "物料编号", width: 180,
+            render: (_v: unknown, r: MatRow) =>
+              canSave ? (
+                <Input.Search
+                  value={r.物料编号}
+                  placeholder="点🔍选料"
+                  onChange={e => patch(r.key, { 物料编号: e.target.value })}
+                  onSearch={() => openPicker(r.key)}
+                />
+              ) : (
+                <Input
+                  value={r.物料编号}
+                  onChange={e => patch(r.key, { 物料编号: e.target.value })}
+                />
+              ),
+          },
           textCol("物料名称", "物料名称", 140),
           textCol("工模编号", "工模编号", 120),
           textCol("规格", "规格", 120),
@@ -326,6 +389,35 @@ export default function BomSetupPage() {
           columns={[
             { title: "款号", dataIndex: "款号", render: (v: string) => <a className="erp-num">{v}</a> },
             { title: "款式", dataIndex: "款式" },
+          ]}
+        />
+      </Modal>
+
+      <Modal
+        title="产品资料查询A · 选择物料" open={pickRowKey != null} footer={null} width={760}
+        onCancel={() => setPickRowKey(null)}
+      >
+        <Input.Search
+          placeholder="搜索物料编号/名称/规格" allowClear style={{ marginBottom: 12 }}
+          value={pickKw} onChange={e => setPickKw(e.target.value)}
+          onSearch={v => loadPickList(v, 1)}
+        />
+        <Table<MaterialPick>
+          size="small" rowKey={(_, i) => `m-${i}`} loading={pickLoading} dataSource={pickRows}
+          scroll={{ y: 360 }}
+          onRow={r => ({ onClick: () => choosePick(r), style: { cursor: "pointer" } })}
+          pagination={{
+            current: pickPage, pageSize: 50, total: pickTotal,
+            showSizeChanger: false, showTotal: t => `共 ${t} 条`,
+            onChange: p => loadPickList(pickKw, p),
+          }}
+          columns={[
+            { title: "物料编号", dataIndex: "物料编号", width: 140, render: (v: string) => <a className="erp-num">{v}</a> },
+            { title: "物料名称", dataIndex: "物料名称", width: 160 },
+            { title: "规格", dataIndex: "规格", width: 120 },
+            { title: "材料", dataIndex: "物料类别", width: 100 },
+            { title: "颜色", dataIndex: "颜色", width: 90 },
+            { title: "单位", dataIndex: "单位", width: 70 },
           ]}
         />
       </Modal>
