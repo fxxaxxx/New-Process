@@ -10,6 +10,7 @@ import BomSetupPage from "./pages/styles/BomSetupPage";
 import OrdersPage from "./pages/orders/OrdersPage";
 import ProductionNoticePage from "./pages/production/ProductionNoticePage";
 import ProductionQueryPage from "./pages/production/ProductionQueryPage";
+import ProductionTrackingPage from "./pages/production/ProductionTrackingPage";
 import BomMaterialQueryPage from "./pages/production/BomMaterialQueryPage";
 import BomStyleQueryPage from "./pages/production/BomStyleQueryPage";
 import OrderSummaryPage from "./pages/production/OrderSummaryPage";
@@ -65,6 +66,7 @@ export default function App() {
           <Route path="orders" element={<OrdersPage />} />
           <Route path="production" element={<ProductionNoticePage />} />
           <Route path="production-query" element={<ProductionQueryPage />} />
+          <Route path="production-tracking" element={<ProductionTrackingPage />} />
           <Route path="bom-material-query" element={<BomMaterialQueryPage />} />
           <Route path="bom-style-query" element={<BomStyleQueryPage />} />
           <Route path="order-summary" element={<OrderSummaryPage />} />

@@ -13,6 +13,15 @@ export interface OrderSummaryRow {
   货号?: string; 款式?: string; 接单数量?: number | null; 订单数: number;
 }
 
+export interface ProductionTrackingRow {
+  生产单号?: string; 标识?: string; 款号?: string; 款式?: string;
+  客户编号?: string; 客户名称?: string;
+  日期?: string | null; 下单日期?: string | null; 交货日期?: string | null;
+  计划数量?: number | null; 裁床数量?: number | null; 录入数量?: number | null;
+  未完成数?: number | null; 装箱方式?: string; 订单总箱数?: number | null;
+  完成?: string; 审核?: string;
+}
+
 export const productionReportApi = {
   bomMaterials: (keyword?: string) =>
     api.get<BomMaterialRow[]>("/production-reports/bom-materials", { params: { keyword } }).then(r => r.data),
@@ -20,4 +29,8 @@ export const productionReportApi = {
     api.get<BomStyleRow[]>("/production-reports/bom-styles", { params: { keyword } }).then(r => r.data),
   orderSummary: (keyword?: string) =>
     api.get<OrderSummaryRow[]>("/production-reports/order-summary", { params: { keyword } }).then(r => r.data),
+  tracking: (keyword?: string, 审核?: string, 完成?: string) =>
+    api.get<ProductionTrackingRow[]>("/production-reports/tracking", {
+      params: { keyword, 审核, 完成 },
+    }).then(r => r.data),
 };

@@ -52,6 +52,7 @@ public class P_ProductionReportsApiTests(DbFixture fx)
         Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/production-reports/bom-materials")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/production-reports/bom-styles")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/production-reports/order-summary")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/production-reports/tracking")).StatusCode);
     }
 
     [SkippableFact]
@@ -65,6 +66,8 @@ public class P_ProductionReportsApiTests(DbFixture fx)
             Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/production-reports/bom-materials")).StatusCode);
             Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/production-reports/bom-styles")).StatusCode);
             Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/production-reports/order-summary")).StatusCode);
+            Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/production-reports/tracking")).StatusCode);
+            Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/production-reports/tracking?keyword=x&审核=1&完成=否")).StatusCode);
         }
         finally { CleanupPerms("prodrpt_ok"); }
     }
