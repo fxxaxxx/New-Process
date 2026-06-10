@@ -1,0 +1,86 @@
+namespace ErpApi.Features.Materials.PurchaseOrder;
+
+// 采购物料单/采购订单：两层(采购订单 单头 + 采购明细单 明细)，从生产单BOM带料生成。
+
+public sealed class PurchaseOrderLineDto
+{
+    public string? 物料编号 { get; set; }
+    public string? 物料名称 { get; set; }
+    public string? 物料类别 { get; set; }
+    public string? 规格 { get; set; }
+    public string? 颜色 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal 数量 { get; set; }      // 本次已订数量
+    public decimal? 单价 { get; set; }
+    public decimal? 预算数量 { get; set; }
+}
+
+public sealed class PurchaseOrderCreateDto
+{
+    public string? 生产单号 { get; set; }
+    public string? 供应商编号 { get; set; }
+    public string? 供应商名称 { get; set; }
+    public DateTime? 交货日期 { get; set; }
+    public string? 仓库 { get; set; }
+    public string? 款号 { get; set; }
+    public string? 合同号 { get; set; }
+    public string? 备注 { get; set; }
+    public List<PurchaseOrderLineDto> 明细 { get; set; } = [];
+}
+
+public sealed class PurchaseOrderHeaderDto
+{
+    public long ID { get; set; }
+    public string? 单号 { get; set; }
+    public DateTime? 日期 { get; set; }
+    public DateTime? 交货日期 { get; set; }
+    public string? 供应商编号 { get; set; }
+    public string? 供应商名称 { get; set; }
+    public string? 仓库 { get; set; }
+    public decimal? 数量 { get; set; }
+    public decimal? 金额 { get; set; }
+    public string? 操作员 { get; set; }
+    public string? 审核 { get; set; }
+    public string? 审核人 { get; set; }
+    public string? 备注 { get; set; }
+    public string? 生产单号 { get; set; }
+}
+
+public sealed class PurchaseOrderLineRowDto
+{
+    public long ID { get; set; }
+    public string? 物料编号 { get; set; }
+    public string? 物料名称 { get; set; }
+    public string? 物料类别 { get; set; }
+    public string? 规格 { get; set; }
+    public string? 颜色 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 数量 { get; set; }
+    public decimal? 单价 { get; set; }
+    public decimal? 金额 { get; set; }
+    public decimal? 预算数量 { get; set; }
+}
+
+public sealed class PurchaseOrderDetailDto
+{
+    public PurchaseOrderHeaderDto? 单头 { get; set; }
+    public List<PurchaseOrderLineRowDto> 明细 { get; set; } = [];
+}
+
+// BasisAsync：从 生产BOM物料清单 带出的采购基准行(物料类别为空——BOM清单无此列)。
+public sealed class PurchaseOrderBasisRow
+{
+    public string? 物料编号 { get; set; }
+    public string? 物料名称 { get; set; }
+    public string? 物料类别 { get; set; }
+    public string? 规格 { get; set; }
+    public string? 颜色 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 总数量 { get; set; }
+    public decimal? 库存数量 { get; set; }
+    public decimal? 可用库存 { get; set; }
+    public decimal? 需订数量 { get; set; }
+    public decimal? 预算单价 { get; set; }
+    public string? 供应商编号 { get; set; }
+    public string? 供应商名称 { get; set; }
+}

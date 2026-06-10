@@ -1,0 +1,106 @@
+using Dapper;
+using ErpApi.Engines.DocumentNumber;
+using ErpApi.Features.MasterData;
+using ErpApi.Infrastructure.Db;
+namespace ErpApi.Features.Materials.PurchaseOrder;
+
+// 采购物料单/采购订单。两层：采购订单(单头) + 采购明细单(明细，主从 by 单号)。
+// 基准来源：生产BOM物料清单(按生产单号带料)。审核/反审核由过账引擎处理。
+public sealed class PurchaseOrderService(ISqlConnectionFactory factory, IDocumentNumberGenerator docNo)
+{
+    public const string DocType = "采购订单";
+    public const string Prefix = "PO";   // 采购订单号 = PO + yyyyMMdd + 3位流水
+
+    // 从生产单BOM带出采购基准行(物料类别 BOM清单无此列，留空)。
+    public async Task<IReadOnlyList<PurchaseOrderBasisRow>> BasisAsync(string 生产单号)
+    {
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<PurchaseOrderBasisRow>(@"
+SELECT [物料编号],[物料名称],[规格],[颜色],[单位],[总数量],[库存数量],[可用库存],[需订数量],[预算单价],[供应商编号],[供应商名称]
+FROM [生产BOM物料清单] WHERE [生产单号]=@生产单号 ORDER BY [ID]", new { 生产单号 });
+        return rows.AsList();
+    }
+
+    public async Task<string> CreateAsync(PurchaseOrderCreateDto dto, string user)
+    {
+        if (dto.明细.Count == 0) throw new ArgumentException("采购订单至少要有一行物料明细");
+        if (string.IsNullOrWhiteSpace(dto.供应商编号)) throw new ArgumentException("采购订单必须指定供应商");
+
+        var 数量合计 = dto.明细.Sum(l => l.数量);
+        var 金额合计 = dto.明细.Sum(l => l.数量 * (l.单价 ?? 0));
+        var now = DateTime.Now;
+
+        using var c = factory.Create();
+        await c.OpenAsync();
+        using var tx = c.BeginTransaction();
+
+        var 单号 = await docNo.NextAsync(DocType, Prefix, now, c, tx);
+
+        await c.ExecuteAsync(@"
+INSERT INTO [采购订单]([单号],[日期],[交货日期],[供应商编号],[供应商名称],[仓库],[数量],[金额],[操作员],[审核],[备注],[生产单号])
+VALUES(@单号,@日期,@交货日期,@供应商编号,@供应商名称,@仓库,@数量,@金额,@操作员,'0',@备注,@生产单号)",
+            new { 单号, 日期 = now, dto.交货日期, dto.供应商编号, dto.供应商名称, dto.仓库,
+                  数量 = 数量合计, 金额 = 金额合计, 操作员 = user, dto.备注, dto.生产单号 }, tx);
+
+        foreach (var l in dto.明细)
+            await c.ExecuteAsync(@"
+INSERT INTO [采购明细单]([单号],[生产单号],[日期],[交货日期],[供应商编号],[供应商名称],[仓库],[物料类别],[物料编号],[物料名称],[规格],[颜色],[单位],[数量],[单价],[金额],[预算数量])
+VALUES(@单号,@生产单号,@日期,@交货日期,@供应商编号,@供应商名称,@仓库,@物料类别,@物料编号,@物料名称,@规格,@颜色,@单位,@数量,@单价,@金额,@预算数量)",
+                new { 单号, dto.生产单号, 日期 = now, dto.交货日期, dto.供应商编号, dto.供应商名称, dto.仓库,
+                      l.物料类别, l.物料编号, l.物料名称, l.规格, l.颜色, l.单位,
+                      l.数量, 单价 = l.单价 ?? 0, 金额 = l.数量 * (l.单价 ?? 0), l.预算数量 }, tx);
+
+        tx.Commit();
+        return 单号;
+    }
+
+    public async Task<PagedResult<PurchaseOrderHeaderDto>> ListAsync(int page, int size, string? keyword)
+    {
+        if (page < 1) page = 1;
+        if (size < 1 || size > 200) size = 20;
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        using var c = factory.Create();
+        using var multi = await c.QueryMultipleAsync(@"
+SELECT COUNT(*) FROM [采购订单]
+WHERE @kw IS NULL OR [单号] LIKE @kw OR [供应商名称] LIKE @kw OR [生产单号] LIKE @kw;
+SELECT [ID],[单号],[日期],[交货日期],[供应商编号],[供应商名称],[仓库],[数量],[金额],[操作员],[审核],[审核人],[备注],[生产单号]
+FROM [采购订单]
+WHERE @kw IS NULL OR [单号] LIKE @kw OR [供应商名称] LIKE @kw OR [生产单号] LIKE @kw
+ORDER BY [ID] DESC OFFSET (@page-1)*@size ROWS FETCH NEXT @size ROWS ONLY;",
+            new { kw, page, size });
+        var total = await multi.ReadFirstAsync<int>();
+        var items = (await multi.ReadAsync<PurchaseOrderHeaderDto>()).AsList();
+        return new PagedResult<PurchaseOrderHeaderDto>(items, total);
+    }
+
+    public async Task<PurchaseOrderDetailDto?> GetAsync(string 单号)
+    {
+        using var c = factory.Create();
+        using var multi = await c.QueryMultipleAsync(@"
+SELECT [ID],[单号],[日期],[交货日期],[供应商编号],[供应商名称],[仓库],[数量],[金额],[操作员],[审核],[审核人],[备注],[生产单号]
+FROM [采购订单] WHERE [单号]=@单号;
+SELECT [ID],[物料编号],[物料名称],[物料类别],[规格],[颜色],[单位],[数量],[单价],[金额],[预算数量]
+FROM [采购明细单] WHERE [单号]=@单号 ORDER BY [ID];",
+            new { 单号 });
+        var header = await multi.ReadFirstOrDefaultAsync<PurchaseOrderHeaderDto>();
+        if (header is null) return null;
+        var lines = (await multi.ReadAsync<PurchaseOrderLineRowDto>()).AsList();
+        return new PurchaseOrderDetailDto { 单头 = header, 明细 = lines };
+    }
+
+    // 删除：仅未审核可删；FK 顺序 明细→单头
+    public async Task<bool> DeleteAsync(string 单号)
+    {
+        using var c = factory.Create();
+        await c.OpenAsync();
+        using var tx = c.BeginTransaction();
+        var 审核 = await c.ExecuteScalarAsync<string?>(
+            "SELECT ISNULL([审核],'0') FROM [采购订单] WITH (UPDLOCK, HOLDLOCK) WHERE [单号]=@单号", new { 单号 }, tx);
+        if (审核 is null) return false;
+        if (审核 == "1") throw new InvalidOperationException("已审核的采购订单不能删除，请先反审核。");
+        await c.ExecuteAsync("DELETE FROM [采购明细单] WHERE [单号]=@单号", new { 单号 }, tx);
+        await c.ExecuteAsync("DELETE FROM [采购订单] WHERE [单号]=@单号", new { 单号 }, tx);
+        tx.Commit();
+        return true;
+    }
+}
