@@ -25,13 +25,13 @@ public sealed class CuttingService(ISqlConnectionFactory factory, IDocumentNumbe
         var 裁床单号 = await docNo.NextAsync(DocType, Prefix, now, c, tx);
 
         await c.ExecuteAsync(@"
-INSERT INTO [裁床总表]([裁床单号],[生产单号],[客户编号],[客户名称],[加工厂编号],[加工厂名称],
+INSERT INTO [裁床总表]([裁床单号],[生产单号],[货号],[客户编号],[客户名称],[加工厂编号],[加工厂名称],
     [款号],[款式],[客户款号],[合同号],[日期],[床号],[裁床数量],[布种],[操作员],[审核],[备注])
-VALUES(@裁床单号,@生产单号,@客户编号,@客户名称,@加工厂编号,@加工厂名称,
+VALUES(@裁床单号,@生产单号,@货号,@客户编号,@客户名称,@加工厂编号,@加工厂名称,
     @款号,@款式,@客户款号,@合同号,@日期,@床号,@裁床数量,@布种,@操作员,'0',@备注)",
             new
             {
-                裁床单号, dto.生产单号, dto.客户编号, dto.客户名称, dto.加工厂编号, dto.加工厂名称,
+                裁床单号, dto.生产单号, dto.货号, dto.客户编号, dto.客户名称, dto.加工厂编号, dto.加工厂名称,
                 dto.款号, dto.款式, dto.客户款号, dto.合同号, 日期 = now, dto.床号,
                 裁床数量, dto.布种, 操作员 = user, dto.备注
             }, tx);
@@ -61,7 +61,7 @@ VALUES(@裁床单号,@生产单号,@客户编号,@客户名称,@款号,@款式,@
         using var multi = await c.QueryMultipleAsync(@"
 SELECT COUNT(*) FROM [裁床总表]
 WHERE @kw IS NULL OR [裁床单号] LIKE @kw OR [生产单号] LIKE @kw OR [款号] LIKE @kw OR [床号] LIKE @kw;
-SELECT [ID],[裁床单号],[生产单号],[款号],[款式],[客户名称],[加工厂名称],[日期],[床号],[裁床数量],[布种],[操作员],[审核],[审核人],[备注]
+SELECT [ID],[裁床单号],[生产单号],[货号],[款号],[款式],[客户名称],[加工厂名称],[日期],[床号],[裁床数量],[布种],[操作员],[审核],[审核人],[备注]
 FROM [裁床总表]
 WHERE @kw IS NULL OR [裁床单号] LIKE @kw OR [生产单号] LIKE @kw OR [款号] LIKE @kw OR [床号] LIKE @kw
 ORDER BY [ID] DESC OFFSET (@page-1)*@size ROWS FETCH NEXT @size ROWS ONLY;",
@@ -75,7 +75,7 @@ ORDER BY [ID] DESC OFFSET (@page-1)*@size ROWS FETCH NEXT @size ROWS ONLY;",
     {
         using var c = factory.Create();
         using var multi = await c.QueryMultipleAsync(@"
-SELECT [ID],[裁床单号],[生产单号],[款号],[款式],[客户名称],[加工厂名称],[日期],[床号],[裁床数量],[布种],[操作员],[审核],[审核人],[备注]
+SELECT [ID],[裁床单号],[生产单号],[货号],[款号],[款式],[客户名称],[加工厂名称],[日期],[床号],[裁床数量],[布种],[操作员],[审核],[审核人],[备注]
 FROM [裁床总表] WHERE [裁床单号]=@裁床单号;
 SELECT [ID],[扎号],[缸号],[颜色],[尺码],[数量],[计件数量],[备注]
 FROM [裁床明细表] WHERE [裁床单号]=@裁床单号 ORDER BY [ID];",

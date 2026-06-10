@@ -21,8 +21,8 @@ public class PieceworkServiceDbTests(DbFixture fx)
         生产单号 = P4TestData.生产单号, 床号 = "1",
         明细 =
         [
-            new PieceworkLineDto { 工序号 = "02", 员工号 = P4TestData.员工号, 颜色 = "黑色", 尺码 = "M", 数量 = 40 },
-            new PieceworkLineDto { 工序号 = "02", 员工号 = P4TestData.员工号, 颜色 = "白色", 尺码 = "L", 数量 = 30 },
+            new PieceworkLineDto { 工序号 = "02", 货号 = P4TestData.货号, 员工号 = P4TestData.员工号, 颜色 = "黑色", 尺码 = "M", 数量 = 40 },
+            new PieceworkLineDto { 工序号 = "02", 货号 = P4TestData.货号, 员工号 = P4TestData.员工号, 颜色 = "白色", 尺码 = "L", 数量 = 30 },
         ]
     };
 
@@ -69,7 +69,7 @@ public class PieceworkServiceDbTests(DbFixture fx)
             await Svc().RecordAsync(new PieceworkRecordDto
             {
                 生产单号 = P4TestData.生产单号,
-                明细 = [ new PieceworkLineDto { 工序号 = "02", 员工号 = P4TestData.员工号, 扎号 = 5, 数量 = 10 } ]
+                明细 = [ new PieceworkLineDto { 工序号 = "02", 货号 = P4TestData.货号, 员工号 = P4TestData.员工号, 扎号 = 5, 数量 = 10 } ]
             }, "tester");
             var rows = await Svc().ListByOrderAsync(P4TestData.生产单号);
             Assert.Equal(5, Assert.Single(rows).扎号);
@@ -105,6 +105,41 @@ public class PieceworkServiceDbTests(DbFixture fx)
             // 已审核计件不可删
             var first = (await Svc().ListByOrderAsync(P4TestData.生产单号))[0];
             await Assert.ThrowsAsync<InvalidOperationException>(() => Svc().DeleteAsync(first.ID));
+        }
+        finally { P4TestData.Cleanup(c); }
+    }
+
+    // 一单多货号：同一工序号(02车缝)在货号P4H01单价2.5、货号P4H02单价3.5。
+    // 计件单价必须按 生产单号+货号+工序号 取，而非仅 生产单号+工序号(否则歧义)。
+    [SkippableFact]
+    public async Task Record_price_disambiguated_by_货号()
+    {
+        using var c = fx.Open();
+        P4TestData.Seed(c);
+        try
+        {
+            await Svc().RecordAsync(new PieceworkRecordDto
+            {
+                生产单号 = P4TestData.生产单号,
+                明细 =
+                [
+                    new PieceworkLineDto { 工序号 = "02", 货号 = P4TestData.货号,  员工号 = P4TestData.员工号, 数量 = 10 }, // 单价2.5 → 金额25
+                    new PieceworkLineDto { 工序号 = "02", 货号 = P4TestData.货号B, 员工号 = P4TestData.员工号, 数量 = 10 }, // 单价3.5 → 金额35
+                ]
+            }, "tester");
+
+            Assert.Equal(2.5m, c.ExecuteScalar<decimal>(
+                "SELECT [单价] FROM [计件表] WHERE [生产单号]=@s AND [货号]=@h",
+                new { s = P4TestData.生产单号, h = P4TestData.货号 }));
+            Assert.Equal(25m, c.ExecuteScalar<decimal>(
+                "SELECT [金额] FROM [计件表] WHERE [生产单号]=@s AND [货号]=@h",
+                new { s = P4TestData.生产单号, h = P4TestData.货号 }));
+            Assert.Equal(3.5m, c.ExecuteScalar<decimal>(
+                "SELECT [单价] FROM [计件表] WHERE [生产单号]=@s AND [货号]=@h",
+                new { s = P4TestData.生产单号, h = P4TestData.货号B }));
+            Assert.Equal(35m, c.ExecuteScalar<decimal>(
+                "SELECT [金额] FROM [计件表] WHERE [生产单号]=@s AND [货号]=@h",
+                new { s = P4TestData.生产单号, h = P4TestData.货号B }));
         }
         finally { P4TestData.Cleanup(c); }
     }

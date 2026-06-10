@@ -24,20 +24,27 @@ public sealed class PieceworkService(ISqlConnectionFactory factory)
             if (string.IsNullOrWhiteSpace(l.员工号)) throw new ArgumentException("员工号必填");
             if (l.数量 <= 0) throw new ArgumentException("计件数量必须大于0");
 
-            var 单价 = await c.ExecuteScalarAsync<decimal?>(
-                "SELECT [单价] FROM [生产制单工序表] WHERE [生产单号]=@生产单号 AND [工序号]=@工序号",
-                new { dto.生产单号, l.工序号 }, tx);
+            // 单价按 生产单号+货号+工序号 取(一单多货号:同一工序号在不同货号下可有不同单价)。
+            // 货号为空(旧单/未传)时退化为 生产单号+工序号 匹配，兼容回填前的历史数据。
+            var 单价 = await c.ExecuteScalarAsync<decimal?>(@"
+SELECT [单价] FROM [生产制单工序表]
+WHERE [生产单号]=@生产单号 AND [工序号]=@工序号
+  AND (@货号 IS NULL OR [货号]=@货号)",
+                new { dto.生产单号, l.货号, l.工序号 }, tx);
             if (单价 is null)
-                throw new ArgumentException($"工序 [{l.工序号}] 不在生产单 [{dto.生产单号}] 的工序表中");
+                throw new ArgumentException(
+                    l.货号 is null
+                        ? $"工序 [{l.工序号}] 不在生产单 [{dto.生产单号}] 的工序表中"
+                        : $"工序 [{l.工序号}] 不在生产单 [{dto.生产单号}] 货号 [{l.货号}] 的工序表中");
 
             await c.ExecuteAsync(@"
-INSERT INTO [计件表]([生产单号],[裁床单号],[床号],[裁床日期],[颜色],[尺码],[扎号],
+INSERT INTO [计件表]([生产单号],[裁床单号],[货号],[床号],[裁床日期],[颜色],[尺码],[扎号],
     [工序号],[数量],[单价],[金额],[操作员],[员工号],[日期],[审核],[有效])
-VALUES(@生产单号,@裁床单号,@床号,@裁床日期,@颜色,@尺码,@扎号,
+VALUES(@生产单号,@裁床单号,@货号,@床号,@裁床日期,@颜色,@尺码,@扎号,
     @工序号,@数量,@单价,@金额,@操作员,@员工号,@日期,'0','1')",
                 new
                 {
-                    dto.生产单号, dto.裁床单号, dto.床号, dto.裁床日期, l.颜色, l.尺码, l.扎号,
+                    dto.生产单号, dto.裁床单号, l.货号, dto.床号, dto.裁床日期, l.颜色, l.尺码, l.扎号,
                     l.工序号, l.数量, 单价, 金额 = l.数量 * 单价.Value, 操作员 = user, l.员工号, 日期 = now
                 }, tx);
             n++;
@@ -51,10 +58,11 @@ VALUES(@生产单号,@裁床单号,@床号,@裁床日期,@颜色,@尺码,@扎号
     {
         using var c = factory.Create();
         var rows = await c.QueryAsync<PieceworkRowDto>(@"
-SELECT j.[ID],j.[生产单号],j.[裁床单号],j.[工序号],p.[工序名称],j.[员工号],e.[姓名],
+SELECT j.[ID],j.[生产单号],j.[裁床单号],j.[货号],j.[工序号],p.[工序名称],j.[员工号],e.[姓名],
        j.[颜色],j.[尺码],j.[扎号],j.[数量],j.[单价],j.[金额],j.[审核]
 FROM [计件表] j
 LEFT JOIN [生产制单工序表] p ON p.[生产单号]=j.[生产单号] AND p.[工序号]=j.[工序号]
+    AND (j.[货号] IS NULL OR p.[货号]=j.[货号])
 LEFT JOIN [人事档案] e ON e.[编号]=j.[员工号]
 WHERE j.[生产单号]=@生产单号 AND ISNULL(j.[有效],'1')<>'0'
 ORDER BY j.[ID] DESC", new { 生产单号 });
@@ -95,6 +103,7 @@ SELECT j.[员工号], MAX(e.[姓名]) AS 姓名, j.[工序号], MAX(p.[工序名
        SUM(j.[数量]) AS 数量, SUM(j.[金额]) AS 金额
 FROM [计件表] j
 LEFT JOIN [生产制单工序表] p ON p.[生产单号]=j.[生产单号] AND p.[工序号]=j.[工序号]
+    AND (j.[货号] IS NULL OR p.[货号]=j.[货号])
 LEFT JOIN [人事档案] e ON e.[编号]=j.[员工号]
 WHERE j.[生产单号]=@生产单号 AND ISNULL(j.[审核],'0')='1' AND ISNULL(j.[有效],'1')<>'0'
 GROUP BY j.[员工号], j.[工序号]

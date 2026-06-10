@@ -19,7 +19,7 @@ public class CuttingServiceDbTests(DbFixture fx)
 
     private static CuttingCreateDto Dto() => new()
     {
-        生产单号 = P4TestData.生产单号, 款号 = P4TestData.款号, 款式 = "P4测试款式",
+        生产单号 = P4TestData.生产单号, 货号 = P4TestData.货号, 款号 = P4TestData.款号, 款式 = "P4测试款式",
         客户编号 = P4TestData.客户编号, 客户名称 = "P4测试客户",
         加工厂编号 = P4TestData.加工厂编号, 加工厂名称 = "P4测试加工厂",
         床号 = "1", 布种 = "全棉",
@@ -39,6 +39,7 @@ public class CuttingServiceDbTests(DbFixture fx)
         try
         {
             Assert.StartsWith("CB", 裁床单号);
+            Assert.Equal(P4TestData.货号, c.ExecuteScalar<string>("SELECT [货号] FROM [裁床总表] WHERE [裁床单号]=@n", new { n = 裁床单号 }));
             Assert.Equal(70m, c.ExecuteScalar<decimal>("SELECT [裁床数量] FROM [裁床总表] WHERE [裁床单号]=@n", new { n = 裁床单号 }));
             Assert.Equal(2, c.ExecuteScalar<int>("SELECT COUNT(*) FROM [裁床明细表] WHERE [裁床单号]=@n", new { n = 裁床单号 }));
             Assert.Equal(40m, c.ExecuteScalar<decimal>("SELECT [计件数量] FROM [裁床明细表] WHERE [裁床单号]=@n AND [扎号]=1", new { n = 裁床单号 }));
@@ -75,6 +76,7 @@ public class CuttingServiceDbTests(DbFixture fx)
             Assert.NotNull(detail);
             Assert.Equal(2, detail!.明细.Count);
             Assert.Equal("1", detail.单头!.床号);
+            Assert.Equal(P4TestData.货号, detail.单头!.货号);
 
             c.Execute("UPDATE [裁床总表] SET [审核]='1' WHERE [裁床单号]=@n", new { n = 裁床单号 });
             await Assert.ThrowsAsync<InvalidOperationException>(() => Svc().DeleteAsync(裁床单号));

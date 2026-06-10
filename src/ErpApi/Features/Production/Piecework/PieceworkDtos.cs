@@ -5,6 +5,7 @@ public sealed class PieceworkLineDto
 {
     public string 工序号 { get; set; } = "";
     public string 员工号 { get; set; } = "";
+    public string? 货号 { get; set; }   // 该计件所属货号(一单多货号);单价按 生产单号+货号+工序号 取，消歧义
     public decimal 数量 { get; set; }
     public string? 颜色 { get; set; }
     public string? 尺码 { get; set; }
@@ -27,6 +28,7 @@ public sealed class PieceworkRowDto
     public long ID { get; set; }
     public string? 生产单号 { get; set; }
     public string? 裁床单号 { get; set; }
+    public string? 货号 { get; set; }
     public string? 工序号 { get; set; }
     public string? 工序名称 { get; set; }
     public string? 员工号 { get; set; }
