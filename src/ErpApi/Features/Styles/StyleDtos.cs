@@ -3,6 +3,11 @@ namespace ErpApi.Features.Styles;
 
 public sealed record StyleColorDto(string? 颜色编号, string? 颜色名称);
 
+// BOM物料设置一行（用量=使用数量，材料=物料类别；工模编号原表无列→不持久）
+public sealed record StyleMaterialDto(
+    string? 物料编号, string? 物料名称, string? 物料类别,
+    string? 规格, string? 颜色, string? 单位, decimal? 使用数量);
+
 public sealed record StyleFullDto(
     款号总表 主档,
     IReadOnlyList<StyleColorDto> 颜色,
