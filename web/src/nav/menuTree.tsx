@@ -58,7 +58,7 @@ export const MENU_TREE: MenuGroup[] = [
   ]},
   // ④ 采购管理
   { key: "g-purchase", label: "采购管理", children: [
-    M("采购物料分析"),
+    M("采购物料分析", "/purchase-material-analysis", "生产制单"),
     M("采购物料设置"),
     M("BOM订单制作"),
     M("采购订单"),
