@@ -49,6 +49,23 @@ public sealed class PurchaseOverRow
     public decimal? 超数 { get; set; }
 }
 
+// 领料超数查询：每(生产单 × 物料) 已领数量 − BOM需求数量 > 0 的超领行
+public sealed class IssueOverRow
+{
+    public string? 生产单号 { get; set; }
+    public string? 款号 { get; set; }
+    public string? 合同号 { get; set; }
+    public DateTime? 制单日期 { get; set; }
+    public string? 物料编号 { get; set; }
+    public string? 物料名称 { get; set; }
+    public string? 规格 { get; set; }
+    public string? 颜色 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 需求数量 { get; set; }
+    public decimal? 已领数量 { get; set; }
+    public decimal? 超数 { get; set; }
+}
+
 // 生产单跟踪表：生产制单 进度行（计划/裁床/录入/未完成数 + 审核完成状态）
 public sealed class ProductionTrackingRow
 {
