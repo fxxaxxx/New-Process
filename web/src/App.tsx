@@ -45,6 +45,7 @@ import RosterPage from "./pages/attendance/RosterPage";
 import DailyPage from "./pages/attendance/DailyPage";
 import SysConfigPage from "./pages/system/SysConfigPage";
 import AccountPage from "./pages/admin/AccountPage";
+import PlaceholderPage from "./pages/PlaceholderPage";
 
 export default function App() {
   return (
@@ -94,6 +95,7 @@ export default function App() {
           <Route path="attendance/daily" element={<DailyPage />} />
           <Route path="sys-config" element={<SysConfigPage />} />
           <Route path="admin/accounts" element={<AccountPage />} />
+          <Route path="_todo/:name" element={<PlaceholderPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
