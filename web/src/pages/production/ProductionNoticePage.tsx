@@ -9,7 +9,7 @@ import {
 } from "@ant-design/icons";
 import dayjs, { type Dayjs } from "dayjs";
 import {
-  productionApi, type ProductionDetail, type ProductionHeader, type ProductionNoticeCreate,
+  productionApi, type MoLine, type ProductionDetail, type ProductionHeader, type ProductionNoticeCreate,
 } from "../../api/production";
 import { can, hidePrice } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
@@ -37,6 +37,22 @@ const newGoodsRow = (): GoodsRow => ({
   key: uid(), 货号: "", BOM款号: "", 款号名称: "", 比例: undefined, 分析: false, 数量明细: [],
 });
 
+// MO单跟踪行（前端编辑态）
+interface MoRow {
+  key: number;
+  接单日期?: Dayjs;
+  正单合同号?: string;
+  产品货号?: string;
+  产品名称?: string;
+  接单数量?: number;
+  装箱方式?: string;
+  订单总箱数?: number;
+  验货日期?: Dayjs;
+  备注?: string;
+}
+
+const newMoRow = (): MoRow => ({ key: uid() });
+
 interface HeaderForm {
   订单类型?: string; 客户款号?: string; 客户编号?: string; 客户名称?: string;
   交货日期?: Dayjs; 标识?: string; 装箱方式?: string; 订单总箱数?: number;
@@ -60,6 +76,10 @@ export default function ProductionNoticePage() {
   const [selectedKey, setSelectedKey] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // MO单录入（独立于主单据保存；仅在已载入生产单号时可编辑/保存）
+  const [moRows, setMoRows] = useState<MoRow[]>([]);
+  const [savingMo, setSavingMo] = useState(false);
+
   // 打开弹窗
   const [openModal, setOpenModal] = useState(false);
   const [openRows, setOpenRows] = useState<ProductionHeader[]>([]);
@@ -82,6 +102,7 @@ export default function ProductionNoticePage() {
     const first = newGoodsRow();
     setGoods([first]);
     setSelectedKey(first.key);
+    setMoRows([]);
   }, [form]);
 
   useEffect(() => { reset(); }, [reset]);
@@ -124,6 +145,22 @@ export default function ProductionNoticePage() {
       }));
       setGoods(rows);
       setSelectedKey(rows[0]?.key ?? null);
+      // MO单跟踪行
+      try {
+        const mo = await productionApi.getMo(单号);
+        setMoRows(mo.map(m => ({
+          key: uid(),
+          接单日期: m.接单日期 ? dayjs(m.接单日期) : undefined,
+          正单合同号: m.正单合同号 ?? undefined,
+          产品货号: m.产品货号 ?? undefined,
+          产品名称: m.产品名称 ?? undefined,
+          接单数量: m.接单数量 ?? undefined,
+          装箱方式: m.装箱方式 ?? undefined,
+          订单总箱数: m.订单总箱数 ?? undefined,
+          验货日期: m.验货日期 ? dayjs(m.验货日期) : undefined,
+          备注: m.备注 ?? undefined,
+        })));
+      } catch { setMoRows([]); }
       setOpenModal(false);
     } catch { message.error("加载生产单失败"); }
   };
@@ -201,6 +238,36 @@ export default function ProductionNoticePage() {
       await loadDoc(r.生产单号);
     } catch (e) { message.error(errMsg(e) ?? "保存失败"); }
     finally { setSaving(false); }
+  };
+
+  // —— MO单录入（仅已载入生产单号时可编辑/保存；独立保存） ——
+  const patchMo = (key: number, patch: Partial<MoRow>) =>
+    setMoRows(rs => rs.map(r => (r.key === key ? { ...r, ...patch } : r)));
+  const addMo = () => setMoRows(rs => [...rs, newMoRow()]);
+  const removeMo = (key: number) => setMoRows(rs => rs.filter(r => r.key !== key));
+
+  const moQty = moRows.reduce((a, r) => a + (Number(r.接单数量) || 0), 0);
+  const mo剩余数量 = (Number(loaded?.单头?.计划数量) || 0) - moQty;
+
+  const saveMo = async () => {
+    if (!生产单号) return;
+    const lines: MoLine[] = moRows.map(r => ({
+      接单日期: r.接单日期 ? r.接单日期.format("YYYY-MM-DD") : undefined,
+      正单合同号: r.正单合同号?.trim() || undefined,
+      产品货号: r.产品货号?.trim() || undefined,
+      产品名称: r.产品名称?.trim() || undefined,
+      接单数量: r.接单数量,
+      装箱方式: r.装箱方式?.trim() || undefined,
+      订单总箱数: r.订单总箱数,
+      验货日期: r.验货日期 ? r.验货日期.format("YYYY-MM-DD") : undefined,
+      备注: r.备注?.trim() || undefined,
+    }));
+    setSavingMo(true);
+    try {
+      await productionApi.saveMo(生产单号, lines);
+      message.success("MO单已保存");
+    } catch (e) { message.error(errMsg(e) ?? "MO单保存失败"); }
+    finally { setSavingMo(false); }
   };
 
   // —— 审核 / 反审核 / 删除（查看态） ——
@@ -325,6 +392,81 @@ export default function ProductionNoticePage() {
     ? (loaded?.物料 ?? []).filter(m => m.货号 === selected.货号)
     : [];
 
+  // —— MO单录入页签 ——
+  const moTab = !生产单号 ? (
+    <div style={{ padding: 24, color: "#999" }}>保存生产通知单后录入MO单</div>
+  ) : (
+    <Space direction="vertical" style={{ width: "100%" }} size={12}>
+      <Space wrap>
+        <Button size="small" icon={<FileAddOutlined />} onClick={addMo}>添加行</Button>
+        {can(perms, MENU, "保存") && (
+          <Button type="primary" size="small" icon={<SaveOutlined />} loading={savingMo} onClick={saveMo}>
+            保存MO单
+          </Button>
+        )}
+      </Space>
+      <Table
+        size="small" rowKey="key" pagination={false} scroll={{ x: true }}
+        dataSource={moRows}
+        columns={[
+          { title: "序号", width: 56, render: (_: unknown, __: MoRow, i: number) => i + 1 },
+          {
+            title: "接单日期", width: 140, dataIndex: "接单日期",
+            render: (v: Dayjs | undefined, r: MoRow) =>
+              <DatePicker value={v} style={{ width: "100%" }} onChange={d => patchMo(r.key, { 接单日期: d ?? undefined })} />,
+          },
+          {
+            title: "正单合同号", width: 150, dataIndex: "正单合同号",
+            render: (v: string | undefined, r: MoRow) =>
+              <Input value={v} onChange={e => patchMo(r.key, { 正单合同号: e.target.value })} />,
+          },
+          {
+            title: "产品货号", width: 150, dataIndex: "产品货号",
+            render: (v: string | undefined, r: MoRow) =>
+              <Input value={v} onChange={e => patchMo(r.key, { 产品货号: e.target.value })} />,
+          },
+          {
+            title: "产品名称", width: 160, dataIndex: "产品名称",
+            render: (v: string | undefined, r: MoRow) =>
+              <Input value={v} onChange={e => patchMo(r.key, { 产品名称: e.target.value })} />,
+          },
+          {
+            title: "接单数量", width: 120, dataIndex: "接单数量",
+            render: (v: number | undefined, r: MoRow) =>
+              <InputNumber value={v} min={0} style={{ width: "100%" }} onChange={n => patchMo(r.key, { 接单数量: n ?? undefined })} />,
+          },
+          {
+            title: "装箱方式", width: 110, dataIndex: "装箱方式",
+            render: (v: string | undefined, r: MoRow) =>
+              <Input value={v} placeholder="PCS/CTN" onChange={e => patchMo(r.key, { 装箱方式: e.target.value })} />,
+          },
+          {
+            title: "订单总箱数", width: 120, dataIndex: "订单总箱数",
+            render: (v: number | undefined, r: MoRow) =>
+              <InputNumber value={v} min={0} style={{ width: "100%" }} onChange={n => patchMo(r.key, { 订单总箱数: n ?? undefined })} />,
+          },
+          {
+            title: "验货日期", width: 140, dataIndex: "验货日期",
+            render: (v: Dayjs | undefined, r: MoRow) =>
+              <DatePicker value={v} style={{ width: "100%" }} onChange={d => patchMo(r.key, { 验货日期: d ?? undefined })} />,
+          },
+          {
+            title: "备注", width: 160, dataIndex: "备注",
+            render: (v: string | undefined, r: MoRow) =>
+              <Input value={v} onChange={e => patchMo(r.key, { 备注: e.target.value })} />,
+          },
+          {
+            title: "操作", width: 64, fixed: "right" as const,
+            render: (_: unknown, r: MoRow) => <a onClick={() => removeMo(r.key)}>删除</a>,
+          },
+        ]}
+      />
+      <div style={{ textAlign: "right", fontWeight: 600 }}>
+        MO单剩余数量：{mo剩余数量}
+      </div>
+    </Space>
+  );
+
   const tabs = (
     <Tabs
       items={[
@@ -379,7 +521,7 @@ export default function ProductionNoticePage() {
             />
           ),
         },
-        { key: "mo", label: "MO单录入", children: <div style={{ padding: 24, color: "#999" }}>功能开发中</div> },
+        { key: "mo", label: "MO单录入", children: moTab },
         { key: "img", label: "图片备注", children: <div style={{ padding: 24, color: "#999" }}>功能开发中</div> },
       ]}
     />

@@ -11,7 +11,7 @@ namespace ErpApi.Features.Production;
 [Authorize]
 [Route("api/production")]
 public sealed class ProductionController(
-    ProductionService svc, IPostingEngine posting, IPermissionService perms,
+    ProductionService svc, MoTrackingService mo, IPostingEngine posting, IPermissionService perms,
     IAuditLogger audit, ISqlConnectionFactory factory) : ControllerBase
 {
     private const string Menu = "生产制单";
@@ -83,6 +83,23 @@ public sealed class ProductionController(
         }
         catch (InvalidOperationException ex) { return Conflict(new { 消息 = ex.Message }); }
         await AuditAsync("删除", $"单号={生产单号}");
+        return NoContent();
+    }
+
+    // —— MO单录入（生产通知单MO单；独立保存，不参与主单据创建/审核流程） ——
+    [HttpGet("{生产单号}/mo")]
+    public async Task<IActionResult> GetMo(string 生产单号)
+    {
+        if (!await AllowAsync(PermissionAction.打开)) return Forbid();
+        return Ok(await mo.GetAsync(生产单号));
+    }
+
+    [HttpPut("{生产单号}/mo")]
+    public async Task<IActionResult> SaveMo(string 生产单号, [FromBody] List<MoLineDto> rows)
+    {
+        if (!await AllowAsync(PermissionAction.保存)) return Forbid();
+        await mo.SaveAsync(生产单号, rows ?? []);
+        await AuditAsync("保存MO单", $"单号={生产单号}");
         return NoContent();
     }
 
