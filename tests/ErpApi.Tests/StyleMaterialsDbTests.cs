@@ -26,8 +26,9 @@ public class StyleMaterialsDbTests(DbFixture fx)
         using var c = fx.Open();
         c.Execute("DELETE FROM [款号物料明细表] WHERE [款号]='BOMK1'");
         c.Execute("DELETE FROM [款号总表] WHERE [款号]='BOMK1'");
-        // 物料编号 有 FK→物料资料；明细删净后再删父
+        // 物料编号 有 FK→物料资料；客户编号 有 FK→客户资料；明细删净后再删父
         c.Execute("DELETE FROM [物料资料] WHERE [物料编号] IN ('M1','M2')");
+        c.Execute("DELETE FROM [客户资料] WHERE [客户编号]='C001'");
     }
 
     [SkippableFact]
@@ -41,14 +42,18 @@ public class StyleMaterialsDbTests(DbFixture fx)
             // 款号物料明细表.物料编号 FK→物料资料.物料编号，需先建父行
             c.Execute("INSERT INTO [物料资料]([物料编号],[物料名称]) VALUES(N'M1',N'面料')");
             c.Execute("INSERT INTO [物料资料]([物料编号],[物料名称]) VALUES(N'M2',N'纽扣')");
+            // 客户编号 FK→客户资料，需先建父行
+            c.Execute("INSERT INTO [客户资料]([客户编号],[客户名称]) VALUES(N'C001',N'测试客户')");
         }
 
         var svc = Svc();
-        await svc.ReplaceMaterialsAsync("BOMK1",
-        [
-            new StyleMaterialDto("M1", "面料", "主料", "1.5m", "黑色", "米", 2m),
-            new StyleMaterialDto("M2", "纽扣", "辅料", "12mm", "白色", "粒", 3m),
-        ]);
+        await svc.ReplaceMaterialsAsync("BOMK1", new BomSaveDto(
+            "C001", "测试客户", new DateTime(2026, 6, 5), "PCS",
+            [
+                // 第二行单位留空 → 应回退单头单位 PCS
+                new StyleMaterialDto("M1", "面料", "主料", "1.5m", "黑色", "米", 2m),
+                new StyleMaterialDto("M2", "纽扣", "辅料", "12mm", "白色", null, 3m),
+            ]));
 
         var full = await svc.GetFullAsync("BOMK1");
         Assert.NotNull(full);
@@ -60,10 +65,15 @@ public class StyleMaterialsDbTests(DbFixture fx)
         Assert.Equal(3m, m2.使用数量);
         Assert.Equal("主料", m1.物料类别);
         Assert.Equal("BOM测试款", m1.款式);
+        // 单头逐行落库：客户编号持久化；行单位优先、缺省回退单头单位
+        Assert.Equal("C001", m1.客户编号);
+        Assert.Equal("米", m1.单位);
+        Assert.Equal("PCS", m2.单位);
 
         // 再次替换 1 行 = 覆盖（整组替换，不是追加）
-        await svc.ReplaceMaterialsAsync("BOMK1",
-            [new StyleMaterialDto("M1", "面料", "主料", null, null, "米", 5m)]);
+        await svc.ReplaceMaterialsAsync("BOMK1", new BomSaveDto(
+            null, null, null, null,
+            [new StyleMaterialDto("M1", "面料", "主料", null, null, "米", 5m)]));
         full = await svc.GetFullAsync("BOMK1");
         Assert.Single(full!.物料);
         Assert.Equal(5m, full.物料[0].使用数量);
@@ -76,6 +86,8 @@ public class StyleMaterialsDbTests(DbFixture fx)
     {
         Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            Svc().ReplaceMaterialsAsync("不存在的款号XX", [new StyleMaterialDto("M1", null, null, null, null, null, 1m)]));
+            Svc().ReplaceMaterialsAsync("不存在的款号XX", new BomSaveDto(
+                null, null, null, null,
+                [new StyleMaterialDto("M1", null, null, null, null, null, 1m)])));
     }
 }

@@ -51,10 +51,10 @@ public sealed class StyleController(
     }
 
     [HttpPut("{款号}/materials")]
-    public async Task<IActionResult> PutMaterials(string 款号, [FromBody] List<StyleMaterialDto> materials)
+    public async Task<IActionResult> PutMaterials(string 款号, [FromBody] BomSaveDto dto)
     {
         if (!await AllowAsync(PermissionAction.保存)) return Forbid();
-        try { await svc.ReplaceMaterialsAsync(款号, materials); }
+        try { await svc.ReplaceMaterialsAsync(款号, dto); }
         catch (InvalidOperationException ex) { return NotFound(new { 消息 = ex.Message }); }
         await AuditAsync("款号物料明细表", "修改", $"款号={款号}");
         return NoContent();
