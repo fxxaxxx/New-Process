@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Card, Checkbox, DatePicker, Input, Space, Table, Tag, message } from "antd";
+import { Button, Card, Checkbox, DatePicker, Input, Space, Table, Tag, message } from "antd";
 import type { Dayjs } from "dayjs";
 import { purchaseOrderApi, type PurchaseOrderProgressRow } from "../../api/purchaseOrders";
 import { can } from "../../auth/permissions";
@@ -37,7 +37,9 @@ export default function OrderProgressPage() {
     finally { setLoading(false); }
   }, [canOpen, 供应商, keyword, range, onlyOwed]);
 
-  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // 仅首屏加载一次；之后由「查询」按钮 / 搜索框显式触发，故意不随筛选变化自动刷新
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, []);
 
   const 审核Tag = (v?: string) => v === "1"
     ? <Tag color="green">已审核</Tag> : <Tag>未审核</Tag>;
@@ -79,12 +81,13 @@ export default function OrderProgressPage() {
     <Card title="订单进度表" variant="borderless">
       <Space wrap style={{ marginBottom: 12 }}>
         <Input placeholder="供应商" allowClear style={{ width: 160 }}
-          value={供应商} onChange={e => set供应商(e.target.value)} />
-        <DatePicker.RangePicker value={range as never}
+          value={供应商} onChange={e => set供应商(e.target.value)} onPressEnter={load} />
+        <DatePicker.RangePicker value={range}
           onChange={v => setRange(v as [Dayjs | null, Dayjs | null] | null)} />
         <Input.Search placeholder="生产单号/款号/物料" allowClear style={{ width: 220 }}
           value={keyword} onChange={e => setKeyword(e.target.value)} onSearch={load} />
         <Checkbox checked={onlyOwed} onChange={e => setOnlyOwed(e.target.checked)}>只看欠数</Checkbox>
+        <Button type="primary" onClick={load}>查询</Button>
       </Space>
       <Table
         size="small" rowKey={(_, i) => String(i)} loading={loading} dataSource={rows}
