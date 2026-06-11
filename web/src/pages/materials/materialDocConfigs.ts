@@ -5,11 +5,12 @@ export interface MaterialDocCfg {
   title: string;      // 采购入仓/领料/退料
   headerFields: DocFieldCfg[];   // 新建抽屉的单头字段
   listExtra: DocFieldCfg[];      // 列表里单头特有的额外列
+  orderPicker?: boolean;   // true=录入行支持"款号选采购订单"(仅采购入仓单)
 }
 
 export const MATERIAL_DOC_CONFIGS: Record<string, MaterialDocCfg> = {
   "purchase-receipts": {
-    resource: "purchase-receipts", menu: "采购入仓单", title: "采购入仓",
+    resource: "purchase-receipts", menu: "采购入仓单", title: "采购入仓", orderPicker: true,
     headerFields: [
       { name: "供应商编号", label: "供应商编号" }, { name: "供应商名称", label: "供应商名称" },
       { name: "付款方式", label: "付款方式" }, { name: "仓库", label: "仓库", required: true }, { name: "备注", label: "备注" },
