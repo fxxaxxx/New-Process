@@ -82,6 +82,35 @@ export interface ProgressQuery {
   onlyOwed?: boolean;
 }
 
+export interface PurchaseOrderProgressDetailRow {
+  订购日期?: string;
+  交货日期?: string;
+  采购单号?: string;
+  生产单号?: string;
+  款号?: string;
+  物料编号?: string;
+  物料名称?: string;
+  物料类别?: string;
+  规格?: string;
+  颜色?: string;
+  单位?: string;
+  订购数量?: number | null;
+  入仓单号?: string | null;
+  入仓数量?: number | null;
+  入仓日期?: string | null;
+  供应商名称?: string;
+  操作员?: string;
+  审核?: string;
+}
+
+export interface ProgressDetailQuery {
+  供应商?: string;
+  起?: string;
+  止?: string;
+  keyword?: string;
+  状态?: string;
+}
+
 export interface PurchaseOrderCreateLine {
   物料编号: string;
   物料名称?: string;
@@ -122,4 +151,6 @@ export const purchaseOrderApi = {
   unapprove: (单号: string) => api.post(`/purchase-orders/${enc(单号)}/unapprove`),
   progress: (q: ProgressQuery) =>
     api.get<PurchaseOrderProgressRow[]>("/purchase-orders/progress", { params: q }).then(r => r.data),
+  progressDetail: (q: ProgressDetailQuery) =>
+    api.get<PurchaseOrderProgressDetailRow[]>("/purchase-orders/progress-detail", { params: q }).then(r => r.data),
 };
