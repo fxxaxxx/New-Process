@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Input, Modal, Table } from "antd";
+import { Input, message, Modal, Table } from "antd";
 import { purchaseOrderApi, type PurchaseOrderProgressRow } from "../../api/purchaseOrders";
 
 // 采购订单明细选择器：仅列已审核、有欠数的订单行(复用订单进度表端点)，点行返回。
@@ -22,12 +22,13 @@ export default function OrderLinePicker({ open, 供应商, onPick, onClose }: {
         keyword: keyword.trim() || undefined,
       });
       setRows(r);
-    } catch { /* 忽略 */ }
+    } catch { message.error("加载采购订单行失败"); }
     finally { setLoading(false); }
   }, [供应商, keyword]);
 
-  // 每次打开重新加载(供应商可能变)
-  useEffect(() => { if (open) load(); }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 打开或供应商变化时重查；关键字由搜索框显式触发(onSearch)，故意不入依赖
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (open) load(); }, [open, 供应商]);
 
   const columns = [
     { title: "订单单号", dataIndex: "采购单号", width: 130 },
