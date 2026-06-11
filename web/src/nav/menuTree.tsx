@@ -67,7 +67,7 @@ export const MENU_TREE: MenuGroup[] = [
   ]},
   // ⑤ 仓库管理
   { key: "g-wh", label: "仓库管理", children: [
-    M("物料资料", "/master/物料资料", "物料资料"),
+    M("物料资料", "/material-master", "物料资料"),
     M("来料标签单"),
     M("采购入仓单", "/materials/purchase-receipts", "采购入仓单"),
     M("采购退仓单"),
