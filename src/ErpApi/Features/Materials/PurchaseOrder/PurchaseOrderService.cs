@@ -22,6 +22,8 @@ FROM [生产BOM物料清单] WHERE [生产单号]=@生产单号 ORDER BY [ID]", 
     }
 
     // 订单进度：每行一条采购明细，入仓数量按 订单单号+物料编号+颜色 关联已审核入仓，欠数=订购−入仓。
+    // 注意：入仓按 订单单号+物料编号+颜色 聚合(无明细行ID)。若同一采购订单出现 物料编号+颜色 完全相同的两行，
+    //       聚合入仓会同时挂到两行(高估各自入仓/低估欠数)。当前入仓流程未写 订单单号 故暂不触发；待入仓带订单号时需按行ID细化。
     public async Task<IReadOnlyList<PurchaseOrderProgressRow>> ProgressAsync(
         string? 供应商, DateTime? 起, DateTime? 止, string? keyword, bool onlyOwed)
     {
