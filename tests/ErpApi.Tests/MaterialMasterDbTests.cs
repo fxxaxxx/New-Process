@@ -76,4 +76,20 @@ public class MaterialMasterDbTests(DbFixture fx)
         }
         finally { Cleanup(c); }
     }
+
+    [SkippableFact]
+    public async Task List_no_filter_returns_all_including_uncategorized()
+    {
+        using var c = fx.Open();
+        Seed(c);
+        try
+        {
+            var page = await Svc().ListAsync(null, null, 1, 200);
+            // 种子 4 行(面料MM×2 + 辅料MM×1 + 无类别 MM999×1)全在结果中；DB 可能有其他行
+            var seeded = page.Items.Where(r => new[] { "MM001", "MM002", "MM003", "MM999" }.Contains(r.物料编号)).ToList();
+            Assert.Equal(4, seeded.Count);
+            Assert.Contains(seeded, r => r.物料编号 == "MM999" && r.物料类别 is null);
+        }
+        finally { Cleanup(c); }
+    }
 }
