@@ -57,6 +57,16 @@ public sealed class PurchaseOrderController(
         return Ok(await svc.ProgressAsync(供应商, 起, 止, keyword, onlyOwed));
     }
 
+    // 进度明细表：逐条入仓明细 + 未入仓订单行（只读查询）
+    [HttpGet("progress-detail")]
+    public async Task<IActionResult> ProgressDetail(
+        string? 供应商 = null, DateTime? 起 = null, DateTime? 止 = null,
+        string? keyword = null, string? 状态 = null)
+    {
+        if (!await AllowAsync(PermissionAction.打开)) return Forbid();
+        return Ok(await svc.ProgressDetailAsync(供应商, 起, 止, keyword, 状态));
+    }
+
     [HttpGet]
     public async Task<IActionResult> List(int page = 1, int size = 20, string? keyword = null)
     {
