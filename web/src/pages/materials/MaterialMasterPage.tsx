@@ -183,6 +183,8 @@ export default function MaterialMasterPage() {
           )}
           <Form.Item name="供应商编号" label="供应商编号"><Input /></Form.Item>
           <Form.Item name="备注" label="备注"><Input.TextArea rows={2} /></Form.Item>
+          <Form.Item name="款号" hidden><Input /></Form.Item>
+          <Form.Item name="货币" hidden><Input /></Form.Item>
         </Form>
       </Modal>
     </Card>
