@@ -3,7 +3,7 @@ import {
   Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Space, Table, Tree, message,
 } from "antd";
 import { PlusOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
-import { materialMasterApi, type MaterialRow } from "../../api/materialMaster";
+import { materialMasterApi, type MaterialRow, type MaterialCategoryNode } from "../../api/materialMaster";
 import { masterApi } from "../../api/master";
 import { can, hidePrice } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
@@ -20,7 +20,7 @@ export default function MaterialMasterPage() {
   const priceHidden = hidePrice(perms, MENU);
   const money = (v?: number | null) => (priceHidden ? "***" : (v ?? ""));
 
-  const [cats, setCats] = useState<{ 类别?: string; 数量: number }[]>([]);
+  const [cats, setCats] = useState<MaterialCategoryNode[]>([]);
   const [selKey, setSelKey] = useState<string>(ALL);
   const [keyword, setKeyword] = useState("");
   const [rows, setRows] = useState<MaterialRow[]>([]);
@@ -49,7 +49,9 @@ export default function MaterialMasterPage() {
   }, [canOpen, 类别, keyword]);
 
   useEffect(() => { if (canOpen) loadCats(); }, [canOpen, loadCats]);
-  useEffect(() => { setPage(1); loadRows(1); }, [selKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 选中分类变化时重查(回到第1页)；关键字由搜索框显式触发，故 loadRows 不入依赖
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { setPage(1); loadRows(1); }, [selKey]);
 
   const treeData = useMemo(() => [{
     title: "全部物料", key: ALL,
