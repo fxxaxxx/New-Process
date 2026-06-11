@@ -59,6 +59,8 @@ ORDER BY d.[单号] DESC, d.[ID];",
 
     // 进度明细：订单明细 LEFT JOIN 已审核入仓明细(不聚合)，每条入仓一行，零入仓订单行留空。
     // 状态: "已入仓"=入仓单号非空 / "未入仓"=入仓单号空 / 其它=全部。入仓日期取入仓单表头。
+    // 排序 单号→明细ID→入仓日期：同一明细行(ID)要么全是已入仓行、要么唯一一条未入仓空行，
+    // 二者不会混在同一 ID 内，故入仓日期的 NULLS FIRST 不会把未入仓行错排到别的明细组中间。
     public async Task<IReadOnlyList<PurchaseOrderProgressDetailRow>> ProgressDetailAsync(
         string? 供应商, DateTime? 起, DateTime? 止, string? keyword, string? 状态)
     {
