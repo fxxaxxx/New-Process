@@ -49,12 +49,12 @@ public class ReceiptOrderLinkDbTests(DbFixture fx)
         }), "tester");
         try
         {
-            var row = await c.QueryFirstAsync(
+            var row = await c.QueryFirstAsync<(string 订单单号, string 生产单号, string 款号, decimal 数量)>(
                 "SELECT [订单单号],[生产单号],[款号],[数量] FROM [采购入仓明细单] WHERE [单号]=@n", new { n = 单号 });
-            Assert.Equal("POROL1", (string)row.订单单号);
-            Assert.Equal("MOROL", (string)row.生产单号);
-            Assert.Equal("KROL", (string)row.款号);
-            Assert.Equal(30m, (decimal)row.数量);
+            Assert.Equal("POROL1", row.订单单号);
+            Assert.Equal("MOROL", row.生产单号);
+            Assert.Equal("KROL", row.款号);
+            Assert.Equal(30m, row.数量);
         }
         finally
         {
