@@ -24,6 +24,7 @@ import PurchaseOrderListPage from "./pages/production/PurchaseOrderListPage";
 import OrderProgressPage from "./pages/production/OrderProgressPage";
 import ProgressDetailPage from "./pages/production/ProgressDetailPage";
 import MaterialDocRouter from "./pages/materials/MaterialDocRouter";
+import MaterialMasterPage from "./pages/materials/MaterialMasterPage";
 import MaterialInventoryPage from "./pages/materials/MaterialInventoryPage";
 import CuttingPage from "./pages/workshop/CuttingPage";
 import PieceworkPage from "./pages/workshop/PieceworkPage";
@@ -89,6 +90,7 @@ export default function App() {
           <Route path="order-progress" element={<OrderProgressPage />} />
           <Route path="order-progress-detail" element={<ProgressDetailPage />} />
           <Route path="materials/:doc" element={<MaterialDocRouter />} />
+          <Route path="material-master" element={<MaterialMasterPage />} />
           <Route path="material-inventory" element={<MaterialInventoryPage />} />
           <Route path="cuttings" element={<CuttingPage />} />
           <Route path="piecework" element={<PieceworkPage />} />
