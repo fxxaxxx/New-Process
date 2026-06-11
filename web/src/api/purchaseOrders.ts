@@ -54,6 +54,34 @@ export interface PurchaseOrderDetail {
   明细: PurchaseOrderLine[];
 }
 
+export interface PurchaseOrderProgressRow {
+  订购日期?: string;
+  交货日期?: string;
+  采购单号?: string;
+  生产单号?: string;
+  款号?: string;
+  物料编号?: string;
+  物料名称?: string;
+  物料类别?: string;
+  规格?: string;
+  颜色?: string;
+  单位?: string;
+  订购数量?: number | null;
+  入仓数量?: number | null;
+  欠数?: number | null;
+  供应商名称?: string;
+  操作员?: string;
+  审核?: string;
+}
+
+export interface ProgressQuery {
+  供应商?: string;
+  起?: string;
+  止?: string;
+  keyword?: string;
+  onlyOwed?: boolean;
+}
+
 export interface PurchaseOrderCreateLine {
   物料编号: string;
   物料名称?: string;
@@ -84,7 +112,7 @@ export const purchaseOrderApi = {
   basis: (生产单号: string) =>
     api.get<PurchaseOrderBasisRow[]>("/purchase-orders/basis", { params: { 生产单号 } }).then(r => r.data),
   list: (page = 1, size = 20, keyword = "") =>
-    api.get<Paged<PurchaseOrderHeader>>("/purchase-orders/list", { params: { page, size, keyword } }).then(r => r.data),
+    api.get<Paged<PurchaseOrderHeader>>("/purchase-orders", { params: { page, size, keyword } }).then(r => r.data),
   get: (单号: string) =>
     api.get<PurchaseOrderDetail>(`/purchase-orders/${enc(单号)}`).then(r => r.data),
   create: (body: PurchaseOrderCreate) =>
@@ -92,4 +120,6 @@ export const purchaseOrderApi = {
   remove: (单号: string) => api.delete(`/purchase-orders/${enc(单号)}`),
   approve: (单号: string) => api.post(`/purchase-orders/${enc(单号)}/approve`),
   unapprove: (单号: string) => api.post(`/purchase-orders/${enc(单号)}/unapprove`),
+  progress: (q: ProgressQuery) =>
+    api.get<PurchaseOrderProgressRow[]>("/purchase-orders/progress", { params: q }).then(r => r.data),
 };

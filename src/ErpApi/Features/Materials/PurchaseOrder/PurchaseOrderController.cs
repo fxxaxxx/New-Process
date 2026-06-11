@@ -47,6 +47,16 @@ public sealed class PurchaseOrderController(
         return Ok(rows);
     }
 
+    // 订单进度表：采购明细级 订购/入仓/欠数（只读查询）
+    [HttpGet("progress")]
+    public async Task<IActionResult> Progress(
+        string? 供应商 = null, DateTime? 起 = null, DateTime? 止 = null,
+        string? keyword = null, bool onlyOwed = false)
+    {
+        if (!await AllowAsync(PermissionAction.打开)) return Forbid();
+        return Ok(await svc.ProgressAsync(供应商, 起, 止, keyword, onlyOwed));
+    }
+
     [HttpGet]
     public async Task<IActionResult> List(int page = 1, int size = 20, string? keyword = null)
     {

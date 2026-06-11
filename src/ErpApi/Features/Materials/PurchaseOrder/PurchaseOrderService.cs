@@ -21,6 +21,42 @@ FROM [生产BOM物料清单] WHERE [生产单号]=@生产单号 ORDER BY [ID]", 
         return rows.AsList();
     }
 
+    // 订单进度：每行一条采购明细，入仓数量按 订单单号+物料编号+颜色 关联已审核入仓，欠数=订购−入仓。
+    // 注意：入仓按 订单单号+物料编号+颜色 聚合(无明细行ID)。若同一采购订单出现 物料编号+颜色 完全相同的两行，
+    //       聚合入仓会同时挂到两行(高估各自入仓/低估欠数)。当前入仓流程未写 订单单号 故暂不触发；待入仓带订单号时需按行ID细化。
+    public async Task<IReadOnlyList<PurchaseOrderProgressRow>> ProgressAsync(
+        string? 供应商, DateTime? 起, DateTime? 止, string? keyword, bool onlyOwed)
+    {
+        var sup = string.IsNullOrWhiteSpace(供应商) ? null : $"%{供应商.Trim()}%";
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        var 止Excl = 止?.Date.AddDays(1);   // 半开区间上界
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<PurchaseOrderProgressRow>(@"
+SELECT d.[日期] AS 订购日期, d.[交货日期], d.[单号] AS 采购单号, d.[生产单号], d.[款号],
+       d.[物料编号], d.[物料名称], d.[物料类别], d.[规格], d.[颜色], d.[单位],
+       d.[数量] AS 订购数量,
+       ISNULL(rk.[入仓数量], 0) AS 入仓数量,
+       d.[数量] - ISNULL(rk.[入仓数量], 0) AS 欠数,
+       o.[供应商名称], o.[操作员], o.[审核]
+FROM [采购明细单] d
+JOIN [采购订单] o ON o.[单号] = d.[单号]
+LEFT JOIN (
+    SELECT r.[订单单号], r.[物料编号], ISNULL(r.[颜色],'') AS 颜色键, SUM(r.[数量]) AS 入仓数量
+    FROM [采购入仓明细单] r
+    JOIN [采购入仓单] h ON h.[单号] = r.[单号]
+    WHERE ISNULL(h.[审核],'0') = '1'
+    GROUP BY r.[订单单号], r.[物料编号], ISNULL(r.[颜色],'')
+) rk ON rk.[订单单号] = d.[单号] AND rk.[物料编号] = d.[物料编号] AND rk.[颜色键] = ISNULL(d.[颜色],'')
+WHERE (@sup IS NULL OR o.[供应商编号] LIKE @sup OR o.[供应商名称] LIKE @sup)
+  AND (@起 IS NULL OR d.[日期] >= @起)
+  AND (@止 IS NULL OR d.[日期] < @止)
+  AND (@kw IS NULL OR d.[生产单号] LIKE @kw OR d.[款号] LIKE @kw OR d.[物料编号] LIKE @kw OR d.[物料名称] LIKE @kw)
+  AND (@onlyOwed = 0 OR (d.[数量] - ISNULL(rk.[入仓数量], 0)) > 0)
+ORDER BY d.[单号] DESC, d.[ID];",
+            new { sup, 起, 止 = 止Excl, kw, onlyOwed = onlyOwed ? 1 : 0 });
+        return rows.AsList();
+    }
+
     public async Task<string> CreateAsync(PurchaseOrderCreateDto dto, string user)
     {
         if (dto.明细.Count == 0) throw new ArgumentException("采购订单至少要有一行物料明细");

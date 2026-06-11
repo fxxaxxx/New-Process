@@ -21,6 +21,7 @@ import PurchaseAnalysisQueryPage from "./pages/production/PurchaseAnalysisQueryP
 import PurchaseMaterialAnalysisPage from "./pages/production/PurchaseMaterialAnalysisPage";
 import MaterialOrderMakePage from "./pages/production/MaterialOrderMakePage";
 import PurchaseOrderListPage from "./pages/production/PurchaseOrderListPage";
+import OrderProgressPage from "./pages/production/OrderProgressPage";
 import MaterialDocRouter from "./pages/materials/MaterialDocRouter";
 import MaterialInventoryPage from "./pages/materials/MaterialInventoryPage";
 import CuttingPage from "./pages/workshop/CuttingPage";
@@ -84,6 +85,7 @@ export default function App() {
           <Route path="purchase-material-analysis" element={<PurchaseMaterialAnalysisPage />} />
           <Route path="material-order-make" element={<MaterialOrderMakePage />} />
           <Route path="purchase-orders" element={<PurchaseOrderListPage />} />
+          <Route path="order-progress" element={<OrderProgressPage />} />
           <Route path="materials/:doc" element={<MaterialDocRouter />} />
           <Route path="material-inventory" element={<MaterialInventoryPage />} />
           <Route path="cuttings" element={<CuttingPage />} />
