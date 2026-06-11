@@ -75,6 +75,13 @@ public abstract class MasterCrudController<T>(
     public async Task<IActionResult> Update(long id, [FromBody] T entity)
     {
         if (!await AllowAsync(PermissionAction.保存)) return Forbid();
+        // 无"单价"权限者编辑:价格字段读取时被脱敏为 null，整实体覆盖会抹掉真实价格——从库回填原值保护
+        if (PriceProps.Length > 0 && !await AllowAsync(PermissionAction.单价))
+        {
+            var existing = await svc.GetAsync(id);
+            if (existing is null) return NotFound();
+            foreach (var p in PriceProps) p.SetValue(entity, p.GetValue(existing));
+        }
         if (!await svc.UpdateAsync(id, entity)) return NotFound();
         await AuditAsync("修改", $"ID={id}");
         return NoContent();
