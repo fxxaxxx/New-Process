@@ -84,3 +84,25 @@ public sealed class PurchaseOrderBasisRow
     public string? 供应商编号 { get; set; }
     public string? 供应商名称 { get; set; }
 }
+
+// 订单进度行：一条采购订单明细 + 入仓进度（订购/入仓/欠数）
+public sealed class PurchaseOrderProgressRow
+{
+    public DateTime? 订购日期 { get; set; }
+    public DateTime? 交货日期 { get; set; }
+    public string? 采购单号 { get; set; }
+    public string? 生产单号 { get; set; }
+    public string? 款号 { get; set; }
+    public string? 物料编号 { get; set; }
+    public string? 物料名称 { get; set; }
+    public string? 物料类别 { get; set; }
+    public string? 规格 { get; set; }
+    public string? 颜色 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 订购数量 { get; set; }
+    public decimal? 入仓数量 { get; set; }
+    public decimal? 欠数 { get; set; }
+    public string? 供应商名称 { get; set; }
+    public string? 操作员 { get; set; }
+    public string? 审核 { get; set; }
+}
