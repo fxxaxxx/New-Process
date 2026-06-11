@@ -61,6 +61,8 @@ ORDER BY d.[单号] DESC, d.[ID];",
     // 状态: "已入仓"=入仓单号非空 / "未入仓"=入仓单号空 / 其它=全部。入仓日期取入仓单表头。
     // 排序 单号→明细ID→入仓日期：同一明细行(ID)要么全是已入仓行、要么唯一一条未入仓空行，
     // 二者不会混在同一 ID 内，故入仓日期的 NULLS FIRST 不会把未入仓行错排到别的明细组中间。
+    // 注意：入仓按 订单单号+物料编号+颜色 关联(无明细行ID)。若同一采购订单出现 物料编号+颜色 完全相同的两行，
+    //       同一条入仓会同时挂到两行(行数偏多)。当前入仓流程未写 订单单号 故暂不触发；待入仓带订单号时需按行ID细化。
     public async Task<IReadOnlyList<PurchaseOrderProgressDetailRow>> ProgressDetailAsync(
         string? 供应商, DateTime? 起, DateTime? 止, string? keyword, string? 状态)
     {

@@ -93,4 +93,45 @@ public class ProgressDetailDbTests(DbFixture fx)
         }
         finally { Cleanup(c); }
     }
+
+    [SkippableFact]
+    public async Task Detail_matches_null_color_receipt_to_null_color_line()
+    {
+        using var c = fx.Open();
+        c.Execute("DELETE FROM [采购入仓明细单] WHERE [订单单号]=N'PDNUL1'");
+        c.Execute("DELETE FROM [采购入仓单] WHERE [单号]=N'RKNUL1'");
+        c.Execute("DELETE FROM [采购明细单] WHERE [单号]=N'PDNUL1'");
+        c.Execute("DELETE FROM [采购订单] WHERE [单号]=N'PDNUL1'");
+        c.Execute("DELETE FROM [物料资料] WHERE [物料编号]=N'PDNULM'");
+        c.Execute("DELETE FROM [供应商资料] WHERE [供应商编号]=N'PDNULS'");
+        try
+        {
+            c.Execute("INSERT INTO [供应商资料]([供应商编号],[供应商名称]) VALUES(N'PDNULS',N'空色明细供应商')");
+            c.Execute("INSERT INTO [物料资料]([物料编号],[物料名称],[单位]) VALUES(N'PDNULM',N'空色明细料',N'米')");
+            c.Execute(@"INSERT INTO [采购订单]([单号],[日期],[供应商编号],[供应商名称],[审核])
+                        VALUES(N'PDNUL1',SYSDATETIME(),N'PDNULS',N'空色明细供应商','1')");
+            // 订单明细颜色 NULL，订购 60
+            c.Execute(@"INSERT INTO [采购明细单]([单号],[日期],[物料编号],[物料名称],[单位],[数量])
+                        VALUES(N'PDNUL1',SYSDATETIME(),N'PDNULM',N'空色明细料',N'米',60)");
+            // 已审核入仓颜色 NULL，入仓 25 → 应匹配上(ISNULL 兜空)
+            c.Execute("INSERT INTO [采购入仓单]([单号],[日期],[审核]) VALUES(N'RKNUL1','2026-03-10','1')");
+            c.Execute(@"INSERT INTO [采购入仓明细单]([单号],[订单单号],[物料编号],[数量])
+                        VALUES(N'RKNUL1',N'PDNUL1',N'PDNULM',25)");
+
+            var rows = await Svc().ProgressDetailAsync(供应商: null, 起: null, 止: null, keyword: "PDNULM", 状态: "全部");
+            var row = Assert.Single(rows);
+            Assert.Equal("RKNUL1", row.入仓单号);   // NULL↔NULL 颜色匹配成功，展开一行
+            Assert.Equal(25m, row.入仓数量);
+            Assert.Equal(60m, row.订购数量);
+        }
+        finally
+        {
+            c.Execute("DELETE FROM [采购入仓明细单] WHERE [订单单号]=N'PDNUL1'");
+            c.Execute("DELETE FROM [采购入仓单] WHERE [单号]=N'RKNUL1'");
+            c.Execute("DELETE FROM [采购明细单] WHERE [单号]=N'PDNUL1'");
+            c.Execute("DELETE FROM [采购订单] WHERE [单号]=N'PDNUL1'");
+            c.Execute("DELETE FROM [物料资料] WHERE [物料编号]=N'PDNULM'");
+            c.Execute("DELETE FROM [供应商资料] WHERE [供应商编号]=N'PDNULS'");
+        }
+    }
 }
