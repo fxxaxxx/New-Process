@@ -57,6 +57,43 @@ ORDER BY d.[单号] DESC, d.[ID];",
         return rows.AsList();
     }
 
+    // 进度明细：订单明细 LEFT JOIN 已审核入仓明细(不聚合)，每条入仓一行，零入仓订单行留空。
+    // 状态: "已入仓"=入仓单号非空 / "未入仓"=入仓单号空 / 其它=全部。入仓日期取入仓单表头。
+    public async Task<IReadOnlyList<PurchaseOrderProgressDetailRow>> ProgressDetailAsync(
+        string? 供应商, DateTime? 起, DateTime? 止, string? keyword, string? 状态)
+    {
+        var sup = string.IsNullOrWhiteSpace(供应商) ? null : $"%{供应商.Trim()}%";
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        var 止Excl = 止?.Date.AddDays(1);   // 半开区间上界
+        var onlyIn = 状态 == "已入仓" ? 1 : 0;
+        var onlyOut = 状态 == "未入仓" ? 1 : 0;
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<PurchaseOrderProgressDetailRow>(@"
+SELECT d.[日期] AS 订购日期, d.[交货日期], d.[单号] AS 采购单号, d.[生产单号], d.[款号],
+       d.[物料编号], d.[物料名称], d.[物料类别], d.[规格], d.[颜色], d.[单位],
+       d.[数量] AS 订购数量,
+       rk.[入仓单号], rk.[入仓数量], rk.[入仓日期],
+       o.[供应商名称], o.[操作员], o.[审核]
+FROM [采购明细单] d
+JOIN [采购订单] o ON o.[单号] = d.[单号]
+LEFT JOIN (
+    SELECT r.[订单单号], r.[物料编号], ISNULL(r.[颜色],'') AS 颜色键,
+           r.[单号] AS 入仓单号, r.[数量] AS 入仓数量, h.[日期] AS 入仓日期
+    FROM [采购入仓明细单] r
+    JOIN [采购入仓单] h ON h.[单号] = r.[单号]
+    WHERE ISNULL(h.[审核],'0') = '1'
+) rk ON rk.[订单单号] = d.[单号] AND rk.[物料编号] = d.[物料编号] AND rk.[颜色键] = ISNULL(d.[颜色],'')
+WHERE (@sup IS NULL OR o.[供应商编号] LIKE @sup OR o.[供应商名称] LIKE @sup)
+  AND (@起 IS NULL OR d.[日期] >= @起)
+  AND (@止 IS NULL OR d.[日期] < @止)
+  AND (@kw IS NULL OR d.[生产单号] LIKE @kw OR d.[款号] LIKE @kw OR d.[物料编号] LIKE @kw OR d.[物料名称] LIKE @kw)
+  AND (@onlyIn = 0 OR rk.[入仓单号] IS NOT NULL)
+  AND (@onlyOut = 0 OR rk.[入仓单号] IS NULL)
+ORDER BY d.[单号] DESC, d.[ID], rk.[入仓日期];",
+            new { sup, 起, 止 = 止Excl, kw, onlyIn, onlyOut });
+        return rows.AsList();
+    }
+
     public async Task<string> CreateAsync(PurchaseOrderCreateDto dto, string user)
     {
         if (dto.明细.Count == 0) throw new ArgumentException("采购订单至少要有一行物料明细");
