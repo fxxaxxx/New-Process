@@ -124,4 +124,76 @@ public class MasterApiIntegrationTests(DbFixture fx)
             .First(e => e.GetProperty("物料编号").GetString() == "PRICE1");
         Assert.Equal(66m, row.GetProperty("单价").GetDecimal()); // 单价可见
     }
+
+    private long SeedPricedMaterial(string 编号, decimal 单价, decimal 销售价, string 名称)
+    {
+        using var c = new SqlConnection(fx.ConnectionString);
+        c.Open();
+        c.Execute("DELETE FROM [物料资料] WHERE [物料编号]=@n", new { n = 编号 });
+        c.Execute("INSERT INTO [物料资料]([物料编号],[物料名称],[单价],[销售价]) VALUES(@n,@nm,@p,@s)",
+            new { n = 编号, nm = 名称, p = 单价, s = 销售价 });
+        return c.ExecuteScalar<long>("SELECT [ID] FROM [物料资料] WHERE [物料编号]=@n", new { n = 编号 });
+    }
+
+    private void SeedMaterialPermFull(string user, bool canSeePrice)
+    {
+        using var c = new SqlConnection(fx.ConnectionString);
+        c.Open();
+        c.Execute("DELETE FROM [userbqrpower] WHERE [用户]=@user", new { user });
+        c.Execute(@"INSERT INTO [userbqrpower]([用户],[菜单],[打开],[保存],[单价])
+                    VALUES(@user,N'物料资料',1,1,@canSeePrice)", new { user, canSeePrice });
+    }
+
+    [SkippableFact]
+    public async Task Update_preserves_prices_when_user_lacks_单价_permission()
+    {
+        using var app = Factory();
+        var id = SeedPricedMaterial("PRUPD1", 10m, 15m, "原名");
+        SeedMaterialPermFull("p1updnoprice", canSeePrice: false);
+        try
+        {
+            var client = app.CreateClient();
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token("p1updnoprice"));
+            // 无"单价"权限提交:body 不含价格(脱敏为 null)，更新后应保留库中原价、改掉名称
+            var resp = await client.PutAsJsonAsync($"/api/master/materials/{id}",
+                new { ID = id, 物料编号 = "PRUPD1", 物料名称 = "改名", 单价 = (decimal?)null, 销售价 = (decimal?)null });
+            Assert.Equal(HttpStatusCode.NoContent, resp.StatusCode);
+
+            using var c = new SqlConnection(fx.ConnectionString); c.Open();
+            Assert.Equal("改名", c.ExecuteScalar<string>("SELECT [物料名称] FROM [物料资料] WHERE [ID]=@id", new { id }));
+            Assert.Equal(10m, c.ExecuteScalar<decimal?>("SELECT [单价] FROM [物料资料] WHERE [ID]=@id", new { id }));
+            Assert.Equal(15m, c.ExecuteScalar<decimal?>("SELECT [销售价] FROM [物料资料] WHERE [ID]=@id", new { id }));
+        }
+        finally
+        {
+            using var c = new SqlConnection(fx.ConnectionString); c.Open();
+            c.Execute("DELETE FROM [物料资料] WHERE [物料编号]='PRUPD1'");
+        }
+    }
+
+    [SkippableFact]
+    public async Task Update_applies_prices_when_user_has_单价_permission()
+    {
+        using var app = Factory();
+        var id = SeedPricedMaterial("PRUPD2", 10m, 15m, "原名");
+        SeedMaterialPermFull("p1updprice", canSeePrice: true);
+        try
+        {
+            var client = app.CreateClient();
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token("p1updprice"));
+            // 有"单价"权限:提交的新价格生效
+            var resp = await client.PutAsJsonAsync($"/api/master/materials/{id}",
+                new { ID = id, 物料编号 = "PRUPD2", 物料名称 = "原名", 单价 = 20m, 销售价 = 25m });
+            Assert.Equal(HttpStatusCode.NoContent, resp.StatusCode);
+
+            using var c = new SqlConnection(fx.ConnectionString); c.Open();
+            Assert.Equal(20m, c.ExecuteScalar<decimal?>("SELECT [单价] FROM [物料资料] WHERE [ID]=@id", new { id }));
+            Assert.Equal(25m, c.ExecuteScalar<decimal?>("SELECT [销售价] FROM [物料资料] WHERE [ID]=@id", new { id }));
+        }
+        finally
+        {
+            using var c = new SqlConnection(fx.ConnectionString); c.Open();
+            c.Execute("DELETE FROM [物料资料] WHERE [物料编号]='PRUPD2'");
+        }
+    }
 }

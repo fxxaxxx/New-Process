@@ -30,10 +30,12 @@ public sealed class MasterCrudService<T>(ErpDbContext db) where T : MasterEntity
 
     public async Task<bool> UpdateAsync(long id, T entity)
     {
-        var exists = await db.Set<T>().AnyAsync(e => e.ID == id);
-        if (!exists) return false;
+        // 加载被跟踪实体后用 SetValues 覆盖映射字段:避免"附加第二个同主键实例"的跟踪冲突，
+        // 且只动模型内的列(未映射列不受影响)。
+        var existing = await db.Set<T>().FirstOrDefaultAsync(e => e.ID == id);
+        if (existing is null) return false;
         entity.ID = id;
-        db.Set<T>().Update(entity);
+        db.Entry(existing).CurrentValues.SetValues(entity);
         await db.SaveChangesAsync();
         return true;
     }
