@@ -59,7 +59,7 @@
 ## 测试
 
 - 后端 `MaterialReturnServiceDbTests`、`MaterialIssueServiceDbTests` 各加 1 个往返用例:创建含 `生产单号/款号` 的明细 → `GetAsync` 回显两字段一致。
-- 前端 `MaterialLineTable` 渲染测试:`usageCols=true` 时出现 `生产单号/款号/材料/备注` 列;`usageCols` 未传时(采购单据)列集不变。
+- 前端:本项目约定前端测试为纯逻辑 `vitest`(`src/__tests__/*.test.ts`,无 testing-library/jsdom DOM 渲染设施)。故**不引入** DOM 渲染测试(否则属脚手架越界)。列新增由 `tsc -b` 类型检查 + 手动运行界面核验;数据回环由上述后端往返测试覆盖;现有 `materialDocs.test.ts` 等全套保持绿。
 
 ## 验收
 
