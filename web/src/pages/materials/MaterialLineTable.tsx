@@ -8,11 +8,12 @@ import type { PurchaseOrderProgressRow } from "../../api/purchaseOrders";
 import type { MaterialRow } from "../../api/materialMaster";
 
 // 受控物料明细行编辑表；物料点击弹选择器带出名称/规格/单位/单价；可选款号选订单。
-export default function MaterialLineTable({ value, onChange, hidePriceCols, enableOrderPicker, 供应商 }: {
+export default function MaterialLineTable({ value, onChange, hidePriceCols, enableOrderPicker, usageCols, 供应商 }: {
   value: DocLine[];
   onChange: Dispatch<SetStateAction<DocLine[]>>;
   hidePriceCols: boolean;
   enableOrderPicker?: boolean;
+  usageCols?: boolean;
   供应商?: string;
 }) {
   const setLine = (i: number, patch: Partial<DocLine>) =>
@@ -51,6 +52,20 @@ export default function MaterialLineTable({ value, onChange, hidePriceCols, enab
   };
 
   const columns = [
+    ...(usageCols ? [
+      {
+        title: "生产单号", dataIndex: "生产单号", width: 140,
+        render: (_: unknown, r: DocLine, i: number) => (
+          <Input style={{ width: 128 }} value={r.生产单号 ?? ""} onChange={e => setLine(i, { 生产单号: e.target.value })} />
+        ),
+      },
+      {
+        title: "款号", dataIndex: "款号", width: 120,
+        render: (_: unknown, r: DocLine, i: number) => (
+          <Input style={{ width: 108 }} value={r.款号 ?? ""} onChange={e => setLine(i, { 款号: e.target.value })} />
+        ),
+      },
+    ] : []),
     ...(enableOrderPicker ? [{
       title: "款号", dataIndex: "款号", width: 130,
       render: (_: unknown, r: DocLine, i: number) => (
@@ -66,6 +81,9 @@ export default function MaterialLineTable({ value, onChange, hidePriceCols, enab
       ),
     },
     { title: "规格", dataIndex: "规格", width: 110, render: (v: string) => v ?? "" },
+    ...(usageCols ? [
+      { title: "材料", dataIndex: "物料类别", width: 90, render: (v: string) => v ?? "" },
+    ] : []),
     {
       title: "颜色", dataIndex: "颜色", width: 100,
       render: (_: unknown, r: DocLine, i: number) => (
@@ -90,6 +108,14 @@ export default function MaterialLineTable({ value, onChange, hidePriceCols, enab
       },
       { title: "金额", dataIndex: "_amt", width: 100, render: (_: unknown, r: DocLine) => lineAmount(r).toFixed(2) },
     ]),
+    ...(usageCols ? [
+      {
+        title: "备注", dataIndex: "备注", width: 140,
+        render: (_: unknown, r: DocLine, i: number) => (
+          <Input style={{ width: 128 }} value={r.备注 ?? ""} onChange={e => setLine(i, { 备注: e.target.value })} />
+        ),
+      },
+    ] : []),
     {
       title: "", key: "_op", width: 50,
       render: (_: unknown, __: DocLine, i: number) => <a onClick={() => onChange(prev => prev.filter((_, j) => j !== i))}>删除</a>,

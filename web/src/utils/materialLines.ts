@@ -3,7 +3,7 @@ export interface DocLine {
   物料编号?: string; 物料名称?: string; 物料类别?: string;
   规格?: string; 颜色?: string; 单位?: string;
   数量?: number; 单价?: number | null; 金额?: number | null;
-  订单单号?: string; 生产单号?: string; 款号?: string;
+  订单单号?: string; 生产单号?: string; 款号?: string; 备注?: string;
 }
 
 export const lineAmount = (l: { 数量?: number; 单价?: number | null }) =>
