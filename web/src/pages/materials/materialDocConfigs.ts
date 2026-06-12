@@ -6,7 +6,7 @@ export interface MaterialDocCfg {
   headerFields: DocFieldCfg[];   // 新建抽屉的单头字段
   listExtra: DocFieldCfg[];      // 列表里单头特有的额外列
   orderPicker?: boolean;   // true=录入行支持"款号选采购订单"(仅采购入仓单)
-  usageCols?: boolean;     // true=领料/退料,行表显示 生产单号/款号/材料/备注 列
+  usageCols?: boolean;     // true=领料/退料,行表显示 生产单号/款号/材料/备注 列(与 orderPicker 互斥)
 }
 
 export const MATERIAL_DOC_CONFIGS: Record<string, MaterialDocCfg> = {

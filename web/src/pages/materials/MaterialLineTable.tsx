@@ -60,14 +60,14 @@ export default function MaterialLineTable({ value, onChange, hidePriceCols, enab
         ),
       },
       {
-        title: "款号", dataIndex: "款号", width: 120,
+        key: "款号_usage", title: "款号", dataIndex: "款号", width: 120,
         render: (_: unknown, r: DocLine, i: number) => (
           <Input style={{ width: 108 }} value={r.款号 ?? ""} onChange={e => setLine(i, { 款号: e.target.value })} />
         ),
       },
     ] : []),
     ...(enableOrderPicker ? [{
-      title: "款号", dataIndex: "款号", width: 130,
+      key: "款号_order", title: "款号", dataIndex: "款号", width: 130,
       render: (_: unknown, r: DocLine, i: number) => (
         <a onClick={() => setPickFor(i)}>{r.款号 ? r.款号 : "选订单"}</a>
       ),
