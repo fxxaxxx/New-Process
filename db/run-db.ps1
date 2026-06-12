@@ -13,4 +13,7 @@ dotnet run --project (Join-Path $root "tools\DbDeploy") -- $ConnectionString `
   (Join-Path $dir "07_p5b_additions.sql") `
   (Join-Path $dir "08_p5c_additions.sql") `
   (Join-Path $dir "09_p5_month_end.sql") `
-  (Join-Path $dir "10_p5_material_cost.sql")
+  (Join-Path $dir "10_p5_material_cost.sql") `
+  (Join-Path $dir "11_mo_tracking.sql") `
+  (Join-Path $dir "12_purchase_order.sql") `
+  (Join-Path $dir "13_purchase_return.sql")
