@@ -24,6 +24,6 @@ export interface MaterialRow {
 export const materialMasterApi = {
   categories: () =>
     api.get<MaterialCategoryNode[]>("/material-master/categories").then(r => r.data),
-  list: (类别?: string, keyword?: string, page = 1, size = 50) =>
-    api.get<Paged<MaterialRow>>("/material-master", { params: { 类别, keyword, page, size } }).then(r => r.data),
+  list: (类别?: string, keyword?: string, page = 1, size = 50, onlyStock?: boolean) =>
+    api.get<Paged<MaterialRow>>("/material-master", { params: { 类别, keyword, page, size, onlyStock } }).then(r => r.data),
 };
