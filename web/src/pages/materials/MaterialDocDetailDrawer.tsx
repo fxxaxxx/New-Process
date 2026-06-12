@@ -1,13 +1,20 @@
 import { useEffect, useState } from "react";
-import { Descriptions, Drawer, Table, Tag, message } from "antd";
+import { Button, Descriptions, Drawer, Space, Table, Tag, message } from "antd";
+import { CopyOutlined, PrinterOutlined } from "@ant-design/icons";
 import { materialDocApi, type MaterialDocDetail } from "../../api/materialDocs";
 import type { MaterialDocCfg } from "./materialDocConfigs";
+import { can, hidePrice } from "../../auth/permissions";
+import { usePerms } from "../../auth/PermissionContext";
+import { printMaterialDoc } from "../../utils/printDoc";
 
 const money = (v?: number | null) => (v == null ? "***" : v);
 
-export default function MaterialDocDetailDrawer({ cfg, 单号, onClose }: {
+export default function MaterialDocDetailDrawer({ cfg, 单号, onClose, onCopy }: {
   cfg: MaterialDocCfg; 单号: string | null; onClose: () => void;
+  onCopy?: (detail: MaterialDocDetail) => void;   // 复制单：交父级打开预填新建抽屉
 }) {
+  const perms = usePerms();
+  const priceHidden = hidePrice(perms, cfg.menu);
   const [detail, setDetail] = useState<MaterialDocDetail | null>(null);
 
   useEffect(() => {
@@ -21,7 +28,18 @@ export default function MaterialDocDetailDrawer({ cfg, 单号, onClose }: {
   const h = detail?.单头;
 
   return (
-    <Drawer title={`${cfg.title}单 ${单号 ?? ""}`} width={820} open={!!单号} onClose={onClose}>
+    <Drawer title={`${cfg.title}单 ${单号 ?? ""}`} width={820} open={!!单号} onClose={onClose}
+      extra={detail && (
+        <Space>
+          {onCopy && can(perms, cfg.menu, "保存") && (
+            <Button icon={<CopyOutlined />} onClick={() => onCopy(detail)}>复制单</Button>
+          )}
+          {can(perms, cfg.menu, "打印") && (
+            <Button icon={<PrinterOutlined />}
+              onClick={() => printMaterialDoc(`${cfg.title}单 ${单号 ?? ""}`, detail, { hidePrice: priceHidden, headerFields: cfg.listExtra })}>打印</Button>
+          )}
+        </Space>
+      )}>
       {detail && (
         <>
           <Descriptions size="small" column={3} bordered style={{ marginBottom: 16 }}
