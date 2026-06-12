@@ -1,16 +1,14 @@
-import { useState } from "react";
-import type { Dispatch, SetStateAction } from "react";
-import { Button, Input, InputNumber, Select, Table } from "antd";
-import OrderLinePicker from "./OrderLinePicker";
-import type { PurchaseOrderProgressRow } from "../../api/purchaseOrders";
+import { useState, type Dispatch, type SetStateAction } from "react";
+import { Button, Input, InputNumber, Table } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
 import { lineAmount, type DocLine } from "../../utils/materialLines";
+import OrderLinePicker from "./OrderLinePicker";
+import MaterialPicker from "./MaterialPicker";
+import type { PurchaseOrderProgressRow } from "../../api/purchaseOrders";
+import type { MaterialRow } from "../../api/materialMaster";
 
-type MaterialOption = Record<string, unknown>;
-
-// 受控物料明细行编辑表；物料编号选择后带出名称/规格/单位/单价
-export default function MaterialLineTable({ materials, value, onChange, hidePriceCols, enableOrderPicker, 供应商 }: {
-  materials: MaterialOption[];
+// 受控物料明细行编辑表；物料点击弹选择器带出名称/规格/单位/单价；可选款号选订单。
+export default function MaterialLineTable({ value, onChange, hidePriceCols, enableOrderPicker, 供应商 }: {
   value: DocLine[];
   onChange: Dispatch<SetStateAction<DocLine[]>>;
   hidePriceCols: boolean;
@@ -20,7 +18,8 @@ export default function MaterialLineTable({ materials, value, onChange, hidePric
   const setLine = (i: number, patch: Partial<DocLine>) =>
     onChange(prev => prev.map((l, j) => (j === i ? { ...l, ...patch } : l)));
 
-  const [pickFor, setPickFor] = useState<number | null>(null);
+  const [pickFor, setPickFor] = useState<number | null>(null);       // 款号选订单
+  const [matPickFor, setMatPickFor] = useState<number | null>(null); // 物料选择器
 
   const fillFromOrder = (row: PurchaseOrderProgressRow) => {
     if (pickFor === null) return;
@@ -38,15 +37,16 @@ export default function MaterialLineTable({ materials, value, onChange, hidePric
     });
   };
 
-  const pickMaterial = (i: number, 物料编号: string) => {
-    const m = materials.find(x => String(x.物料编号) === 物料编号);
-    setLine(i, {
-      物料编号,
-      物料名称: m?.物料名称 as string | undefined,
-      物料类别: m?.物料类别 as string | undefined,
-      规格: m?.规格 as string | undefined,
-      单位: m?.单位 as string | undefined,
-      单价: hidePriceCols ? null : ((m?.单价 as number | undefined) ?? null),
+  const fillFromMaterial = (row: MaterialRow) => {
+    if (matPickFor === null) return;
+    setLine(matPickFor, {
+      物料编号: row.物料编号 ?? undefined,
+      物料名称: row.物料名称 ?? undefined,
+      物料类别: row.物料类别 ?? undefined,
+      规格: row.规格 ?? undefined,
+      颜色: row.颜色 ?? undefined,
+      单位: row.单位 ?? undefined,
+      单价: hidePriceCols ? null : (row.单价 ?? null),
     });
   };
 
@@ -60,9 +60,9 @@ export default function MaterialLineTable({ materials, value, onChange, hidePric
     {
       title: "物料", dataIndex: "物料编号", width: 220,
       render: (_: unknown, r: DocLine, i: number) => (
-        <Select showSearch optionFilterProp="label" style={{ width: 200 }} value={r.物料编号 || undefined}
-          placeholder="选择物料" onChange={(v: string) => pickMaterial(i, v)}
-          options={materials.map(m => ({ value: String(m.物料编号), label: `${m.物料编号} ${m.物料名称 ?? ""}` }))} />
+        <a onClick={() => setMatPickFor(i)}>
+          {r.物料编号 ? `${r.物料编号} ${r.物料名称 ?? ""}` : "选物料"}
+        </a>
       ),
     },
     { title: "规格", dataIndex: "规格", width: 110, render: (v: string) => v ?? "" },
@@ -100,12 +100,14 @@ export default function MaterialLineTable({ materials, value, onChange, hidePric
     <div>
       <Table size="small" rowKey={(_: DocLine, i?: number) => String(i)} pagination={false} dataSource={value} columns={columns} />
       <Button icon={<PlusOutlined />} style={{ marginTop: 12 }} onClick={() => onChange(prev => [...prev, { 数量: 0 }])}>加一行</Button>
+      <MaterialPicker
+        open={matPickFor !== null} hidePriceCols={hidePriceCols}
+        onPick={fillFromMaterial} onClose={() => setMatPickFor(null)}
+      />
       {enableOrderPicker && (
         <OrderLinePicker
-          open={pickFor !== null}
-          供应商={供应商}
-          onPick={fillFromOrder}
-          onClose={() => setPickFor(null)}
+          open={pickFor !== null} 供应商={供应商}
+          onPick={fillFromOrder} onClose={() => setPickFor(null)}
         />
       )}
     </div>

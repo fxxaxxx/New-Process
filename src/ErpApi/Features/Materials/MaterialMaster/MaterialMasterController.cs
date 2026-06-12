@@ -23,10 +23,10 @@ public sealed class MaterialMasterController(
     }
 
     [HttpGet]
-    public async Task<IActionResult> List(string? 类别 = null, string? keyword = null, int page = 1, int size = 20)
+    public async Task<IActionResult> List(string? 类别 = null, string? keyword = null, int page = 1, int size = 20, bool onlyStock = false)
     {
         if (!await AllowAsync(PermissionAction.打开)) return Forbid();
-        var result = await svc.ListAsync(类别, keyword, page, size);
+        var result = await svc.ListAsync(类别, keyword, page, size, onlyStock);
         if (!await AllowAsync(PermissionAction.单价))
             foreach (var r in result.Items) { r.单价 = null; r.销售价 = null; }
         return Ok(result);

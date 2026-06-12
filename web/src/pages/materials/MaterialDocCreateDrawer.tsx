@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Button, Col, Drawer, Form, Input, Row, Space, Statistic, message } from "antd";
-import { masterApi } from "../../api/master";
 import { materialDocApi } from "../../api/materialDocs";
 import { sumAmount, sumQty, validLines, type DocLine } from "../../utils/materialLines";
 import { hidePrice } from "../../auth/permissions";
@@ -15,19 +14,11 @@ export default function MaterialDocCreateDrawer({ cfg, open, onClose, onCreated 
   const priceHidden = hidePrice(perms, cfg.menu);
   const [form] = Form.useForm<Record<string, string>>();
   const 供应商编号 = Form.useWatch("供应商编号", form);
-  const [materials, setMaterials] = useState<Record<string, unknown>[]>([]);
   const [lines, setLines] = useState<DocLine[]>([]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!open) return;
-    (async () => {
-      try {
-        const r = await masterApi("materials").list(1, 500);
-        setMaterials(r.items as Record<string, unknown>[]);
-        if (r.total > 500) message.warning("物料超过500条，仅加载前500条");
-      } catch { message.error("加载物料数据失败"); }
-    })();
     form.resetFields(); setLines([]);
   }, [open, form, cfg.resource]);
 
@@ -62,10 +53,8 @@ export default function MaterialDocCreateDrawer({ cfg, open, onClose, onCreated 
           ))}
         </Row>
       </Form>
-      <MaterialLineTable
-        materials={materials} value={lines} onChange={setLines} hidePriceCols={priceHidden}
-        enableOrderPicker={cfg.orderPicker} 供应商={供应商编号 as string | undefined}
-      />
+      <MaterialLineTable value={lines} onChange={setLines} hidePriceCols={priceHidden}
+        enableOrderPicker={cfg.orderPicker} 供应商={供应商编号 as string | undefined} />
       <Space style={{ marginTop: 16 }} size={32}>
         <Statistic title="数量合计" value={sumQty(lines)} />
         {!priceHidden && <Statistic title="金额合计" value={sumAmount(lines).toFixed(2)} />}
