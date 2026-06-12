@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Checkbox, Input, Modal, Table } from "antd";
+import { Checkbox, Input, message, Modal, Table } from "antd";
 import { materialMasterApi, type MaterialRow } from "../../api/materialMaster";
 
 // 物料选择器：可搜索物料资料列表(复用 /api/material-master)，点行返回该物料。
@@ -21,7 +21,7 @@ export default function MaterialPicker({ open, hidePriceCols, onPick, onClose }:
     try {
       const r = await materialMasterApi.list(undefined, keyword.trim() || undefined, p, 50, onlyStock || undefined);
       setRows(r.items); setTotal(r.total);
-    } catch { /* 忽略 */ }
+    } catch { message.error("加载物料列表失败"); }
     finally { setLoading(false); }
   }, [keyword, onlyStock]);
 
