@@ -14,4 +14,7 @@ public sealed class MaterialDocLineDto
     public decimal? 单价 { get; set; }
     public decimal? 金额 { get; set; }
     public string? 备注 { get; set; }
+    public string? 订单单号 { get; set; }   // 采购入仓:调入的采购订单号(领料/退料留空)
+    public string? 生产单号 { get; set; }
+    public string? 款号 { get; set; }
 }

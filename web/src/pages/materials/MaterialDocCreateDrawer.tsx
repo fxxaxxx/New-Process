@@ -14,6 +14,7 @@ export default function MaterialDocCreateDrawer({ cfg, open, onClose, onCreated 
   const perms = usePerms();
   const priceHidden = hidePrice(perms, cfg.menu);
   const [form] = Form.useForm<Record<string, string>>();
+  const 供应商编号 = Form.useWatch("供应商编号", form);
   const [materials, setMaterials] = useState<Record<string, unknown>[]>([]);
   const [lines, setLines] = useState<DocLine[]>([]);
   const [saving, setSaving] = useState(false);
@@ -61,7 +62,10 @@ export default function MaterialDocCreateDrawer({ cfg, open, onClose, onCreated 
           ))}
         </Row>
       </Form>
-      <MaterialLineTable materials={materials} value={lines} onChange={setLines} hidePriceCols={priceHidden} />
+      <MaterialLineTable
+        materials={materials} value={lines} onChange={setLines} hidePriceCols={priceHidden}
+        enableOrderPicker={cfg.orderPicker} 供应商={供应商编号 as string | undefined}
+      />
       <Space style={{ marginTop: 16 }} size={32}>
         <Statistic title="数量合计" value={sumQty(lines)} />
         {!priceHidden && <Statistic title="金额合计" value={sumAmount(lines).toFixed(2)} />}
