@@ -22,6 +22,7 @@ public static class P3TestData
     public static void Cleanup(SqlConnection c)
     {
         c.Execute("DELETE FROM [采购入仓明细单] WHERE [物料编号] IN (N'P3M01',N'P3M02')");
+        c.Execute("DELETE FROM [采购退仓明细单] WHERE [物料编号] IN (N'P3M01',N'P3M02')");
         c.Execute("DELETE FROM [领料明细单] WHERE [物料编号] IN (N'P3M01',N'P3M02')");
         c.Execute("DELETE FROM [退料明细单] WHERE [物料编号] IN (N'P3M01',N'P3M02')");
         c.Execute("DELETE FROM [供应商资料] WHERE [供应商编号]=N'P3S01'");
