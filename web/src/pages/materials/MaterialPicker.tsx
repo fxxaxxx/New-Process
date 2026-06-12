@@ -29,6 +29,11 @@ export default function MaterialPicker({ open, hidePriceCols, onPick, onClose }:
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (open) { setPage(1); load(1); } }, [open, onlyStock]);
 
+  // 关闭时重置,避免下次为别的行打开时闪现上次的关键字/结果
+  useEffect(() => {
+    if (!open) { setKeyword(""); setOnlyStock(false); setPage(1); setRows([]); }
+  }, [open]);
+
   const search = () => { setPage(1); load(1); };
 
   const columns = [
