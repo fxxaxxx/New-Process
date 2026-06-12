@@ -33,4 +33,13 @@ export const MATERIAL_DOC_CONFIGS: Record<string, MaterialDocCfg> = {
     ],
     listExtra: [{ name: "退料部门", label: "退料部门" }, { name: "退料人", label: "退料人" }, { name: "仓库", label: "仓库" }],
   },
+  "purchase-returns": {
+    resource: "purchase-returns", menu: "采购退仓单", title: "采购退仓", orderPicker: true,
+    headerFields: [
+      { name: "入仓单号", label: "入仓单号" }, { name: "供应商编号", label: "供应商编号" },
+      { name: "供应商名称", label: "供应商名称" }, { name: "仓库", label: "仓库", required: true },
+      { name: "备注", label: "备注" },
+    ],
+    listExtra: [{ name: "供应商名称", label: "供应商" }, { name: "仓库", label: "仓库" }],
+  },
 };
