@@ -1,11 +1,13 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
 import { Button, Input, InputNumber, Table } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
-import { lineAmount, type DocLine } from "../../utils/materialLines";
+import { lineAmount, productionLinePatch, type DocLine } from "../../utils/materialLines";
 import OrderLinePicker from "./OrderLinePicker";
 import MaterialPicker from "./MaterialPicker";
+import ProductionPicker from "./ProductionPicker";
 import type { PurchaseOrderProgressRow } from "../../api/purchaseOrders";
 import type { MaterialRow } from "../../api/materialMaster";
+import type { ProductionTrackingRow } from "../../api/productionReports";
 
 // 受控物料明细行编辑表；物料点击弹选择器带出名称/规格/单位/单价；可选款号选订单。
 export default function MaterialLineTable({ value, onChange, hidePriceCols, enableOrderPicker, usageCols, 供应商 }: {
@@ -21,6 +23,7 @@ export default function MaterialLineTable({ value, onChange, hidePriceCols, enab
 
   const [pickFor, setPickFor] = useState<number | null>(null);       // 款号选订单
   const [matPickFor, setMatPickFor] = useState<number | null>(null); // 物料选择器
+  const [prodPickFor, setProdPickFor] = useState<number | null>(null); // 款号/生产单号选生产制单
 
   const fillFromOrder = (row: PurchaseOrderProgressRow) => {
     if (pickFor === null) return;
@@ -36,6 +39,11 @@ export default function MaterialLineTable({ value, onChange, hidePriceCols, enab
       单位: row.单位 ?? undefined,
       数量: Number(row.欠数 ?? 0),
     });
+  };
+
+  const fillFromProduction = (row: ProductionTrackingRow) => {
+    if (prodPickFor === null) return;
+    setLine(prodPickFor, productionLinePatch(row));
   };
 
   const fillFromMaterial = (row: MaterialRow) => {
@@ -56,13 +64,13 @@ export default function MaterialLineTable({ value, onChange, hidePriceCols, enab
       {
         title: "生产单号", dataIndex: "生产单号", width: 140,
         render: (_: unknown, r: DocLine, i: number) => (
-          <Input style={{ width: 128 }} value={r.生产单号 ?? ""} onChange={e => setLine(i, { 生产单号: e.target.value })} />
+          <a onClick={() => setProdPickFor(i)}>{r.生产单号 ? r.生产单号 : "选生产单"}</a>
         ),
       },
       {
         key: "款号_usage", title: "款号", dataIndex: "款号", width: 120,
         render: (_: unknown, r: DocLine, i: number) => (
-          <Input style={{ width: 108 }} value={r.款号 ?? ""} onChange={e => setLine(i, { 款号: e.target.value })} />
+          <a onClick={() => setProdPickFor(i)}>{r.款号 ? r.款号 : "选生产单"}</a>
         ),
       },
     ] : []),
@@ -134,6 +142,12 @@ export default function MaterialLineTable({ value, onChange, hidePriceCols, enab
         <OrderLinePicker
           open={pickFor !== null} 供应商={供应商}
           onPick={fillFromOrder} onClose={() => setPickFor(null)}
+        />
+      )}
+      {usageCols && (
+        <ProductionPicker
+          open={prodPickFor !== null}
+          onPick={fillFromProduction} onClose={() => setProdPickFor(null)}
         />
       )}
     </div>

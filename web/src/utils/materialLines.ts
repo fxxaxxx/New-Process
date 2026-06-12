@@ -18,3 +18,9 @@ export const sumAmount = (lines: { 数量?: number; 单价?: number | null }[]) 
 // 提交前过滤：必须有物料编号且数量>0
 export const validLines = (lines: DocLine[]) =>
   lines.filter(l => !!l.物料编号 && Number(l.数量 ?? 0) > 0);
+
+// 款号/生产单号 点击选生产制单后的回填补丁（仅带出生产单号与款号）
+export const productionLinePatch = (row: { 生产单号?: string; 款号?: string }): Partial<DocLine> => ({
+  生产单号: row.生产单号 || undefined,
+  款号: row.款号 || undefined,
+});
