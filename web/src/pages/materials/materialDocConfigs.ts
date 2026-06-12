@@ -6,6 +6,7 @@ export interface MaterialDocCfg {
   headerFields: DocFieldCfg[];   // 新建抽屉的单头字段
   listExtra: DocFieldCfg[];      // 列表里单头特有的额外列
   orderPicker?: boolean;   // true=录入行支持"款号选采购订单"(仅采购入仓单)
+  usageCols?: boolean;     // true=领料/退料,行表显示 生产单号/款号/材料/备注 列(与 orderPicker 互斥)
 }
 
 export const MATERIAL_DOC_CONFIGS: Record<string, MaterialDocCfg> = {
@@ -18,7 +19,7 @@ export const MATERIAL_DOC_CONFIGS: Record<string, MaterialDocCfg> = {
     listExtra: [{ name: "供应商名称", label: "供应商" }, { name: "仓库", label: "仓库" }],
   },
   "material-issues": {
-    resource: "material-issues", menu: "领料单", title: "领料",
+    resource: "material-issues", menu: "领料单", title: "领料", usageCols: true,
     headerFields: [
       { name: "领料部门", label: "领料部门" }, { name: "领料人", label: "领料人" },
       { name: "仓库", label: "仓库", required: true }, { name: "备注", label: "备注" },
@@ -26,7 +27,7 @@ export const MATERIAL_DOC_CONFIGS: Record<string, MaterialDocCfg> = {
     listExtra: [{ name: "领料部门", label: "领料部门" }, { name: "领料人", label: "领料人" }, { name: "仓库", label: "仓库" }],
   },
   "material-returns": {
-    resource: "material-returns", menu: "退料单", title: "退料",
+    resource: "material-returns", menu: "退料单", title: "退料", usageCols: true,
     headerFields: [
       { name: "退料部门", label: "退料部门" }, { name: "退料人", label: "退料人" },
       { name: "仓库", label: "仓库", required: true }, { name: "备注", label: "备注" },

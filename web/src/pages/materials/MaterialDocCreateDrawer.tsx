@@ -54,7 +54,7 @@ export default function MaterialDocCreateDrawer({ cfg, open, onClose, onCreated 
         </Row>
       </Form>
       <MaterialLineTable value={lines} onChange={setLines} hidePriceCols={priceHidden}
-        enableOrderPicker={cfg.orderPicker} 供应商={供应商编号 as string | undefined} />
+        enableOrderPicker={cfg.orderPicker} usageCols={cfg.usageCols} 供应商={供应商编号 as string | undefined} />
       <Space style={{ marginTop: 16 }} size={32}>
         <Statistic title="数量合计" value={sumQty(lines)} />
         {!priceHidden && <Statistic title="金额合计" value={sumAmount(lines).toFixed(2)} />}
