@@ -12,8 +12,9 @@ import EmployeePicker from "./EmployeePicker";
 const today = () => new Date().toLocaleDateString("zh-CN");
 const currentUser = () => localStorage.getItem("erp_user") ?? "";
 
-export default function MaterialDocCreateDrawer({ cfg, open, onClose, onCreated }: {
+export default function MaterialDocCreateDrawer({ cfg, open, onClose, onCreated, initial }: {
   cfg: MaterialDocCfg; open: boolean; onClose: () => void; onCreated: () => void;
+  initial?: { header: Record<string, string>; lines: DocLine[] };   // 复制单时预填
 }) {
   const perms = usePerms();
   const priceHidden = hidePrice(perms, cfg.menu);
@@ -25,8 +26,10 @@ export default function MaterialDocCreateDrawer({ cfg, open, onClose, onCreated 
 
   useEffect(() => {
     if (!open) return;
-    form.resetFields(); setLines([]);
-  }, [open, form, cfg.resource]);
+    form.resetFields();
+    setLines(initial?.lines ?? []);
+    if (initial?.header) form.setFieldsValue(initial.header);
+  }, [open, form, cfg.resource, initial]);
 
   // 按字段 type 渲染单头控件
   const renderField = (f: DocFieldCfg) => {
@@ -64,7 +67,7 @@ export default function MaterialDocCreateDrawer({ cfg, open, onClose, onCreated 
   };
 
   return (
-    <Drawer title={`新建${cfg.title}单`} width={920} open={open} onClose={onClose}
+    <Drawer title={`${initial ? "复制新建" : "新建"}${cfg.title}单`} width={920} open={open} onClose={onClose}
       extra={<Button type="primary" loading={saving} onClick={submit}>保存</Button>}>
       <Form form={form} layout="vertical" initialValues={Object.fromEntries(
         cfg.headerFields.flatMap(f =>

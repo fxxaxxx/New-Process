@@ -7,6 +7,7 @@ import { usePerms } from "../../auth/PermissionContext";
 import type { MaterialDocCfg } from "./materialDocConfigs";
 import MaterialDocCreateDrawer from "./MaterialDocCreateDrawer";
 import MaterialDocDetailDrawer from "./MaterialDocDetailDrawer";
+import { buildCopyInitial } from "../../utils/materialDocCopy";
 
 export default function MaterialDocPage({ cfg }: { cfg: MaterialDocCfg }) {
   const perms = usePerms();
@@ -17,6 +18,7 @@ export default function MaterialDocPage({ cfg }: { cfg: MaterialDocCfg }) {
   const [keyword, setKeyword] = useState("");
   const [creating, setCreating] = useState(false);
   const [viewing, setViewing] = useState<string | null>(null);
+  const [copyInitial, setCopyInitial] = useState<ReturnType<typeof buildCopyInitial> | null>(null);
 
   const load = useCallback(async () => {
     try { const r = await dapi.list(page, 10, keyword); setRows(r.items); setTotal(r.total); }
@@ -58,13 +60,15 @@ export default function MaterialDocPage({ cfg }: { cfg: MaterialDocCfg }) {
       extra={
         <Space>
           <Input.Search placeholder="搜索单号" allowClear onSearch={v => { setPage(1); setKeyword(v); }} style={{ width: 220 }} />
-          {can(perms, cfg.menu, "保存") && <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>新建{cfg.title}单</Button>}
+          {can(perms, cfg.menu, "保存") && <Button type="primary" icon={<PlusOutlined />} onClick={() => { setCopyInitial(null); setCreating(true); }}>新建{cfg.title}单</Button>}
         </Space>
       }>
       <Table rowKey="id" size="middle" dataSource={rows} columns={columns} scroll={{ x: true }}
         pagination={{ current: page, pageSize: 10, total, onChange: setPage, showTotal: t => `共 ${t} 条` }} />
-      <MaterialDocCreateDrawer cfg={cfg} open={creating} onClose={() => setCreating(false)} onCreated={load} />
-      <MaterialDocDetailDrawer cfg={cfg} 单号={viewing} onClose={() => setViewing(null)} />
+      <MaterialDocCreateDrawer cfg={cfg} open={creating} initial={copyInitial ?? undefined}
+        onClose={() => { setCreating(false); setCopyInitial(null); }} onCreated={load} />
+      <MaterialDocDetailDrawer cfg={cfg} 单号={viewing} onClose={() => setViewing(null)}
+        onCopy={detail => { setCopyInitial(buildCopyInitial(cfg.headerFields, detail)); setViewing(null); setCreating(true); }} />
     </Card>
   );
 }
