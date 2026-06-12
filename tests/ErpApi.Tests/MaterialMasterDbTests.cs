@@ -92,4 +92,22 @@ public class MaterialMasterDbTests(DbFixture fx)
         }
         finally { Cleanup(c); }
     }
+
+    [SkippableFact]
+    public async Task List_onlyStock_excludes_zero_stock()
+    {
+        using var c = fx.Open();
+        Seed(c);
+        try
+        {
+            var all = await Svc().ListAsync(null, "MM00", 1, 50, onlyStock: false);
+            Assert.Contains(all.Items, r => r.物料编号 == "MM002");   // 库存0,不过滤时在
+
+            var inStock = await Svc().ListAsync(null, "MM00", 1, 50, onlyStock: true);
+            Assert.Contains(inStock.Items, r => r.物料编号 == "MM001");   // 库存100
+            Assert.Contains(inStock.Items, r => r.物料编号 == "MM003");   // 库存500
+            Assert.DoesNotContain(inStock.Items, r => r.物料编号 == "MM002");   // 库存0被滤
+        }
+        finally { Cleanup(c); }
+    }
 }
