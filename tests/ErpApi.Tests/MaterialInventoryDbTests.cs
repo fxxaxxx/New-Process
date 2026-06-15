@@ -37,13 +37,15 @@ public class MaterialInventoryDbTests(DbFixture fx)
     private void Cleanup(Microsoft.Data.SqlClient.SqlConnection c)
     {
         c.Execute("DELETE FROM [采购入仓明细单] WHERE [物料编号]=N'P3M01'");
-        c.Execute("DELETE FROM [采购入仓单] WHERE [单号] IN (N'P3RK01')");
+        c.Execute("DELETE FROM [采购入仓单] WHERE [单号] IN (N'P3RK01',N'P3RKTX')");
         c.Execute("DELETE FROM [领料明细单] WHERE [物料编号]=N'P3M01'");
         c.Execute("DELETE FROM [领料单] WHERE [单号] IN (N'P3LL01',N'P3LL99')");
         c.Execute("DELETE FROM [退料明细单] WHERE [物料编号]=N'P3M01'");
         c.Execute("DELETE FROM [退料单] WHERE [单号] IN (N'P3TL01')");
         c.Execute("DELETE FROM [报废明细单] WHERE [物料编号]=N'P3M01'");
         c.Execute("DELETE FROM [报废单] WHERE [单号] IN (N'P3BF01')");
+        c.Execute("DELETE FROM [盘点明细单] WHERE [物料编号]=N'P3M01'");
+        c.Execute("DELETE FROM [盘点单] WHERE [单号] IN (N'P3PD01')");
         c.Execute("DELETE FROM [物料资料] WHERE [物料编号]=N'P3M01'");
     }
 
@@ -139,6 +141,29 @@ public class MaterialInventoryDbTests(DbFixture fx)
         Assert.Equal(80m, stock);   // 入100 − 报废20 = 80
         c.Execute("DELETE FROM [报废明细单] WHERE [物料编号]=N'P3M01'");
         c.Execute("DELETE FROM [报废单] WHERE [单号] IN (N'P3BF01')");
+        Cleanup(c);
+    }
+
+    [SkippableFact]
+    public async Task StockOf_applies_approved_盘点盈亏()
+    {
+        Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
+        using var c = fx.Open();
+        Cleanup(c);
+        c.Execute("DELETE FROM [盘点明细单] WHERE [物料编号]=N'P3M01'");
+        c.Execute("DELETE FROM [盘点单] WHERE [单号] IN (N'P3PD01')");
+        c.Execute("INSERT INTO [物料资料]([物料编号],[物料名称],[单位]) VALUES(N'P3M01',N'P3面料',N'米')");
+        c.Execute("INSERT INTO [采购入仓单]([单号],[仓库],[审核]) VALUES(N'P3RK01',N'物料仓','1')");
+        c.Execute(@"INSERT INTO [采购入仓明细单]([单号],[仓库],[物料编号],[物料名称],[单位],[数量])
+                    VALUES(N'P3RK01',N'物料仓',N'P3M01',N'P3面料',N'米',100)");
+        // 盘点：系统100 盘成80 → 盈亏 -20，审核后库存 = 80
+        c.Execute("INSERT INTO [盘点单]([单号],[仓库],[审核]) VALUES(N'P3PD01',N'物料仓','1')");
+        c.Execute(@"INSERT INTO [盘点明细单]([单号],[仓库],[物料编号],[物料名称],[单位],[系统数量],[盘点数量],[盈亏数量])
+                    VALUES(N'P3PD01',N'物料仓',N'P3M01',N'P3面料',N'米',100,80,-20)");
+        var stock = await Svc().StockOfAsync("P3M01", null);
+        Assert.Equal(80m, stock);   // 入100 + 盘亏(-20) = 80
+        c.Execute("DELETE FROM [盘点明细单] WHERE [物料编号]=N'P3M01'");
+        c.Execute("DELETE FROM [盘点单] WHERE [单号] IN (N'P3PD01')");
         Cleanup(c);
     }
 }
