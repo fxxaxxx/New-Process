@@ -42,6 +42,8 @@ public class MaterialInventoryDbTests(DbFixture fx)
         c.Execute("DELETE FROM [领料单] WHERE [单号] IN (N'P3LL01',N'P3LL99')");
         c.Execute("DELETE FROM [退料明细单] WHERE [物料编号]=N'P3M01'");
         c.Execute("DELETE FROM [退料单] WHERE [单号] IN (N'P3TL01')");
+        c.Execute("DELETE FROM [报废明细单] WHERE [物料编号]=N'P3M01'");
+        c.Execute("DELETE FROM [报废单] WHERE [单号] IN (N'P3BF01')");
         c.Execute("DELETE FROM [物料资料] WHERE [物料编号]=N'P3M01'");
     }
 
@@ -115,6 +117,28 @@ public class MaterialInventoryDbTests(DbFixture fx)
         c.Execute(@"INSERT INTO [领料明细单]([单号],[仓库],[物料编号],[物料名称],[单位],[数量])
                     VALUES(N'P3LL01',N'物料仓',N'P3M01',N'P3面料',N'米',100)");
         Assert.Empty(await Svc().ListAsync(null, "P3M01"));
+        Cleanup(c);
+    }
+
+    [SkippableFact]
+    public async Task StockOf_subtracts_approved_报废()
+    {
+        Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
+        using var c = fx.Open();
+        Cleanup(c);
+        c.Execute("DELETE FROM [报废明细单] WHERE [物料编号]=N'P3M01'");
+        c.Execute("DELETE FROM [报废单] WHERE [单号] IN (N'P3BF01')");
+        c.Execute("INSERT INTO [物料资料]([物料编号],[物料名称],[单位]) VALUES(N'P3M01',N'P3面料',N'米')");
+        c.Execute("INSERT INTO [采购入仓单]([单号],[仓库],[审核]) VALUES(N'P3RK01',N'物料仓','1')");
+        c.Execute(@"INSERT INTO [采购入仓明细单]([单号],[仓库],[物料编号],[物料名称],[单位],[数量])
+                    VALUES(N'P3RK01',N'物料仓',N'P3M01',N'P3面料',N'米',100)");
+        c.Execute("INSERT INTO [报废单]([单号],[仓库],[审核]) VALUES(N'P3BF01',N'物料仓','1')");
+        c.Execute(@"INSERT INTO [报废明细单]([单号],[仓库],[物料编号],[物料名称],[单位],[数量])
+                    VALUES(N'P3BF01',N'物料仓',N'P3M01',N'P3面料',N'米',20)");
+        var stock = await Svc().StockOfAsync("P3M01", null);
+        Assert.Equal(80m, stock);   // 入100 − 报废20 = 80
+        c.Execute("DELETE FROM [报废明细单] WHERE [物料编号]=N'P3M01'");
+        c.Execute("DELETE FROM [报废单] WHERE [单号] IN (N'P3BF01')");
         Cleanup(c);
     }
 }
