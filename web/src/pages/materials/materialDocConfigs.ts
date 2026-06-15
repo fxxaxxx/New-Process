@@ -43,6 +43,17 @@ export const MATERIAL_DOC_CONFIGS: Record<string, MaterialDocCfg> = {
     ],
     listExtra: [{ name: "退料部门", label: "退料部门" }, { name: "退料人", label: "退料人" }, { name: "仓库", label: "仓库" }],
   },
+  "material-scraps": {
+    resource: "material-scraps", menu: "报废单", title: "报废", usageCols: true,
+    // 按退料单同构表头：部门/日期/报废人(🔍)/电脑单号/操作员/仓库/备注
+    headerFields: [
+      { name: "报废部门", label: "部门" }, { name: "日期", label: "日期", type: "date-today" },
+      { name: "报废人", label: "报废人", type: "employee" }, { name: "单号", label: "电脑单号", type: "docno" },
+      { name: "操作员", label: "操作员", type: "operator" }, { name: "仓库", label: "仓库", required: true },
+      { name: "备注", label: "备注" },
+    ],
+    listExtra: [{ name: "报废部门", label: "报废部门" }, { name: "报废人", label: "报废人" }, { name: "仓库", label: "仓库" }],
+  },
   "purchase-returns": {
     resource: "purchase-returns", menu: "采购退仓单", title: "采购退仓", orderPicker: true,
     headerFields: [
