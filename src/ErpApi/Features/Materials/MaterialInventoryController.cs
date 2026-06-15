@@ -17,10 +17,11 @@ public sealed class MaterialInventoryController(
         User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub") ?? "";
 
     [HttpGet]
-    public async Task<IActionResult> List(string? 仓库 = null, string? keyword = null)
+    public async Task<IActionResult> List(string? 仓库 = null, string? keyword = null,
+        [FromQuery(Name = "物料类别")] string? 物料类别 = null)
     {
         if (!await perms.HasAsync(CurrentUser, Menu, PermissionAction.打开)) return Forbid();
-        var rows = await inventory.ListAsync(仓库, keyword);
+        var rows = await inventory.ListAsync(仓库, keyword, 物料类别);
         return Ok(rows);
     }
 }

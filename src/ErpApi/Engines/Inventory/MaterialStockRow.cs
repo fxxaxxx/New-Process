@@ -7,4 +7,6 @@ public sealed class MaterialStockRow
     public string? 单位 { get; set; }
     public string? 仓库 { get; set; }
     public decimal 库存数量 { get; set; }
+    public string? 货号 { get; set; }
+    public string? 物料类别 { get; set; }
 }

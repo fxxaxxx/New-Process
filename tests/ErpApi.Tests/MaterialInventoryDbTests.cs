@@ -166,4 +166,41 @@ public class MaterialInventoryDbTests(DbFixture fx)
         c.Execute("DELETE FROM [盘点单] WHERE [单号] IN (N'P3PD01')");
         Cleanup(c);
     }
+
+    [SkippableFact]
+    public async Task List_enriches_货号_物料类别_and_filters_by_类别()
+    {
+        Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
+        using var c = fx.Open();
+        Cleanup(c);
+        c.Execute("DELETE FROM [物料资料] WHERE [物料编号] IN (N'P3M01',N'P3M02')");
+        c.Execute("DELETE FROM [采购入仓明细单] WHERE [物料编号] IN (N'P3M01',N'P3M02')");
+        c.Execute("DELETE FROM [采购入仓单] WHERE [单号] IN (N'P3RKA',N'P3RKB')");
+        c.Execute("INSERT INTO [物料资料]([物料编号],[物料名称],[单位],[货号],[物料类别]) VALUES(N'P3M01',N'面料A',N'米',N'H001',N'面料')");
+        c.Execute("INSERT INTO [物料资料]([物料编号],[物料名称],[单位],[货号],[物料类别]) VALUES(N'P3M02',N'辅料B',N'个',N'H002',N'辅料')");
+        c.Execute("INSERT INTO [采购入仓单]([单号],[仓库],[审核]) VALUES(N'P3RKA',N'物料仓','1')");
+        c.Execute(@"INSERT INTO [采购入仓明细单]([单号],[仓库],[物料编号],[物料名称],[单位],[数量])
+                    VALUES(N'P3RKA',N'物料仓',N'P3M01',N'面料A',N'米',50)");
+        c.Execute("INSERT INTO [采购入仓单]([单号],[仓库],[审核]) VALUES(N'P3RKB',N'物料仓','1')");
+        c.Execute(@"INSERT INTO [采购入仓明细单]([单号],[仓库],[物料编号],[物料名称],[单位],[数量])
+                    VALUES(N'P3RKB',N'物料仓',N'P3M02',N'辅料B',N'个',30)");
+        try
+        {
+            var all = await Svc().ListAsync(仓库: "物料仓", keyword: null);
+            var r1 = Assert.Single(all, x => x.物料编号 == "P3M01");
+            Assert.Equal("H001", r1.货号);
+            Assert.Equal("面料", r1.物料类别);
+            Assert.Contains(all, x => x.物料编号 == "P3M02" && x.物料类别 == "辅料");
+            var onlyFabric = await Svc().ListAsync(仓库: "物料仓", keyword: null, 物料类别: "面料");
+            Assert.Single(onlyFabric);
+            Assert.Equal("P3M01", onlyFabric[0].物料编号);
+        }
+        finally
+        {
+            c.Execute("DELETE FROM [采购入仓明细单] WHERE [物料编号] IN (N'P3M01',N'P3M02')");
+            c.Execute("DELETE FROM [采购入仓单] WHERE [单号] IN (N'P3RKA',N'P3RKB')");
+            c.Execute("DELETE FROM [物料资料] WHERE [物料编号] IN (N'P3M01',N'P3M02')");
+            Cleanup(c);
+        }
+    }
 }
