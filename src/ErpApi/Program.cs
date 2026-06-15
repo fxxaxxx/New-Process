@@ -45,6 +45,7 @@ builder.Services.AddScoped<ErpApi.Features.Materials.PurchaseReturn.PurchaseRetu
 builder.Services.AddScoped<ErpApi.Features.Materials.MaterialMaster.MaterialMasterService>();
 builder.Services.AddScoped<ErpApi.Features.Materials.MaterialIssue.MaterialIssueService>();
 builder.Services.AddScoped<ErpApi.Features.Materials.MaterialReturn.MaterialReturnService>();
+builder.Services.AddScoped<ErpApi.Features.Materials.MaterialScrap.MaterialScrapService>();
 builder.Services.AddScoped<ErpApi.Features.Production.Cutting.CuttingService>();
 builder.Services.AddScoped<ErpApi.Features.Production.Piecework.PieceworkService>();
 builder.Services.AddScoped<ErpApi.Features.Production.Outsourcing.OutsourceService>();
