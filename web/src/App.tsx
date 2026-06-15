@@ -42,6 +42,7 @@ import FinishedVendorReturnPage from "./pages/warehouse/FinishedVendorReturnPage
 import SemiReceiptPage from "./pages/warehouse/SemiReceiptPage";
 import SemiIssuePage from "./pages/warehouse/SemiIssuePage";
 import SemiStocktakePage from "./pages/warehouse/SemiStocktakePage";
+import MaterialStocktakePage from "./pages/materials/MaterialStocktakePage";
 import SemiInventoryPage from "./pages/warehouse/SemiInventoryPage";
 import MonthEnd from "./pages/warehouse/MonthEnd";
 import SalesShipmentPage from "./pages/sales/SalesShipmentPage";
@@ -108,6 +109,7 @@ export default function App() {
           <Route path="semi-receipts" element={<SemiReceiptPage />} />
           <Route path="semi-issues" element={<SemiIssuePage />} />
           <Route path="semi-stocktakes" element={<SemiStocktakePage />} />
+          <Route path="materials/material-stocktake" element={<MaterialStocktakePage />} />
           <Route path="semi-inventory" element={<SemiInventoryPage />} />
           <Route path="month-end" element={<MonthEnd />} />
           <Route path="sales-shipments" element={<SalesShipmentPage />} />

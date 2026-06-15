@@ -74,7 +74,7 @@ export const MENU_TREE: MenuGroup[] = [
     M("领料单", "/materials/material-issues", "领料单"),
     M("退料单", "/materials/material-returns", "退料单"),
     M("报废单", "/materials/material-scraps", "报废单"),
-    M("库存盘点单"),
+    M("库存盘点单", "/materials/material-stocktake", "盘点单"),
   ]},
   // ⑥ 仓库报表
   { key: "g-wh-rpt", label: "仓库报表", children: [
