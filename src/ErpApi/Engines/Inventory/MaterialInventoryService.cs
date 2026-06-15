@@ -38,21 +38,26 @@ SELECT d.[物料编号],d.[物料名称],d.[规格],d.[单位],d.[仓库], CAST(
         return await c.ExecuteScalarAsync<decimal?>(sql, new { 物料编号 }) ?? 0;
     }
 
-    public async Task<IReadOnlyList<MaterialStockRow>> ListAsync(string? 仓库, string? keyword)
+    public async Task<IReadOnlyList<MaterialStockRow>> ListAsync(string? 仓库, string? keyword, string? 物料类别 = null)
     {
         var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
         var wh = string.IsNullOrWhiteSpace(仓库) ? null : 仓库.Trim();
+        var cat = string.IsNullOrWhiteSpace(物料类别) ? null : 物料类别.Trim();
         var sql = $@"
-SELECT [物料编号], MAX([物料名称]) AS 物料名称, MAX([规格]) AS 规格, MAX([单位]) AS 单位,
-       [仓库], SUM([数量]) AS 库存数量
+SELECT t.[物料编号], MAX(t.[物料名称]) AS 物料名称, MAX(t.[规格]) AS 规格, MAX(t.[单位]) AS 单位,
+       t.[仓库], SUM(t.[数量]) AS 库存数量,
+       MAX(m.[货号]) AS 货号, MAX(m.[物料类别]) AS 物料类别
 FROM ({LedgerUnion}) t
-WHERE (@wh IS NULL OR [仓库]=@wh)
-  AND (@kw IS NULL OR [物料编号] LIKE @kw OR [物料名称] LIKE @kw OR [规格] LIKE @kw)
-GROUP BY [物料编号],[仓库]
-HAVING SUM([数量]) <> 0
-ORDER BY [物料编号],[仓库]";
+LEFT JOIN (SELECT [物料编号], MAX([货号]) AS 货号, MAX([物料类别]) AS 物料类别
+           FROM [物料资料] GROUP BY [物料编号]) m ON m.[物料编号]=t.[物料编号]
+WHERE (@wh IS NULL OR t.[仓库]=@wh)
+  AND (@kw IS NULL OR t.[物料编号] LIKE @kw OR t.[物料名称] LIKE @kw OR t.[规格] LIKE @kw)
+  AND (@cat IS NULL OR m.[物料类别]=@cat)
+GROUP BY t.[物料编号], t.[仓库]
+HAVING SUM(t.[数量]) <> 0
+ORDER BY t.[物料编号], t.[仓库]";
         using var c = factory.Create();
-        var rows = await c.QueryAsync<MaterialStockRow>(sql, new { wh, kw });
+        var rows = await c.QueryAsync<MaterialStockRow>(sql, new { wh, kw, cat });
         return rows.AsList();
     }
 }
