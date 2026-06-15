@@ -73,7 +73,7 @@ export const MENU_TREE: MenuGroup[] = [
     M("采购退仓单", "/materials/purchase-returns", "采购退仓单"),
     M("领料单", "/materials/material-issues", "领料单"),
     M("退料单", "/materials/material-returns", "退料单"),
-    M("报废单"),
+    M("报废单", "/materials/material-scraps", "报废单"),
     M("库存盘点单"),
   ]},
   // ⑥ 仓库报表
