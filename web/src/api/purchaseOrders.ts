@@ -148,6 +148,7 @@ export interface OrderQuery {
   止?: string;
   keyword?: string;
   物料类别?: string;
+  日期类型?: string;   // 订货日期(默认) | 交货日期
 }
 
 export interface PurchaseOrderCreateLine {

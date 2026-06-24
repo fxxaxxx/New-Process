@@ -89,6 +89,35 @@ public class PurchaseOrderQueryDbTests(DbFixture fx)
     }
 
     [SkippableFact]
+    public async Task Filters_by_delivery_date_when_date_type_is_交货日期()
+    {
+        using var c = fx.Open();
+        c.Execute("DELETE FROM [采购明细单] WHERE [单号]=N'POQDLV'");
+        c.Execute("DELETE FROM [采购订单] WHERE [单号]=N'POQDLV'");
+        c.Execute("DELETE FROM [物料资料] WHERE [物料编号]=N'OPMDLV'");
+        try
+        {
+            c.Execute(@"INSERT INTO [物料资料]([物料编号],[物料名称],[单位]) VALUES(N'OPMDLV',N'交期料',N'米')");
+            // 订货日期 03-01，交货日期 03-25
+            c.Execute(@"INSERT INTO [采购订单]([单号],[日期],[供应商名称],[审核]) VALUES(N'POQDLV','2026-03-01',N'交期供应商','1')");
+            c.Execute(@"INSERT INTO [采购明细单]([单号],[日期],[交货日期],[物料编号],[物料名称],[单位],[数量])
+                        VALUES(N'POQDLV','2026-03-01','2026-03-25',N'OPMDLV',N'交期料',N'米',10)");
+
+            // 按订货日期 [03-20,03-31]：订货 03-01 不在区间 → 空
+            Assert.Empty(await Svc().OrderQueryDetailAsync(null, new DateTime(2026,3,20), new DateTime(2026,3,31), "交期料", null, "订货日期"));
+            // 按交货日期 [03-20,03-31]：交货 03-25 命中 → 1 行
+            var byDelivery = await Svc().OrderQueryDetailAsync(null, new DateTime(2026,3,20), new DateTime(2026,3,31), "交期料", null, "交货日期");
+            Assert.Single(byDelivery);
+        }
+        finally
+        {
+            c.Execute("DELETE FROM [采购明细单] WHERE [单号]=N'POQDLV'");
+            c.Execute("DELETE FROM [采购订单] WHERE [单号]=N'POQDLV'");
+            c.Execute("DELETE FROM [物料资料] WHERE [物料编号]=N'OPMDLV'");
+        }
+    }
+
+    [SkippableFact]
     public async Task Filters_by_date_range_supplier_category_keyword()
     {
         using var c = fx.Open();

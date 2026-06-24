@@ -4,8 +4,12 @@ import { ALL_CAT, buildOrderQuery } from "../utils/purchaseOrderQuery";
 describe("订购单查询·参数归一化", () => {
   it("空筛选 → 全部 undefined（不下发条件）", () => {
     expect(buildOrderQuery({})).toEqual({
-      供应商: undefined, keyword: undefined, 物料类别: undefined, 起: undefined, 止: undefined,
+      供应商: undefined, keyword: undefined, 物料类别: undefined, 起: undefined, 止: undefined, 日期类型: undefined,
     });
+  });
+
+  it("日期类型透传（交货日期）", () => {
+    expect(buildOrderQuery({ 日期类型: "交货日期" }).日期类型).toBe("交货日期");
   });
 
   it("ALL 分类节点不下发 物料类别；选中类别则下发", () => {

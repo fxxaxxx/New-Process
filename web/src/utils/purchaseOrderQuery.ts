@@ -11,6 +11,7 @@ export function buildOrderQuery(args: {
   selKey?: string;
   起?: string;
   止?: string;
+  日期类型?: string;
 }): OrderQuery {
   const trim = (v?: string) => {
     const t = v?.trim();
@@ -22,5 +23,6 @@ export function buildOrderQuery(args: {
     物料类别: args.selKey && args.selKey !== ALL_CAT ? args.selKey : undefined,
     起: trim(args.起),
     止: trim(args.止),
+    日期类型: trim(args.日期类型),
   };
 }

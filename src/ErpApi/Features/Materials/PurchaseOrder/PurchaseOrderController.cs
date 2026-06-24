@@ -71,10 +71,10 @@ public sealed class PurchaseOrderController(
     [HttpGet("order-query/detail")]
     public async Task<IActionResult> OrderQueryDetail(
         string? 供应商 = null, DateTime? 起 = null, DateTime? 止 = null,
-        string? keyword = null, string? 物料类别 = null)
+        string? keyword = null, string? 物料类别 = null, string? 日期类型 = null)
     {
         if (!await AllowAsync(PermissionAction.打开)) return Forbid();
-        var rows = await svc.OrderQueryDetailAsync(供应商, 起, 止, keyword, 物料类别);
+        var rows = await svc.OrderQueryDetailAsync(供应商, 起, 止, keyword, 物料类别, 日期类型);
         if (!await AllowAsync(PermissionAction.单价))
             foreach (var r in rows) { r.单价 = null; r.金额 = null; }
         return Ok(rows);
@@ -84,10 +84,10 @@ public sealed class PurchaseOrderController(
     [HttpGet("order-query/summary")]
     public async Task<IActionResult> OrderQuerySummary(
         string? 供应商 = null, DateTime? 起 = null, DateTime? 止 = null,
-        string? keyword = null, string? 物料类别 = null)
+        string? keyword = null, string? 物料类别 = null, string? 日期类型 = null)
     {
         if (!await AllowAsync(PermissionAction.打开)) return Forbid();
-        return Ok(await svc.OrderQuerySummaryAsync(供应商, 起, 止, keyword, 物料类别));
+        return Ok(await svc.OrderQuerySummaryAsync(供应商, 起, 止, keyword, 物料类别, 日期类型));
     }
 
     [HttpGet]

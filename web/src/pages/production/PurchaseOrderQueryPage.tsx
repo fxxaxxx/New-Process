@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Button, Card, DatePicker, Input, Space, Table, Tabs, Tree, message } from "antd";
-import type { Dayjs } from "dayjs";
+import { Button, Card, DatePicker, Input, Select, Space, Table, Tabs, Tree, message } from "antd";
+import dayjs, { type Dayjs } from "dayjs";
 import {
   purchaseOrderApi,
   type PurchaseOrderQueryDetailRow,
@@ -10,9 +10,11 @@ import { materialMasterApi, type MaterialCategoryNode } from "../../api/material
 import { hidePrice } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
 import { ALL_CAT as ALL, buildOrderQuery } from "../../utils/purchaseOrderQuery";
+import { downloadCsv, printTable, type ExportCol } from "../../utils/tableExport";
 import PurchaseOrderDrawer from "./PurchaseOrderDrawer";
 
 const MENU = "采购订单";
+const thisMonth = (): [Dayjs, Dayjs] => [dayjs().startOf("month"), dayjs().endOf("month")];
 
 export default function PurchaseOrderQueryPage() {
   const perms = usePerms();
@@ -23,7 +25,8 @@ export default function PurchaseOrderQueryPage() {
   const [selKey, setSelKey] = useState<string>(ALL);
   const [供应商, set供应商] = useState("");
   const [keyword, setKeyword] = useState("");
-  const [range, setRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
+  const [range, setRange] = useState<[Dayjs | null, Dayjs | null] | null>(thisMonth);
+  const [日期类型, set日期类型] = useState("订货日期");
 
   const [detail, setDetail] = useState<PurchaseOrderQueryDetailRow[]>([]);
   const [summary, setSummary] = useState<PurchaseOrderQuerySummaryRow[]>([]);
@@ -31,10 +34,16 @@ export default function PurchaseOrderQueryPage() {
   const [viewing, setViewing] = useState<string | undefined>(undefined);
 
   const query = useMemo(() => buildOrderQuery({
-    供应商, keyword, selKey,
+    供应商, keyword, selKey, 日期类型,
     起: range?.[0]?.format("YYYY-MM-DD"),
     止: range?.[1]?.format("YYYY-MM-DD"),
-  }), [供应商, keyword, selKey, range]);
+  }), [供应商, keyword, selKey, 日期类型, range]);
+
+  // 上月/本月/下月：把日期范围设为该月整月
+  const jumpMonth = (offset: number) => {
+    const base = dayjs().add(offset, "month");
+    setRange([base.startOf("month"), base.endOf("month")]);
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -96,6 +105,43 @@ export default function PurchaseOrderQueryPage() {
       render: (v: number) => <span style={{ fontWeight: 600 }}>{v}</span> },
   ];
 
+  // 导出/打印列规格（字符串化；尊重价格保密）
+  const detailExportCols: ExportCol[] = [
+    { title: "日期", key: "日期", fmt: v => String(v ?? "").slice(0, 10) },
+    { title: "单号", key: "单号" }, { title: "供应商", key: "供应商名称" },
+    { title: "生产单号", key: "生产单号" }, { title: "款号", key: "款号" },
+    { title: "物料编号", key: "物料编号" }, { title: "物料名称", key: "物料名称" },
+    { title: "规格", key: "规格" }, { title: "材料", key: "物料类别" },
+    { title: "颜色", key: "颜色" }, { title: "单位", key: "单位" }, { title: "数量", key: "数量" },
+    ...(priceHidden ? [] : [{ title: "单价", key: "单价" }, { title: "金额", key: "金额" }]),
+    { title: "审核", key: "审核", fmt: v => (v === "1" ? "已审核" : "未审核") },
+    { title: "备注", key: "备注" },
+  ];
+  const summaryExportCols: ExportCol[] = [
+    { title: "物料编号", key: "物料编号" }, { title: "物料名称", key: "物料名称" },
+    { title: "材料", key: "物料类别" }, { title: "规格", key: "规格" },
+    { title: "颜色", key: "颜色" }, { title: "单位", key: "单位" }, { title: "订购数量", key: "订购数量" },
+  ];
+
+  const exportTarget = () => {
+    const isDetail = tab === "detail";
+    return {
+      cols: isDetail ? detailExportCols : summaryExportCols,
+      rows: (isDetail ? detail : summary) as unknown as Record<string, unknown>[],
+      name: isDetail ? "订购单明细" : "订购单汇总",
+    };
+  };
+  const onExport = () => {
+    const { cols, rows, name } = exportTarget();
+    if (!rows.length) { message.info("无数据可导出"); return; }
+    downloadCsv(`${name}.csv`, cols, rows);
+  };
+  const onPrint = () => {
+    const { cols, rows, name } = exportTarget();
+    if (!rows.length) { message.info("无数据可打印"); return; }
+    printTable(`${name}查询`, cols, rows);
+  };
+
   return (
     <Card title="订购单查询" variant="borderless" styles={{ body: { display: "flex", gap: 12 } }}>
       <div style={{ width: 220, flex: "0 0 220px", borderRight: "1px solid #f0f0f0", paddingRight: 8 }}>
@@ -104,12 +150,21 @@ export default function PurchaseOrderQueryPage() {
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <Space style={{ marginBottom: 12 }} wrap>
+          <Button.Group>
+            <Button onClick={() => jumpMonth(-1)}>上月</Button>
+            <Button onClick={() => jumpMonth(0)}>本月</Button>
+            <Button onClick={() => jumpMonth(1)}>下月</Button>
+          </Button.Group>
+          <Select value={日期类型} onChange={set日期类型} style={{ width: 110 }}
+            options={[{ value: "订货日期", label: "订货日期" }, { value: "交货日期", label: "交货日期" }]} />
           <DatePicker.RangePicker value={range ?? undefined}
             onChange={v => setRange(v as [Dayjs | null, Dayjs | null] | null)} />
           <Input placeholder="供应商" allowClear value={供应商}
             onChange={e => set供应商(e.target.value)} style={{ width: 160 }} />
           <Input.Search placeholder="物料编号/名称/规格" allowClear onSearch={setKeyword} style={{ width: 220 }} />
           <Button type="primary" onClick={load}>查询</Button>
+          <Button onClick={onExport}>导出EXCEL</Button>
+          <Button onClick={onPrint}>打印</Button>
         </Space>
         <Tabs activeKey={tab} onChange={k => setTab(k as "detail" | "summary")}
           items={[
