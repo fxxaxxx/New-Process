@@ -57,6 +57,13 @@ export default function PurchaseOrderQueryPage() {
 
   const num = (v?: string) => <span className="erp-num">{v}</span>;
 
+  // 单元格/表头内容一行显示（不换行），配合 scroll.x 横向滚动
+  const nowrap = <T,>(cols: T[]): T[] => cols.map(c => ({
+    ...c,
+    onCell: () => ({ style: { whiteSpace: "nowrap" as const } }),
+    onHeaderCell: () => ({ style: { whiteSpace: "nowrap" as const } }),
+  }));
+
   const detailColumns = [
     { title: "日期", dataIndex: "日期", render: (v?: string) => v?.slice(0, 10) },
     { title: "单号", dataIndex: "单号", render: num },
@@ -110,7 +117,7 @@ export default function PurchaseOrderQueryPage() {
               key: "detail", label: "明细查询",
               children: (
                 <Table rowKey={(_, i) => `d${i}`} size="small" loading={loading}
-                  dataSource={detail} columns={detailColumns} scroll={{ x: true }}
+                  dataSource={detail} columns={nowrap(detailColumns)} scroll={{ x: "max-content" }}
                   pagination={{ pageSize: 20, showTotal: t => `共 ${t} 条` }}
                   onRow={r => ({
                     onDoubleClick: () => r.单号 && setViewing(r.单号),
@@ -122,7 +129,7 @@ export default function PurchaseOrderQueryPage() {
               key: "summary", label: "汇总查询",
               children: (
                 <Table rowKey={(_, i) => `s${i}`} size="small" loading={loading}
-                  dataSource={summary} columns={summaryColumns} scroll={{ x: true }}
+                  dataSource={summary} columns={nowrap(summaryColumns)} scroll={{ x: "max-content" }}
                   pagination={{ pageSize: 20, showTotal: t => `共 ${t} 条` }} />
               ),
             },
