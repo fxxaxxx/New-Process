@@ -35,6 +35,26 @@ public sealed class MaterialScrapController(
         foreach (var l in d.明细) { l.单价 = null; l.金额 = null; }
     }
 
+    // 报废单查询·明细：每行一条报废明细(无价格,双击 单号 看整单)。
+    [HttpGet("scrap-query/detail")]
+    public async Task<IActionResult> ScrapQueryDetail(
+        DateTime? 起 = null, DateTime? 止 = null, string? keyword = null,
+        string? 物料类别 = null, string? 审核情况 = null)
+    {
+        if (!await AllowAsync(PermissionAction.打开)) return Forbid();
+        return Ok(await svc.ScrapQueryDetailAsync(起, 止, keyword, 物料类别, 审核情况));
+    }
+
+    // 报废单查询·汇总：按 生产单号+物料编号+规格+颜色 合并(报废数量)。
+    [HttpGet("scrap-query/summary")]
+    public async Task<IActionResult> ScrapQuerySummary(
+        DateTime? 起 = null, DateTime? 止 = null, string? keyword = null,
+        string? 物料类别 = null, string? 审核情况 = null)
+    {
+        if (!await AllowAsync(PermissionAction.打开)) return Forbid();
+        return Ok(await svc.ScrapQuerySummaryAsync(起, 止, keyword, 物料类别, 审核情况));
+    }
+
     [HttpGet]
     public async Task<IActionResult> List(int page = 1, int size = 20, string? keyword = null)
     {
