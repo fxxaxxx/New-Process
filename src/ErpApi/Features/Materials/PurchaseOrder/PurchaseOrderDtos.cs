@@ -129,3 +129,36 @@ public sealed class PurchaseOrderProgressDetailRow
     public string? 操作员 { get; set; }
     public string? 审核 { get; set; }
 }
+
+// 订购单查询·明细行：一条采购明细单(双击 单号 看整单)。价格按权限脱敏。
+public sealed class PurchaseOrderQueryDetailRow
+{
+    public DateTime? 日期 { get; set; }
+    public string? 单号 { get; set; }
+    public string? 供应商名称 { get; set; }
+    public string? 生产单号 { get; set; }
+    public string? 款号 { get; set; }
+    public string? 物料编号 { get; set; }
+    public string? 物料名称 { get; set; }
+    public string? 物料类别 { get; set; }
+    public string? 规格 { get; set; }
+    public string? 颜色 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 数量 { get; set; }
+    public decimal? 单价 { get; set; }
+    public decimal? 金额 { get; set; }
+    public string? 审核 { get; set; }
+    public string? 备注 { get; set; }
+}
+
+// 订购单查询·汇总行：按 物料编号+规格+颜色 合并，SUM(数量)=订购数量。无价格列。
+public sealed class PurchaseOrderQuerySummaryRow
+{
+    public string? 物料编号 { get; set; }
+    public string? 物料名称 { get; set; }
+    public string? 物料类别 { get; set; }
+    public string? 规格 { get; set; }
+    public string? 颜色 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 订购数量 { get; set; }
+}

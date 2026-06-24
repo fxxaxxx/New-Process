@@ -67,6 +67,29 @@ public sealed class PurchaseOrderController(
         return Ok(await svc.ProgressDetailAsync(供应商, 起, 止, keyword, 状态));
     }
 
+    // 订购单查询·明细：每行一条采购明细(双击 单号 看整单)。价格按"单价"权限脱敏。
+    [HttpGet("order-query/detail")]
+    public async Task<IActionResult> OrderQueryDetail(
+        string? 供应商 = null, DateTime? 起 = null, DateTime? 止 = null,
+        string? keyword = null, string? 物料类别 = null)
+    {
+        if (!await AllowAsync(PermissionAction.打开)) return Forbid();
+        var rows = await svc.OrderQueryDetailAsync(供应商, 起, 止, keyword, 物料类别);
+        if (!await AllowAsync(PermissionAction.单价))
+            foreach (var r in rows) { r.单价 = null; r.金额 = null; }
+        return Ok(rows);
+    }
+
+    // 订购单查询·汇总：按 物料编号+规格+颜色 合并(无价格列)。
+    [HttpGet("order-query/summary")]
+    public async Task<IActionResult> OrderQuerySummary(
+        string? 供应商 = null, DateTime? 起 = null, DateTime? 止 = null,
+        string? keyword = null, string? 物料类别 = null)
+    {
+        if (!await AllowAsync(PermissionAction.打开)) return Forbid();
+        return Ok(await svc.OrderQuerySummaryAsync(供应商, 起, 止, keyword, 物料类别));
+    }
+
     [HttpGet]
     public async Task<IActionResult> List(int page = 1, int size = 20, string? keyword = null)
     {
