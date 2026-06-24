@@ -83,7 +83,7 @@ export const MENU_TREE: MenuGroup[] = [
     M("订购单查询", "/purchase-order-query", "采购订单"),
     M("来料标签查询", "/material-label-query", "采购入仓单"),
     M("采购入仓查询", "/purchase-receipt-query", "采购入仓单"),
-    M("采购退仓查询"),
+    M("采购退仓查询", "/purchase-return-query", "采购退仓单"),
     M("领料单查询"),
     M("退料单查询"),
     M("报废单查询"),
