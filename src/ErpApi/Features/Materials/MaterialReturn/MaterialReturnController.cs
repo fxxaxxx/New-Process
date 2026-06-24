@@ -35,6 +35,26 @@ public sealed class MaterialReturnController(
         foreach (var l in d.明细) { l.单价 = null; l.金额 = null; }
     }
 
+    // 退料单查询·明细：每行一条退料明细(无价格,双击 单号 看整单)。
+    [HttpGet("return-query/detail")]
+    public async Task<IActionResult> ReturnQueryDetail(
+        DateTime? 起 = null, DateTime? 止 = null, string? keyword = null,
+        string? 物料类别 = null, string? 审核情况 = null)
+    {
+        if (!await AllowAsync(PermissionAction.打开)) return Forbid();
+        return Ok(await svc.ReturnQueryDetailAsync(起, 止, keyword, 物料类别, 审核情况));
+    }
+
+    // 退料单查询·汇总：按 生产单号+物料编号+规格+颜色 合并(退料数量)。
+    [HttpGet("return-query/summary")]
+    public async Task<IActionResult> ReturnQuerySummary(
+        DateTime? 起 = null, DateTime? 止 = null, string? keyword = null,
+        string? 物料类别 = null, string? 审核情况 = null)
+    {
+        if (!await AllowAsync(PermissionAction.打开)) return Forbid();
+        return Ok(await svc.ReturnQuerySummaryAsync(起, 止, keyword, 物料类别, 审核情况));
+    }
+
     [HttpGet]
     public async Task<IActionResult> List(int page = 1, int size = 20, string? keyword = null)
     {
