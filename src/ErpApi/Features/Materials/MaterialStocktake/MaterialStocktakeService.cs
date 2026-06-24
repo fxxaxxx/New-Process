@@ -84,6 +84,72 @@ FROM [盘点明细单] WHERE [单号]=@单号 ORDER BY [ID];",
         return new MaterialStocktakeDetailDto { 单头 = header, 明细 = lines };
     }
 
+    // 盘点单查询·明细：每行一条盘点明细(只读)。颜色/材料/单价来自物料资料 JOIN;金额=盈亏数×单价。
+    // 过滤 日期区间/关键词/物料类别/审核情况。价格脱敏在 Controller 按"单价"权限处理。
+    public async Task<IReadOnlyList<MaterialStocktakeQueryDetailRow>> StocktakeQueryDetailAsync(
+        DateTime? 起, DateTime? 止, string? keyword, string? 物料类别, string? 审核情况)
+    {
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        var cat = string.IsNullOrWhiteSpace(物料类别) ? null : 物料类别.Trim();
+        var 止Excl = 止?.Date.AddDays(1);
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<MaterialStocktakeQueryDetailRow>($@"
+SELECT d.[日期], d.[单号], d.[物料编号], d.[物料名称], d.[规格],
+       m.[物料类别], m.[颜色], d.[单位],
+       CAST(d.[系统数量] AS decimal(18,4)) AS 系统数量,
+       CAST(d.[盘点数量] AS decimal(18,4)) AS 盘点数量,
+       CAST(d.[盈亏数量] AS decimal(18,4)) AS 盈亏数量,
+       m.[单价], CAST(d.[盈亏数量] AS decimal(18,4)) * ISNULL(m.[单价], 0) AS 金额,
+       o.[备注], o.[审核]
+FROM [盘点明细单] d
+JOIN [盘点单] o ON o.[单号] = d.[单号]
+LEFT JOIN (SELECT [物料编号], MAX([物料类别]) AS 物料类别, MAX([颜色]) AS 颜色, MAX([单价]) AS 单价
+           FROM [物料资料] GROUP BY [物料编号]) m ON m.[物料编号] = d.[物料编号]
+WHERE (@起 IS NULL OR d.[日期] >= @起)
+  AND (@止 IS NULL OR d.[日期] < @止)
+  AND (@kw IS NULL OR d.[单号] LIKE @kw OR d.[物料编号] LIKE @kw OR d.[物料名称] LIKE @kw OR d.[规格] LIKE @kw)
+  AND (@cat IS NULL OR m.[物料类别] = @cat){ApprovalFilter(审核情况)}
+ORDER BY d.[日期] DESC, d.[单号], d.[ID];",
+            new { 起, 止 = 止Excl, kw, cat });
+        return rows.AsList();
+    }
+
+    // 盘点单查询·汇总：按 物料编号+规格+颜色 合并，系统/盘点/盈亏数=SUM，金额=SUM(盈亏数)×单价。
+    public async Task<IReadOnlyList<MaterialStocktakeSummaryRow>> StocktakeQuerySummaryAsync(
+        DateTime? 起, DateTime? 止, string? keyword, string? 物料类别, string? 审核情况)
+    {
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        var cat = string.IsNullOrWhiteSpace(物料类别) ? null : 物料类别.Trim();
+        var 止Excl = 止?.Date.AddDays(1);
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<MaterialStocktakeSummaryRow>($@"
+SELECT d.[物料编号], MAX(d.[物料名称]) AS 物料名称, d.[规格], m.[物料类别], m.[颜色], MAX(d.[单位]) AS 单位,
+       SUM(CAST(d.[系统数量] AS decimal(18,4))) AS 系统数量,
+       SUM(CAST(d.[盘点数量] AS decimal(18,4))) AS 盘点数量,
+       SUM(CAST(d.[盈亏数量] AS decimal(18,4))) AS 盈亏数量,
+       m.[单价], SUM(CAST(d.[盈亏数量] AS decimal(18,4))) * ISNULL(m.[单价], 0) AS 金额
+FROM [盘点明细单] d
+JOIN [盘点单] o ON o.[单号] = d.[单号]
+LEFT JOIN (SELECT [物料编号], MAX([物料类别]) AS 物料类别, MAX([颜色]) AS 颜色, MAX([单价]) AS 单价
+           FROM [物料资料] GROUP BY [物料编号]) m ON m.[物料编号] = d.[物料编号]
+WHERE (@起 IS NULL OR d.[日期] >= @起)
+  AND (@止 IS NULL OR d.[日期] < @止)
+  AND (@kw IS NULL OR d.[单号] LIKE @kw OR d.[物料编号] LIKE @kw OR d.[物料名称] LIKE @kw OR d.[规格] LIKE @kw)
+  AND (@cat IS NULL OR m.[物料类别] = @cat){ApprovalFilter(审核情况)}
+GROUP BY d.[物料编号], d.[规格], m.[物料类别], m.[颜色], m.[单价]
+ORDER BY d.[物料编号], d.[规格];",
+            new { 起, 止 = 止Excl, kw, cat });
+        return rows.AsList();
+    }
+
+    // 审核情况过滤片段："已审核"→已审核；"未审核"→非已审核；其它/空→全部。
+    private static string ApprovalFilter(string? 审核情况) => 审核情况 switch
+    {
+        "已审核" => " AND ISNULL(o.[审核],'0') = '1'",
+        "未审核" => " AND ISNULL(o.[审核],'0') <> '1'",
+        _ => "",
+    };
+
     public async Task<bool> DeleteAsync(string 单号)
     {
         using var c = factory.Create();

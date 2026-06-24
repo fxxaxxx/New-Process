@@ -34,6 +34,32 @@ public sealed class MaterialStocktakeController(
         return Ok(await svc.BasisAsync(仓库));
     }
 
+    // 盘点单查询·明细：每行一条盘点明细(双击 单号 看整单)。价格按"单价"权限脱敏。
+    [HttpGet("stocktake-query/detail")]
+    public async Task<IActionResult> StocktakeQueryDetail(
+        DateTime? 起 = null, DateTime? 止 = null, string? keyword = null,
+        string? 物料类别 = null, string? 审核情况 = null)
+    {
+        if (!await AllowAsync(PermissionAction.打开)) return Forbid();
+        var rows = await svc.StocktakeQueryDetailAsync(起, 止, keyword, 物料类别, 审核情况);
+        if (!await AllowAsync(PermissionAction.单价))
+            foreach (var r in rows) { r.单价 = null; r.金额 = null; }
+        return Ok(rows);
+    }
+
+    // 盘点单查询·汇总：按 物料编号+规格+颜色 合并(系统/盘点/盈亏数)。价格按"单价"权限脱敏。
+    [HttpGet("stocktake-query/summary")]
+    public async Task<IActionResult> StocktakeQuerySummary(
+        DateTime? 起 = null, DateTime? 止 = null, string? keyword = null,
+        string? 物料类别 = null, string? 审核情况 = null)
+    {
+        if (!await AllowAsync(PermissionAction.打开)) return Forbid();
+        var rows = await svc.StocktakeQuerySummaryAsync(起, 止, keyword, 物料类别, 审核情况);
+        if (!await AllowAsync(PermissionAction.单价))
+            foreach (var r in rows) { r.单价 = null; r.金额 = null; }
+        return Ok(rows);
+    }
+
     [HttpGet]
     public async Task<IActionResult> List(int page = 1, int size = 20, string? keyword = null)
     {

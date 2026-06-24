@@ -83,6 +83,72 @@ public class MaterialStocktakeServiceDbTests(DbFixture fx)
     }
 
     [SkippableFact]
+    public async Task StocktakeQuery_detail_and_summary_carry_盈亏_and_金额()
+    {
+        Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
+        using var c = fx.Open();
+        SeedStock(c);
+        string? pd = null;
+        try
+        {
+            // 系统100 盘点80 → 盈亏-20；物料资料单价10 → 金额=盈亏×单价=-200
+            pd = await Svc().CreateAsync(new MaterialStocktakeCreateDto
+            {
+                仓库 = "物料仓",
+                明细 = [ new MaterialStocktakeLineDto {
+                    物料编号 = "PDM01", 物料名称 = "盘点料", 规格 = "规格A", 单位 = "米",
+                    系统数量 = 100, 盘点数量 = 80 } ]
+            }, "tester");
+
+            var detail = await Svc().StocktakeQueryDetailAsync(null, null, "PDM01", null, null);
+            var dr = Assert.Single(detail, r => r.单号 == pd);
+            Assert.Equal(100m, dr.系统数量);
+            Assert.Equal(80m, dr.盘点数量);
+            Assert.Equal(-20m, dr.盈亏数量);
+            Assert.Equal(10m, dr.单价);
+            Assert.Equal(-200m, dr.金额);
+            Assert.Equal("规格A", dr.规格);
+
+            var summary = await Svc().StocktakeQuerySummaryAsync(null, null, "PDM01", null, null);
+            var sr = Assert.Single(summary, r => r.物料编号 == "PDM01" && r.规格 == "规格A");
+            Assert.Equal(-20m, sr.盈亏数量);
+            Assert.Equal(-200m, sr.金额);
+        }
+        finally
+        {
+            if (pd != null) { c.Execute("DELETE FROM [盘点明细单] WHERE [单号]=@n", new { n = pd }); c.Execute("DELETE FROM [盘点单] WHERE [单号]=@n", new { n = pd }); }
+            Cleanup(c);
+        }
+    }
+
+    [SkippableFact]
+    public async Task StocktakeQuery_approval_filter_excludes_unapproved()
+    {
+        Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
+        using var c = fx.Open();
+        SeedStock(c);
+        string? pd = null;
+        try
+        {
+            pd = await Svc().CreateAsync(new MaterialStocktakeCreateDto
+            {
+                仓库 = "物料仓",
+                明细 = [ new MaterialStocktakeLineDto {
+                    物料编号 = "PDM01", 物料名称 = "盘点料", 规格 = "规格A", 单位 = "米",
+                    系统数量 = 100, 盘点数量 = 80 } ]
+            }, "tester");
+            // 新建即未审核：审核情况="已审核"应过滤掉，"未审核"应保留
+            Assert.DoesNotContain(await Svc().StocktakeQueryDetailAsync(null, null, "PDM01", null, "已审核"), r => r.单号 == pd);
+            Assert.Contains(await Svc().StocktakeQueryDetailAsync(null, null, "PDM01", null, "未审核"), r => r.单号 == pd);
+        }
+        finally
+        {
+            if (pd != null) { c.Execute("DELETE FROM [盘点明细单] WHERE [单号]=@n", new { n = pd }); c.Execute("DELETE FROM [盘点单] WHERE [单号]=@n", new { n = pd }); }
+            Cleanup(c);
+        }
+    }
+
+    [SkippableFact]
     public async Task Create_rejects_empty_lines()
     {
         Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");

@@ -87,7 +87,7 @@ export const MENU_TREE: MenuGroup[] = [
     M("领料单查询", "/material-issue-query", "领料单"),
     M("退料单查询", "/material-return-query", "退料单"),
     M("报废单查询", "/material-scrap-query", "报废单"),
-    M("库存盘点查询"),
+    M("库存盘点查询", "/material-stocktake-query", "盘点单"),
   ]},
   // ⑦ 塑胶采购
   { key: "g-plastic-pur", label: "塑胶采购", children: [
