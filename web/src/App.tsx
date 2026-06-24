@@ -32,6 +32,7 @@ import PurchaseReceiptQueryPage from "./pages/materials/PurchaseReceiptQueryPage
 import PurchaseReturnQueryPage from "./pages/materials/PurchaseReturnQueryPage";
 import MaterialIssueQueryPage from "./pages/materials/MaterialIssueQueryPage";
 import MaterialReturnQueryPage from "./pages/materials/MaterialReturnQueryPage";
+import MaterialScrapQueryPage from "./pages/materials/MaterialScrapQueryPage";
 import CuttingPage from "./pages/workshop/CuttingPage";
 import PieceworkPage from "./pages/workshop/PieceworkPage";
 import PieceworkSummaryPage from "./pages/workshop/PieceworkSummaryPage";
@@ -105,6 +106,7 @@ export default function App() {
           <Route path="purchase-return-query" element={<PurchaseReturnQueryPage />} />
           <Route path="material-issue-query" element={<MaterialIssueQueryPage />} />
           <Route path="material-return-query" element={<MaterialReturnQueryPage />} />
+          <Route path="material-scrap-query" element={<MaterialScrapQueryPage />} />
           <Route path="cuttings" element={<CuttingPage />} />
           <Route path="piecework" element={<PieceworkPage />} />
           <Route path="piecework-summary" element={<PieceworkSummaryPage />} />
