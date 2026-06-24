@@ -58,6 +58,26 @@ public sealed class PurchaseReceiptController(
         return Ok(await svc.LabelQuerySummaryAsync(起, 止, keyword, 物料类别, 审核情况));
     }
 
+    // 采购入仓查询·明细：每行一条采购入仓明细(全列·无价格,双击 入库单号 看整单)。
+    [HttpGet("receipt-query/detail")]
+    public async Task<IActionResult> ReceiptQueryDetail(
+        DateTime? 起 = null, DateTime? 止 = null, string? keyword = null,
+        string? 物料类别 = null, string? 审核情况 = null)
+    {
+        if (!await AllowAsync(PermissionAction.打开)) return Forbid();
+        return Ok(await svc.ReceiptQueryDetailAsync(起, 止, keyword, 物料类别, 审核情况));
+    }
+
+    // 采购入仓查询·汇总：与来料标签查询共用汇总口径(物料编号+规格+颜色)。
+    [HttpGet("receipt-query/summary")]
+    public async Task<IActionResult> ReceiptQuerySummary(
+        DateTime? 起 = null, DateTime? 止 = null, string? keyword = null,
+        string? 物料类别 = null, string? 审核情况 = null)
+    {
+        if (!await AllowAsync(PermissionAction.打开)) return Forbid();
+        return Ok(await svc.LabelQuerySummaryAsync(起, 止, keyword, 物料类别, 审核情况));
+    }
+
     [HttpGet]
     public async Task<IActionResult> List(int page = 1, int size = 20, string? keyword = null)
     {

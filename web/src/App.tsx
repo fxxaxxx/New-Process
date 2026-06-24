@@ -28,6 +28,7 @@ import MaterialDocRouter from "./pages/materials/MaterialDocRouter";
 import MaterialMasterPage from "./pages/materials/MaterialMasterPage";
 import MaterialInventoryPage from "./pages/materials/MaterialInventoryPage";
 import MaterialLabelQueryPage from "./pages/materials/MaterialLabelQueryPage";
+import PurchaseReceiptQueryPage from "./pages/materials/PurchaseReceiptQueryPage";
 import CuttingPage from "./pages/workshop/CuttingPage";
 import PieceworkPage from "./pages/workshop/PieceworkPage";
 import PieceworkSummaryPage from "./pages/workshop/PieceworkSummaryPage";
@@ -97,6 +98,7 @@ export default function App() {
           <Route path="material-master" element={<MaterialMasterPage />} />
           <Route path="material-inventory" element={<MaterialInventoryPage />} />
           <Route path="material-label-query" element={<MaterialLabelQueryPage />} />
+          <Route path="purchase-receipt-query" element={<PurchaseReceiptQueryPage />} />
           <Route path="cuttings" element={<CuttingPage />} />
           <Route path="piecework" element={<PieceworkPage />} />
           <Route path="piecework-summary" element={<PieceworkSummaryPage />} />

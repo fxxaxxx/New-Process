@@ -51,7 +51,30 @@ public sealed class MaterialLabelDetailRow
     public string? 审核 { get; set; }
 }
 
-// 来料标签查询·汇总行：按 物料编号+规格+颜色 合并，SUM(数量)。
+// 采购入仓查询·明细行：一条采购入仓明细(全列·无价格;双击 入库单号 看整单)。
+// 入库单号=d.单号(采购入仓单号)，单号=d.条码号(来料/条码号)。
+public sealed class PurchaseReceiptQueryDetailRow
+{
+    public DateTime? 日期 { get; set; }
+    public string? 单号 { get; set; }
+    public string? 入库单号 { get; set; }
+    public string? 订单单号 { get; set; }
+    public string? 供应商编号 { get; set; }
+    public string? 供应商名称 { get; set; }
+    public string? 生产单号 { get; set; }
+    public string? 款号 { get; set; }
+    public string? 物料编号 { get; set; }
+    public string? 物料名称 { get; set; }
+    public string? 物料类别 { get; set; }
+    public string? 规格 { get; set; }
+    public string? 颜色 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 数量 { get; set; }
+    public string? 备注 { get; set; }
+    public string? 审核 { get; set; }
+}
+
+// 来料标签查询/采购入仓查询·汇总行：按 物料编号+规格+颜色 合并，SUM(数量)。
 public sealed class MaterialLabelSummaryRow
 {
     public string? 物料编号 { get; set; }
