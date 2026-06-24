@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Button, Card, DatePicker, Input, Select, Space, Table, Tabs, Tree, message } from "antd";
+import { Button, Card, DatePicker, Input, Select, Space, Table, Tabs, message } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import {
   purchaseOrderApi,
@@ -59,10 +59,10 @@ export default function PurchaseOrderQueryPage() {
     materialMasterApi.categories().then(setCats).catch(() => { /* 树取数失败不阻塞主表 */ });
   }, []);
 
-  const treeData = useMemo(() => [{
-    title: "全部物料", key: ALL,
-    children: cats.map(c => ({ title: `${c.类别}（${c.数量}）`, key: c.类别 ?? "", isLeaf: true })),
-  }], [cats]);
+  const catOptions = useMemo(() => [
+    { value: ALL, label: "所有类别" },
+    ...cats.map(c => ({ value: c.类别 ?? "", label: `${c.类别}（${c.数量}）` })),
+  ], [cats]);
 
   const num = (v?: string) => <span className="erp-num">{v}</span>;
 
@@ -143,12 +143,8 @@ export default function PurchaseOrderQueryPage() {
   };
 
   return (
-    <Card title="订购单查询" variant="borderless" styles={{ body: { display: "flex", gap: 12 } }}>
-      <div style={{ width: 220, flex: "0 0 220px", borderRight: "1px solid #f0f0f0", paddingRight: 8 }}>
-        <Tree treeData={treeData} selectedKeys={[selKey]} defaultExpandAll
-          onSelect={keys => { if (keys.length) setSelKey(String(keys[0])); }} />
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
+    <Card title="订购单查询" variant="borderless">
+      <div>
         <Space style={{ marginBottom: 12 }} wrap>
           <Button.Group>
             <Button onClick={() => jumpMonth(-1)}>上月</Button>
@@ -161,6 +157,7 @@ export default function PurchaseOrderQueryPage() {
             onChange={v => setRange(v as [Dayjs | null, Dayjs | null] | null)} />
           <Input placeholder="供应商" allowClear value={供应商}
             onChange={e => set供应商(e.target.value)} style={{ width: 160 }} />
+          <Select value={selKey} onChange={setSelKey} style={{ width: 160 }} options={catOptions} />
           <Input.Search placeholder="物料编号/名称/规格" allowClear onSearch={setKeyword} style={{ width: 220 }} />
           <Button type="primary" onClick={load}>查询</Button>
           <Button onClick={onExport}>导出EXCEL</Button>
