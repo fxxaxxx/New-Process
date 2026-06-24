@@ -38,6 +38,26 @@ public sealed class PurchaseReceiptController(
         foreach (var l in d.明细) { l.单价 = null; l.金额 = null; }
     }
 
+    // 来料标签查询·明细：每行一条采购入仓明细(双击 单号 看整单)。无价格列。
+    [HttpGet("label-query/detail")]
+    public async Task<IActionResult> LabelQueryDetail(
+        DateTime? 起 = null, DateTime? 止 = null, string? keyword = null,
+        string? 物料类别 = null, string? 审核情况 = null)
+    {
+        if (!await AllowAsync(PermissionAction.打开)) return Forbid();
+        return Ok(await svc.LabelQueryDetailAsync(起, 止, keyword, 物料类别, 审核情况));
+    }
+
+    // 来料标签查询·汇总：按 物料编号+规格+颜色 合并。
+    [HttpGet("label-query/summary")]
+    public async Task<IActionResult> LabelQuerySummary(
+        DateTime? 起 = null, DateTime? 止 = null, string? keyword = null,
+        string? 物料类别 = null, string? 审核情况 = null)
+    {
+        if (!await AllowAsync(PermissionAction.打开)) return Forbid();
+        return Ok(await svc.LabelQuerySummaryAsync(起, 止, keyword, 物料类别, 审核情况));
+    }
+
     [HttpGet]
     public async Task<IActionResult> List(int page = 1, int size = 20, string? keyword = null)
     {
