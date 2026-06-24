@@ -111,6 +111,45 @@ export interface ProgressDetailQuery {
   状态?: string;
 }
 
+// 订购单查询·明细行（双击 单号 看整单）
+export interface PurchaseOrderQueryDetailRow {
+  日期?: string;
+  单号?: string;
+  供应商名称?: string;
+  生产单号?: string;
+  款号?: string;
+  物料编号?: string;
+  物料名称?: string;
+  物料类别?: string;
+  规格?: string;
+  颜色?: string;
+  单位?: string;
+  数量?: number | null;
+  单价?: number | null;
+  金额?: number | null;
+  审核?: string;
+  备注?: string;
+}
+
+// 订购单查询·汇总行（按 物料编号+规格+颜色 合并）
+export interface PurchaseOrderQuerySummaryRow {
+  物料编号?: string;
+  物料名称?: string;
+  物料类别?: string;
+  规格?: string;
+  颜色?: string;
+  单位?: string;
+  订购数量?: number | null;
+}
+
+export interface OrderQuery {
+  供应商?: string;
+  起?: string;
+  止?: string;
+  keyword?: string;
+  物料类别?: string;
+}
+
 export interface PurchaseOrderCreateLine {
   物料编号: string;
   物料名称?: string;
@@ -153,4 +192,8 @@ export const purchaseOrderApi = {
     api.get<PurchaseOrderProgressRow[]>("/purchase-orders/progress", { params: q }).then(r => r.data),
   progressDetail: (q: ProgressDetailQuery) =>
     api.get<PurchaseOrderProgressDetailRow[]>("/purchase-orders/progress-detail", { params: q }).then(r => r.data),
+  orderQueryDetail: (q: OrderQuery) =>
+    api.get<PurchaseOrderQueryDetailRow[]>("/purchase-orders/order-query/detail", { params: q }).then(r => r.data),
+  orderQuerySummary: (q: OrderQuery) =>
+    api.get<PurchaseOrderQuerySummaryRow[]>("/purchase-orders/order-query/summary", { params: q }).then(r => r.data),
 };
