@@ -124,7 +124,34 @@ ORDER BY d.[日期] DESC, d.[单号], d.[ID];",
         return rows.AsList();
     }
 
-    // 来料标签查询·汇总：按 物料编号+规格+颜色 合并，SUM(数量)。同过滤集。
+    // 采购入仓查询·明细：每行一条采购入仓明细(全列·无价格)。过滤 日期区间/关键词/物料类别/审核情况。
+    // 入库单号=d.单号(双击键)，单号=d.条码号(来料/条码号)。
+    public async Task<IReadOnlyList<PurchaseReceiptQueryDetailRow>> ReceiptQueryDetailAsync(
+        DateTime? 起, DateTime? 止, string? keyword, string? 物料类别, string? 审核情况)
+    {
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        var cat = string.IsNullOrWhiteSpace(物料类别) ? null : 物料类别.Trim();
+        var 止Excl = 止?.Date.AddDays(1);
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<PurchaseReceiptQueryDetailRow>($@"
+SELECT d.[日期], d.[条码号] AS 单号, d.[单号] AS 入库单号, d.[订单单号],
+       COALESCE(NULLIF(d.[供应商编号],N''), o.[供应商编号]) AS 供应商编号,
+       COALESCE(NULLIF(d.[供应商名称],N''), o.[供应商名称]) AS 供应商名称,
+       d.[生产单号], d.[款号], d.[物料编号], d.[物料名称], d.[物料类别], d.[规格], d.[颜色], d.[单位],
+       d.[数量], d.[备注], o.[审核]
+FROM [采购入仓明细单] d
+JOIN [采购入仓单] o ON o.[单号] = d.[单号]
+WHERE (@起 IS NULL OR d.[日期] >= @起)
+  AND (@止 IS NULL OR d.[日期] < @止)
+  AND (@kw IS NULL OR d.[单号] LIKE @kw OR d.[条码号] LIKE @kw OR d.[订单单号] LIKE @kw
+       OR d.[供应商名称] LIKE @kw OR d.[物料编号] LIKE @kw OR d.[物料名称] LIKE @kw OR d.[规格] LIKE @kw)
+  AND (@cat IS NULL OR d.[物料类别] = @cat){ApprovalFilter(审核情况)}
+ORDER BY d.[日期] DESC, d.[单号], d.[ID];",
+            new { 起, 止 = 止Excl, kw, cat });
+        return rows.AsList();
+    }
+
+    // 来料标签查询/采购入仓查询·汇总：按 物料编号+规格+颜色 合并，SUM(数量)。同过滤集(两页共用)。
     public async Task<IReadOnlyList<MaterialLabelSummaryRow>> LabelQuerySummaryAsync(
         DateTime? 起, DateTime? 止, string? keyword, string? 物料类别, string? 审核情况)
     {
