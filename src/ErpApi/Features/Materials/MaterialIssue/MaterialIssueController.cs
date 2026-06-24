@@ -35,6 +35,26 @@ public sealed class MaterialIssueController(
         foreach (var l in d.明细) { l.单价 = null; l.金额 = null; }
     }
 
+    // 领料单查询·明细：每行一条领料明细(无价格,双击 单号 看整单)。
+    [HttpGet("issue-query/detail")]
+    public async Task<IActionResult> IssueQueryDetail(
+        DateTime? 起 = null, DateTime? 止 = null, string? keyword = null,
+        string? 物料类别 = null, string? 审核情况 = null)
+    {
+        if (!await AllowAsync(PermissionAction.打开)) return Forbid();
+        return Ok(await svc.IssueQueryDetailAsync(起, 止, keyword, 物料类别, 审核情况));
+    }
+
+    // 领料单查询·汇总：按 物料编号+规格+颜色 合并(领用数量)。
+    [HttpGet("issue-query/summary")]
+    public async Task<IActionResult> IssueQuerySummary(
+        DateTime? 起 = null, DateTime? 止 = null, string? keyword = null,
+        string? 物料类别 = null, string? 审核情况 = null)
+    {
+        if (!await AllowAsync(PermissionAction.打开)) return Forbid();
+        return Ok(await svc.IssueQuerySummaryAsync(起, 止, keyword, 物料类别, 审核情况));
+    }
+
     [HttpGet]
     public async Task<IActionResult> List(int page = 1, int size = 20, string? keyword = null)
     {

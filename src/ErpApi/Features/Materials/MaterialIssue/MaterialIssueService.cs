@@ -89,4 +89,62 @@ FROM [领料明细单] WHERE [单号]=@单号 ORDER BY [ID];",
         tx.Commit();
         return true;
     }
+
+    // 审核情况过滤片段："已审核"→已审核；"未审核"→非已审核；其它/空→全部。
+    private static string ApprovalFilter(string? 审核情况) => 审核情况 switch
+    {
+        "已审核" => " AND ISNULL(o.[审核],'0') = '1'",
+        "未审核" => " AND ISNULL(o.[审核],'0') <> '1'",
+        _ => "",
+    };
+
+    // 领料单查询·明细：每行一条领料明细(只读·无价格)。过滤 日期区间/关键词/物料类别/审核情况。
+    public async Task<IReadOnlyList<MaterialIssueQueryDetailRow>> IssueQueryDetailAsync(
+        DateTime? 起, DateTime? 止, string? keyword, string? 物料类别, string? 审核情况)
+    {
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        var cat = string.IsNullOrWhiteSpace(物料类别) ? null : 物料类别.Trim();
+        var 止Excl = 止?.Date.AddDays(1);
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<MaterialIssueQueryDetailRow>($@"
+SELECT d.[类型], d.[日期], d.[单号], d.[生产单号], d.[款号], d.[领料部门], d.[领料人],
+       d.[物料编号], d.[物料名称], d.[物料类别], d.[规格], d.[颜色], d.[单位],
+       d.[数量], d.[备注], o.[审核]
+FROM [领料明细单] d
+JOIN [领料单] o ON o.[单号] = d.[单号]
+WHERE (@起 IS NULL OR d.[日期] >= @起)
+  AND (@止 IS NULL OR d.[日期] < @止)
+  AND (@kw IS NULL OR d.[单号] LIKE @kw OR d.[生产单号] LIKE @kw OR d.[款号] LIKE @kw
+       OR d.[领料部门] LIKE @kw OR d.[领料人] LIKE @kw
+       OR d.[物料编号] LIKE @kw OR d.[物料名称] LIKE @kw OR d.[规格] LIKE @kw)
+  AND (@cat IS NULL OR d.[物料类别] = @cat){ApprovalFilter(审核情况)}
+ORDER BY d.[日期] DESC, d.[单号], d.[ID];",
+            new { 起, 止 = 止Excl, kw, cat });
+        return rows.AsList();
+    }
+
+    // 领料单查询·汇总：按 物料编号+规格+颜色 合并，SUM(数量)=领用数量。同过滤集。
+    public async Task<IReadOnlyList<MaterialIssueSummaryRow>> IssueQuerySummaryAsync(
+        DateTime? 起, DateTime? 止, string? keyword, string? 物料类别, string? 审核情况)
+    {
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        var cat = string.IsNullOrWhiteSpace(物料类别) ? null : 物料类别.Trim();
+        var 止Excl = 止?.Date.AddDays(1);
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<MaterialIssueSummaryRow>($@"
+SELECT d.[物料编号], MAX(d.[物料名称]) AS 物料名称, MAX(d.[物料类别]) AS 物料类别,
+       d.[规格], d.[颜色], MAX(d.[单位]) AS 单位, SUM(d.[数量]) AS 领用数量
+FROM [领料明细单] d
+JOIN [领料单] o ON o.[单号] = d.[单号]
+WHERE (@起 IS NULL OR d.[日期] >= @起)
+  AND (@止 IS NULL OR d.[日期] < @止)
+  AND (@kw IS NULL OR d.[单号] LIKE @kw OR d.[生产单号] LIKE @kw OR d.[款号] LIKE @kw
+       OR d.[领料部门] LIKE @kw OR d.[领料人] LIKE @kw
+       OR d.[物料编号] LIKE @kw OR d.[物料名称] LIKE @kw OR d.[规格] LIKE @kw)
+  AND (@cat IS NULL OR d.[物料类别] = @cat){ApprovalFilter(审核情况)}
+GROUP BY d.[物料编号], d.[规格], d.[颜色]
+ORDER BY d.[物料编号], d.[规格], d.[颜色];",
+            new { 起, 止 = 止Excl, kw, cat });
+        return rows.AsList();
+    }
 }
