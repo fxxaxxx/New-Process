@@ -50,4 +50,35 @@ public class PlasticInventoryServiceDbTests(DbFixture fx)
         }
         finally { Cleanup(c); }
     }
+
+    [SkippableFact]
+    public async Task Issue_minus_and_Return_plus_after_approve()
+    {
+        using var c = fx.Open();
+        var engine = new PostingEngine(Factory(), new AuditLogger());
+        c.Execute("DELETE FROM [塑胶入仓明细单] WHERE [物料编号]=N'SIRPM01'; DELETE FROM [塑胶入仓单] WHERE [单号]=N'SRIR01'");
+        c.Execute("DELETE FROM [塑胶领料明细单] WHERE [物料编号]=N'SIRPM01'; DELETE FROM [塑胶领料单] WHERE [单号]=N'SLLIR01'");
+        c.Execute("DELETE FROM [塑胶退料明细单] WHERE [物料编号]=N'SIRPM01'; DELETE FROM [塑胶退料单] WHERE [单号]=N'STLIR01'");
+        c.Execute("INSERT INTO [塑胶入仓单]([单号],[仓库],[审核]) VALUES(N'SRIR01',N'塑胶仓','0')");
+        c.Execute("INSERT INTO [塑胶入仓明细单]([单号],[仓库],[物料编号],[数量]) VALUES(N'SRIR01',N'塑胶仓',N'SIRPM01',100)");
+        c.Execute("INSERT INTO [塑胶领料单]([单号],[仓库],[审核]) VALUES(N'SLLIR01',N'塑胶仓','0')");
+        c.Execute("INSERT INTO [塑胶领料明细单]([单号],[仓库],[物料编号],[数量]) VALUES(N'SLLIR01',N'塑胶仓',N'SIRPM01',30)");
+        c.Execute("INSERT INTO [塑胶退料单]([单号],[仓库],[审核]) VALUES(N'STLIR01',N'塑胶仓','0')");
+        c.Execute("INSERT INTO [塑胶退料明细单]([单号],[仓库],[物料编号],[数量]) VALUES(N'STLIR01',N'塑胶仓',N'SIRPM01',10)");
+        try
+        {
+            await engine.ApproveAsync("塑胶入仓单", "SRIR01", "t");
+            Assert.Equal(100m, await Svc().StockOfAsync("SIRPM01", null));
+            await engine.ApproveAsync("塑胶领料单", "SLLIR01", "t");
+            Assert.Equal(70m, await Svc().StockOfAsync("SIRPM01", null));
+            await engine.ApproveAsync("塑胶退料单", "STLIR01", "t");
+            Assert.Equal(80m, await Svc().StockOfAsync("SIRPM01", null));
+        }
+        finally
+        {
+            c.Execute("DELETE FROM [塑胶入仓明细单] WHERE [物料编号]=N'SIRPM01'; DELETE FROM [塑胶入仓单] WHERE [单号]=N'SRIR01'");
+            c.Execute("DELETE FROM [塑胶领料明细单] WHERE [物料编号]=N'SIRPM01'; DELETE FROM [塑胶领料单] WHERE [单号]=N'SLLIR01'");
+            c.Execute("DELETE FROM [塑胶退料明细单] WHERE [物料编号]=N'SIRPM01'; DELETE FROM [塑胶退料单] WHERE [单号]=N'STLIR01'");
+        }
+    }
 }
