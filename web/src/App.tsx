@@ -26,6 +26,7 @@ import OrderProgressPage from "./pages/production/OrderProgressPage";
 import ProgressDetailPage from "./pages/production/ProgressDetailPage";
 import MaterialDocRouter from "./pages/materials/MaterialDocRouter";
 import MaterialMasterPage from "./pages/materials/MaterialMasterPage";
+import PlasticMaterialMasterPage from "./pages/plastics/PlasticMaterialMasterPage";
 import MaterialInventoryPage from "./pages/materials/MaterialInventoryPage";
 import MaterialLabelQueryPage from "./pages/materials/MaterialLabelQueryPage";
 import PurchaseReceiptQueryPage from "./pages/materials/PurchaseReceiptQueryPage";
@@ -101,6 +102,7 @@ export default function App() {
           <Route path="order-progress-detail" element={<ProgressDetailPage />} />
           <Route path="materials/:doc" element={<MaterialDocRouter />} />
           <Route path="material-master" element={<MaterialMasterPage />} />
+          <Route path="plastic-material-master" element={<PlasticMaterialMasterPage />} />
           <Route path="material-inventory" element={<MaterialInventoryPage />} />
           <Route path="material-label-query" element={<MaterialLabelQueryPage />} />
           <Route path="purchase-receipt-query" element={<PurchaseReceiptQueryPage />} />
