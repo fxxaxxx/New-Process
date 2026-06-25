@@ -70,4 +70,50 @@ public class PlasticMaterialDocDbTests(DbFixture fx)
         }
         finally { Cleanup(c); }
     }
+
+    [SkippableFact]
+    public async Task Create_then_Get_computes_金额_and_合计_then_Delete()
+    {
+        using var c = fx.Open(); Seed(c);
+        string? 单号 = null;
+        try
+        {
+            var dto = new PlasticMaterialDocCreateDto
+            {
+                生产单号 = "SLMO01", 货号 = "SLG01", 客户 = "TONY",
+                明细 = [
+                    new PlasticMaterialDocCreateLineDto { 工模编号 = "M01", 物料编号 = "SLPM01", 物料名称 = "ABS粒", 颜色 = "黑", 仓位号 = "A-09", 加工单价 = 5, 用量 = 1.5m, 订购数量 = 10 },
+                    new PlasticMaterialDocCreateLineDto { 工模编号 = "M02", 物料编号 = "SLPM02", 物料名称 = "PP粒", 颜色 = "白", 加工单价 = 6, 用量 = 2.0m, 订购数量 = 20 },
+                ]
+            };
+            单号 = await Svc().CreateAsync(dto, "tester");
+            Assert.StartsWith("SL", 单号);
+
+            var detail = await Svc().GetAsync(单号);
+            Assert.NotNull(detail);
+            Assert.Equal(30m, detail!.单头!.数量);
+            Assert.Equal(170m, detail.单头!.金额);
+            Assert.Equal(2, detail.明细.Count);
+            var l1 = Assert.Single(detail.明细, x => x.物料编号 == "SLPM01");
+            Assert.Equal(50m, l1.金额);
+            Assert.Equal("A-09", l1.仓位号);
+
+            Assert.True(await Svc().DeleteAsync(单号));
+            Assert.Null(await Svc().GetAsync(单号));
+            单号 = null;
+        }
+        finally
+        {
+            if (单号 != null) { c.Execute("DELETE FROM [塑胶物料明细单] WHERE [单号]=@n", new { n = 单号 }); c.Execute("DELETE FROM [塑胶物料单] WHERE [单号]=@n", new { n = 单号 }); }
+            Cleanup(c);
+        }
+    }
+
+    [SkippableFact]
+    public async Task Create_rejects_empty_lines()
+    {
+        using var c = fx.Open();
+        await Assert.ThrowsAsync<ArgumentException>(() => Svc().CreateAsync(
+            new PlasticMaterialDocCreateDto { 生产单号 = "SLMO01", 明细 = [] }, "tester"));
+    }
 }

@@ -50,4 +50,64 @@ WHERE g.[生产单号] = @生产单号
 ORDER BY p.[ID]", new { 生产单号 });
         return rows.AsList();
     }
+
+    // 保存成单:生成 SL 单号,插头(数量/金额合计)+ 逐行插明细(金额=订购数量×加工单价)。
+    public async Task<string> CreateAsync(PlasticMaterialDocCreateDto dto, string user)
+    {
+        if (dto.明细.Count == 0) throw new ArgumentException("塑胶物料单至少要有一行明细");
+        var 数量合计 = dto.明细.Sum(l => l.订购数量);
+        var 金额合计 = dto.明细.Sum(l => l.订购数量 * (l.加工单价 ?? 0));
+        var now = DateTime.Now;
+
+        using var c = factory.Create();
+        await c.OpenAsync();
+        using var tx = c.BeginTransaction();
+        var 单号 = await docNo.NextAsync(DocType, Prefix, now, c, tx);
+
+        await c.ExecuteAsync(@"
+INSERT INTO [塑胶物料单]([单号],[日期],[生产单号],[货号],[客户],[数量],[金额],[操作员],[审核],[备注])
+VALUES(@单号,@日期,@生产单号,@货号,@客户,@数量,@金额,@操作员,'0',@备注)",
+            new { 单号, 日期 = now, dto.生产单号, dto.货号, dto.客户,
+                  数量 = 数量合计, 金额 = 金额合计, 操作员 = user, dto.备注 }, tx);
+
+        foreach (var l in dto.明细)
+            await c.ExecuteAsync(@"
+INSERT INTO [塑胶物料明细单]([单号],[生产单号],[货号],[工模编号],[物料编号],[物料名称],[颜色],[仓位号],[用料名称],[加工内容],[加工单价],[用量],[订购数量],[金额])
+VALUES(@单号,@生产单号,@货号,@工模编号,@物料编号,@物料名称,@颜色,@仓位号,@用料名称,@加工内容,@加工单价,@用量,@订购数量,@金额)",
+                new { 单号, dto.生产单号, dto.货号, l.工模编号, l.物料编号, l.物料名称, l.颜色, l.仓位号,
+                      l.用料名称, l.加工内容, l.加工单价, l.用量, l.订购数量, 金额 = l.订购数量 * (l.加工单价 ?? 0) }, tx);
+
+        tx.Commit();
+        return 单号;
+    }
+
+    public async Task<PlasticMaterialDocDetailDto?> GetAsync(string 单号)
+    {
+        using var c = factory.Create();
+        using var multi = await c.QueryMultipleAsync(@"
+SELECT [ID],[单号],[日期],[生产单号],[货号],[客户],[数量],[金额],[操作员],[审核],[审核人],[备注]
+FROM [塑胶物料单] WHERE [单号]=@单号;
+SELECT [ID],[工模编号],[物料编号],[物料名称],[颜色],[仓位号],[用料名称],[加工内容],[加工单价],[用量],[订购数量],[金额],[备注]
+FROM [塑胶物料明细单] WHERE [单号]=@单号 ORDER BY [ID];", new { 单号 });
+        var header = await multi.ReadFirstOrDefaultAsync<PlasticMaterialDocHeaderDto>();
+        if (header is null) return null;
+        var lines = (await multi.ReadAsync<PlasticMaterialDocLineDto>()).AsList();
+        return new PlasticMaterialDocDetailDto { 单头 = header, 明细 = lines };
+    }
+
+    // 删除:仅未审核可删;FK 顺序 明细→头。
+    public async Task<bool> DeleteAsync(string 单号)
+    {
+        using var c = factory.Create();
+        await c.OpenAsync();
+        using var tx = c.BeginTransaction();
+        var 审核 = await c.ExecuteScalarAsync<string?>(
+            "SELECT ISNULL([审核],'0') FROM [塑胶物料单] WITH (UPDLOCK, HOLDLOCK) WHERE [单号]=@单号", new { 单号 }, tx);
+        if (审核 is null) return false;
+        if (审核 == "1") throw new InvalidOperationException("已审核的塑胶物料单不能删除，请先反审核。");
+        await c.ExecuteAsync("DELETE FROM [塑胶物料明细单] WHERE [单号]=@单号", new { 单号 }, tx);
+        await c.ExecuteAsync("DELETE FROM [塑胶物料单] WHERE [单号]=@单号", new { 单号 }, tx);
+        tx.Commit();
+        return true;
+    }
 }
