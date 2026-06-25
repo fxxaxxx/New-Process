@@ -12,8 +12,12 @@ CREATE TABLE [塑胶物料单] (
     [操作员] nvarchar(20) NULL,
     [审核] nvarchar(5) NULL,
     [审核人] nvarchar(20) NULL,
+    [审核日期] datetime NULL,
     [备注] nvarchar(200) NULL
 );
+-- 过账引擎(PostingEngine)审核时会写 [审核日期];已建表则补列。
+IF COL_LENGTH(N'[塑胶物料单]', N'审核日期') IS NULL
+    ALTER TABLE [塑胶物料单] ADD [审核日期] datetime NULL;
 IF OBJECT_ID(N'[塑胶物料明细单]', N'U') IS NULL
 CREATE TABLE [塑胶物料明细单] (
     [ID] bigint IDENTITY(1,1) PRIMARY KEY,
