@@ -45,6 +45,7 @@ builder.Services.AddScoped<ErpApi.Features.Materials.PurchaseReturn.PurchaseRetu
 builder.Services.AddScoped<ErpApi.Features.Materials.MaterialMaster.MaterialMasterService>();
 builder.Services.AddScoped<ErpApi.Features.Plastics.PlasticMaterialMaster.PlasticMaterialMasterService>();
 builder.Services.AddScoped<ErpApi.Features.Plastics.PlasticCommonMaterial.PlasticCommonMaterialService>();
+builder.Services.AddScoped<ErpApi.Features.Plastics.PlasticMaterialDoc.PlasticMaterialDocService>();
 builder.Services.AddScoped<ErpApi.Features.Materials.MaterialIssue.MaterialIssueService>();
 builder.Services.AddScoped<ErpApi.Features.Materials.MaterialReturn.MaterialReturnService>();
 builder.Services.AddScoped<ErpApi.Features.Materials.MaterialScrap.MaterialScrapService>();
