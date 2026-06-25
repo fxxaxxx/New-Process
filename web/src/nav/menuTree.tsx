@@ -96,7 +96,7 @@ export const MENU_TREE: MenuGroup[] = [
   ]},
   // ⑧ 塑胶仓库
   { key: "g-plastic-wh", label: "塑胶仓库", children: [
-    M("工模表"), M("塑胶物料资料", "/plastic-material-master", "塑胶物料资料"), M("塑胶共用物料表"), M("塑胶标签单"),
+    M("工模表"), M("塑胶物料资料", "/plastic-material-master", "塑胶物料资料"), M("塑胶共用物料表", "/plastic-common-materials", "塑胶共用物料表"), M("塑胶标签单"),
     M("塑胶入仓单"), M("塑胶退仓单"), M("塑胶领料单"), M("塑胶退料单"),
     M("塑胶报废单"), M("塑胶盘点单"),
   ]},
