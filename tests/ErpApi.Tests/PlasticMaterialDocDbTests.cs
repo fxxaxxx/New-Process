@@ -1,5 +1,7 @@
 using Dapper;
+using ErpApi.Engines.Authorization;
 using ErpApi.Engines.DocumentNumber;
+using ErpApi.Engines.Posting;
 using ErpApi.Features.Plastics.PlasticMaterialDoc;
 using ErpApi.Infrastructure.Db;
 using Microsoft.Data.SqlClient;
@@ -115,5 +117,26 @@ public class PlasticMaterialDocDbTests(DbFixture fx)
         using var c = fx.Open();
         await Assert.ThrowsAsync<ArgumentException>(() => Svc().CreateAsync(
             new PlasticMaterialDocCreateDto { 生产单号 = "SLMO01", 明细 = [] }, "tester"));
+    }
+
+    // 回归:塑胶物料单须接入过账白名单(PostableDocuments)且表有 审核日期 列,否则审核 500/抛异常。
+    [SkippableFact]
+    public async Task Approve_then_unapprove_flips_审核_and_sets_审核日期()
+    {
+        using var c = fx.Open();
+        c.Execute("DELETE FROM [塑胶物料单] WHERE [单号]=N'SLPOST01'");
+        c.Execute("INSERT INTO [塑胶物料单]([单号],[审核]) VALUES(N'SLPOST01','0')");
+        var engine = new PostingEngine(Factory(), new AuditLogger());
+        try
+        {
+            Assert.True(await engine.ApproveAsync("塑胶物料单", "SLPOST01", "tester"));
+            Assert.Equal("1", c.ExecuteScalar<string>("SELECT [审核] FROM [塑胶物料单] WHERE [单号]=N'SLPOST01'"));
+            Assert.Equal("tester", c.ExecuteScalar<string>("SELECT [审核人] FROM [塑胶物料单] WHERE [单号]=N'SLPOST01'"));
+            Assert.NotNull(c.ExecuteScalar<DateTime?>("SELECT [审核日期] FROM [塑胶物料单] WHERE [单号]=N'SLPOST01'"));
+
+            Assert.True(await engine.UnapproveAsync("塑胶物料单", "SLPOST01", "tester"));
+            Assert.Equal("0", c.ExecuteScalar<string>("SELECT [审核] FROM [塑胶物料单] WHERE [单号]=N'SLPOST01'"));
+        }
+        finally { c.Execute("DELETE FROM [塑胶物料单] WHERE [单号]=N'SLPOST01'"); }
     }
 }
