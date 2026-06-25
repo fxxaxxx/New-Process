@@ -12,6 +12,7 @@ public sealed class ErpDbContext(DbContextOptions<ErpDbContext> options) : DbCon
     public DbSet<加工厂资料> 加工厂资料 => Set<加工厂资料>();
     public DbSet<物料类别> 物料类别 => Set<物料类别>();
     public DbSet<物料资料> 物料资料 => Set<物料资料>();
+    public DbSet<塑胶物料资料> 塑胶物料资料 => Set<塑胶物料资料>();
     public DbSet<部门信息> 部门信息 => Set<部门信息>();
     public DbSet<人事档案> 人事档案 => Set<人事档案>();
     public DbSet<报价类别> 报价类别 => Set<报价类别>();

@@ -58,6 +58,12 @@ public sealed class MaterialController(
     : MasterCrudController<物料资料>(s, p, a, f)
 { protected override string Menu => "物料资料"; protected override string TableName => "物料资料"; }
 
+[Route("api/master/plastic-materials")]
+public sealed class PlasticMaterialController(
+    MasterCrudService<塑胶物料资料> s, IPermissionService p, IAuditLogger a, ISqlConnectionFactory f)
+    : MasterCrudController<塑胶物料资料>(s, p, a, f)
+{ protected override string Menu => "塑胶物料资料"; protected override string TableName => "塑胶物料资料"; }
+
 [Route("api/master/departments")]
 public sealed class DepartmentController(
     MasterCrudService<部门信息> s, IPermissionService p, IAuditLogger a, ISqlConnectionFactory f)
