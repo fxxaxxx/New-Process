@@ -111,6 +111,8 @@ export default function App() {
           <Route path="plastic-common-materials" element={<PlasticCommonMaterialPage />} />
           <Route path="plastic-material-analysis" element={<PlasticMaterialAnalysisPage />} />
           <Route path="plastic-receipts" element={<PlasticDocPage cfg={PLASTIC_DOC_CONFIGS["plastic-receipts"]} />} />
+          <Route path="plastic-issues" element={<PlasticDocPage cfg={PLASTIC_DOC_CONFIGS["plastic-issues"]} />} />
+          <Route path="plastic-returns" element={<PlasticDocPage cfg={PLASTIC_DOC_CONFIGS["plastic-returns"]} />} />
           <Route path="plastic-inventory" element={<PlasticInventoryPage />} />
           <Route path="material-inventory" element={<MaterialInventoryPage />} />
           <Route path="material-label-query" element={<MaterialLabelQueryPage />} />
