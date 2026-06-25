@@ -16,4 +16,20 @@ export const PLASTIC_DOC_CONFIGS: Record<string, PlasticDocCfg> = {
     ],
     listExtra: [{ name: "供应商名称", label: "供应商" }, { name: "仓库", label: "仓库" }],
   },
+  "plastic-issues": {
+    resource: "plastic-issues", menu: "塑胶领料单", title: "塑胶领料",
+    headerFields: [
+      { name: "领料部门", label: "领料部门" }, { name: "领料人", label: "领料人" },
+      { name: "仓库", label: "仓库", required: true }, { name: "备注", label: "备注" },
+    ],
+    listExtra: [{ name: "领料人", label: "领料人" }, { name: "仓库", label: "仓库" }],
+  },
+  "plastic-returns": {
+    resource: "plastic-returns", menu: "塑胶退料单", title: "塑胶退料",
+    headerFields: [
+      { name: "退料部门", label: "退料部门" }, { name: "退料人", label: "退料人" },
+      { name: "仓库", label: "仓库", required: true }, { name: "备注", label: "备注" },
+    ],
+    listExtra: [{ name: "退料人", label: "退料人" }, { name: "仓库", label: "仓库" }],
+  },
 };
