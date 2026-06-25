@@ -29,6 +29,9 @@ import MaterialMasterPage from "./pages/materials/MaterialMasterPage";
 import PlasticMaterialMasterPage from "./pages/plastics/PlasticMaterialMasterPage";
 import PlasticCommonMaterialPage from "./pages/plastics/PlasticCommonMaterialPage";
 import PlasticMaterialAnalysisPage from "./pages/plastics/PlasticMaterialAnalysisPage";
+import PlasticDocPage from "./pages/plastics/docs/PlasticDocPage";
+import { PLASTIC_DOC_CONFIGS } from "./pages/plastics/docs/PlasticDocConfigs";
+import PlasticInventoryPage from "./pages/plastics/PlasticInventoryPage";
 import MaterialInventoryPage from "./pages/materials/MaterialInventoryPage";
 import MaterialLabelQueryPage from "./pages/materials/MaterialLabelQueryPage";
 import PurchaseReceiptQueryPage from "./pages/materials/PurchaseReceiptQueryPage";
@@ -107,6 +110,8 @@ export default function App() {
           <Route path="plastic-material-master" element={<PlasticMaterialMasterPage />} />
           <Route path="plastic-common-materials" element={<PlasticCommonMaterialPage />} />
           <Route path="plastic-material-analysis" element={<PlasticMaterialAnalysisPage />} />
+          <Route path="plastic-receipts" element={<PlasticDocPage cfg={PLASTIC_DOC_CONFIGS["plastic-receipts"]} />} />
+          <Route path="plastic-inventory" element={<PlasticInventoryPage />} />
           <Route path="material-inventory" element={<MaterialInventoryPage />} />
           <Route path="material-label-query" element={<MaterialLabelQueryPage />} />
           <Route path="purchase-receipt-query" element={<PurchaseReceiptQueryPage />} />
