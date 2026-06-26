@@ -137,6 +137,57 @@ ORDER BY h.[日期] DESC, d.[单号], d.[ID]", new { qi, qe, kw, done });
         return rows.AsList();
     }
 
+    private static string ApprovalFilter(string? 审核情况) => 审核情况 switch
+    {
+        "已审核" => " AND ISNULL(h.[审核],'0')='1'",
+        "未审核" => " AND ISNULL(h.[审核],'0')<>'1'",
+        _ => "",
+    };
+
+    public async Task<IReadOnlyList<PlasticOrderQueryDetailRow>> OrderQueryDetailAsync(
+        DateTime 起, DateTime 止, string? keyword, string? 审核情况, string? 物料类别)
+    {
+        var qi = 起.Date; var qe = 止.Date.AddDays(1);
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        var cat = string.IsNullOrWhiteSpace(物料类别) ? null : 物料类别.Trim();
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<PlasticOrderQueryDetailRow>($@"
+SELECT h.[日期], d.[单号], d.[工模编号], d.[生产单号], p.[款号], d.[货号], d.[物料编号], d.[物料名称], d.[颜色],
+       m.[物料类别] AS 材料, m.[规格], m.[单位], d.[订购数量] AS 数量, d.[加工单价], d.[金额], h.[审核]
+FROM [塑胶物料明细单] d
+JOIN [塑胶物料单] h ON h.[单号] = d.[单号]
+LEFT JOIN [生产制单] p ON p.[生产单号] = d.[生产单号]
+LEFT JOIN (SELECT [物料编号], MAX([物料类别]) AS 物料类别, MAX([规格]) AS 规格, MAX([单位]) AS 单位
+           FROM [塑胶物料资料] GROUP BY [物料编号]) m ON m.[物料编号] = d.[物料编号]
+WHERE h.[日期] >= @qi AND h.[日期] < @qe
+  AND (@kw IS NULL OR d.[物料编号] LIKE @kw OR d.[物料名称] LIKE @kw OR m.[规格] LIKE @kw OR d.[货号] LIKE @kw OR p.[款号] LIKE @kw OR d.[生产单号] LIKE @kw)
+  AND (@cat IS NULL OR m.[物料类别] = @cat){ApprovalFilter(审核情况)}
+ORDER BY h.[日期] DESC, d.[单号], d.[ID]", new { qi, qe, kw, cat });
+        return rows.AsList();
+    }
+
+    public async Task<IReadOnlyList<PlasticOrderQuerySummaryRow>> OrderQuerySummaryAsync(
+        DateTime 起, DateTime 止, string? keyword, string? 审核情况, string? 物料类别)
+    {
+        var qi = 起.Date; var qe = 止.Date.AddDays(1);
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        var cat = string.IsNullOrWhiteSpace(物料类别) ? null : 物料类别.Trim();
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<PlasticOrderQuerySummaryRow>($@"
+SELECT d.[物料编号], MAX(d.[物料名称]) AS 物料名称, MAX(m.[物料类别]) AS 物料类别, m.[规格], d.[颜色], MAX(m.[单位]) AS 单位,
+       SUM(ISNULL(d.[订购数量],0)) AS 数量, SUM(ISNULL(d.[金额],0)) AS 金额
+FROM [塑胶物料明细单] d
+JOIN [塑胶物料单] h ON h.[单号] = d.[单号]
+LEFT JOIN (SELECT [物料编号], MAX([物料类别]) AS 物料类别, MAX([规格]) AS 规格, MAX([单位]) AS 单位
+           FROM [塑胶物料资料] GROUP BY [物料编号]) m ON m.[物料编号] = d.[物料编号]
+WHERE h.[日期] >= @qi AND h.[日期] < @qe
+  AND (@kw IS NULL OR d.[物料编号] LIKE @kw OR d.[物料名称] LIKE @kw OR m.[规格] LIKE @kw OR d.[货号] LIKE @kw)
+  AND (@cat IS NULL OR m.[物料类别] = @cat){ApprovalFilter(审核情况)}
+GROUP BY d.[物料编号], m.[规格], d.[颜色]
+ORDER BY d.[物料编号]", new { qi, qe, kw, cat });
+        return rows.AsList();
+    }
+
     // 删除:仅未审核可删;FK 顺序 明细→头。
     public async Task<bool> DeleteAsync(string 单号)
     {

@@ -117,3 +117,35 @@ public sealed class PlasticAnalysisDetailRow
     public decimal? 金额 { get; set; }
     public string? 完成 { get; set; }
 }
+
+public sealed class PlasticOrderQueryDetailRow
+{
+    public DateTime? 日期 { get; set; }
+    public string? 单号 { get; set; }
+    public string? 工模编号 { get; set; }
+    public string? 生产单号 { get; set; }
+    public string? 款号 { get; set; }
+    public string? 货号 { get; set; }
+    public string? 物料编号 { get; set; }
+    public string? 物料名称 { get; set; }
+    public string? 颜色 { get; set; }
+    public string? 材料 { get; set; }
+    public string? 规格 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 数量 { get; set; }
+    public decimal? 加工单价 { get; set; }
+    public decimal? 金额 { get; set; }
+    public string? 审核 { get; set; }
+}
+
+public sealed class PlasticOrderQuerySummaryRow
+{
+    public string? 物料编号 { get; set; }
+    public string? 物料名称 { get; set; }
+    public string? 物料类别 { get; set; }
+    public string? 规格 { get; set; }
+    public string? 颜色 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 数量 { get; set; }
+    public decimal? 金额 { get; set; }
+}
