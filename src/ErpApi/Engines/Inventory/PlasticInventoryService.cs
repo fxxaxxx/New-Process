@@ -35,6 +35,15 @@ public sealed class PlasticInOutRow
     public decimal 期末数量 { get; set; }
 }
 
+public sealed class PlasticRawMaterialSummaryRow
+{
+    public string? 原料名称 { get; set; }
+    public decimal 本月库存 { get; set; }
+    public decimal 存外厂数量 { get; set; }
+    public decimal 本月报废 { get; set; }
+    public decimal 本月总数 { get; set; }
+}
+
 // 塑胶库存(口径=塑胶):入仓(+) / 领料(−) / 退料(+) / 退仓(−) / 报废(−) / 盘点(±)。仅审核='1',按 物料编号×仓库 汇总。
 // 单据不维护余额——库存是已审核明细单的实时聚合(镜像 MaterialInventoryService)。
 public sealed class PlasticInventoryService(ISqlConnectionFactory factory)
@@ -140,5 +149,38 @@ ORDER BY t.[物料编号], t.[仓库]";
         var rows = (await c.QueryAsync<PlasticInOutRow>(sql, new { qi, qe, wh, kw })).AsList();
         foreach (var r in rows) r.期末数量 = r.期初数量 + r.本期入库 - r.本期出库;
         return rows;
+    }
+
+    // 原料本月库存汇总:按物料名称 当前实时库存 + 本月报废(区间)。存外厂无源恒0;本月总数=库存+报废。
+    public async Task<IReadOnlyList<PlasticRawMaterialSummaryRow>> RawMaterialMonthlySummaryAsync(DateTime 起, DateTime 止, string? keyword)
+    {
+        var qi = 起.Date;
+        var qe = 止.Date.AddDays(1);
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        var sql = $@"
+WITH 库存 AS (
+    SELECT [物料名称], SUM([数量]) AS 本月库存
+    FROM ({LedgerUnion}) t
+    GROUP BY [物料名称]
+),
+报废 AS (
+    SELECT d.[物料名称], SUM(ISNULL(d.[数量],0)) AS 本月报废
+    FROM [塑胶报废明细单] d JOIN [塑胶报废单] h ON h.[单号]=d.[单号]
+    WHERE ISNULL(h.[审核],'0')='1' AND h.[日期] >= @qi AND h.[日期] < @qe
+    GROUP BY d.[物料名称]
+)
+SELECT ISNULL(k.[物料名称], s.[物料名称]) AS 原料名称,
+       ISNULL(k.[本月库存],0) AS 本月库存,
+       CAST(0 AS decimal(18,4)) AS 存外厂数量,
+       ISNULL(s.[本月报废],0) AS 本月报废,
+       ISNULL(k.[本月库存],0) + ISNULL(s.[本月报废],0) AS 本月总数
+FROM 库存 k
+FULL OUTER JOIN 报废 s ON s.[物料名称] = k.[物料名称]
+WHERE (@kw IS NULL OR ISNULL(k.[物料名称], s.[物料名称]) LIKE @kw)
+  AND (ISNULL(k.[本月库存],0) <> 0 OR ISNULL(s.[本月报废],0) <> 0)
+ORDER BY 原料名称";
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<PlasticRawMaterialSummaryRow>(sql, new { qi, qe, kw });
+        return rows.AsList();
     }
 }

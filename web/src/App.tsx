@@ -32,6 +32,7 @@ import PlasticMaterialAnalysisPage from "./pages/plastics/PlasticMaterialAnalysi
 import PlasticInventoryPage from "./pages/plastics/PlasticInventoryPage";
 import PlasticInOutReportPage from "./pages/plastics/PlasticInOutReportPage";
 import PlasticCustomerTypeStatsPage from "./pages/plastics/PlasticCustomerTypeStatsPage";
+import PlasticRawMaterialSummaryPage from "./pages/plastics/PlasticRawMaterialSummaryPage";
 import PlasticStocktakePage from "./pages/plastics/PlasticStocktakePage";
 import PlasticIssueFormPage from "./pages/plastics/PlasticIssueFormPage";
 import PlasticSupplierDocFormPage from "./pages/plastics/PlasticSupplierDocFormPage";
@@ -123,6 +124,7 @@ export default function App() {
           <Route path="plastic-inventory" element={<PlasticInventoryPage />} />
           <Route path="plastic-in-out" element={<PlasticInOutReportPage />} />
           <Route path="plastic-customer-type-stats" element={<PlasticCustomerTypeStatsPage />} />
+          <Route path="plastic-raw-material-summary" element={<PlasticRawMaterialSummaryPage />} />
           <Route path="material-inventory" element={<MaterialInventoryPage />} />
           <Route path="material-label-query" element={<MaterialLabelQueryPage />} />
           <Route path="purchase-receipt-query" element={<PurchaseReceiptQueryPage />} />
