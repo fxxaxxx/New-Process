@@ -111,4 +111,29 @@ public class PlasticInventoryServiceDbTests(DbFixture fx)
         }
         finally { Clean(); }
     }
+
+    [SkippableFact]
+    public async Task Stocktake_signed_盈亏_after_approve()
+    {
+        using var c = fx.Open();
+        var engine = new PostingEngine(Factory(), new AuditLogger());
+        void Clean()
+        {
+            c.Execute("DELETE FROM [塑胶入仓明细单] WHERE [物料编号]=N'SPDINV01'; DELETE FROM [塑胶入仓单] WHERE [单号]=N'SRPDI01'");
+            c.Execute("DELETE FROM [塑胶盘点明细单] WHERE [物料编号]=N'SPDINV01'; DELETE FROM [塑胶盘点单] WHERE [单号]=N'SPDPDI01'");
+        }
+        Clean();
+        c.Execute("INSERT INTO [塑胶入仓单]([单号],[仓库],[审核]) VALUES(N'SRPDI01',N'盘点仓','0')");
+        c.Execute("INSERT INTO [塑胶入仓明细单]([单号],[仓库],[物料编号],[数量]) VALUES(N'SRPDI01',N'盘点仓',N'SPDINV01',100)");
+        c.Execute("INSERT INTO [塑胶盘点单]([单号],[仓库],[审核]) VALUES(N'SPDPDI01',N'盘点仓','0')");
+        c.Execute("INSERT INTO [塑胶盘点明细单]([单号],[仓库],[物料编号],[系统数量],[盘点数量],[盈亏数量]) VALUES(N'SPDPDI01',N'盘点仓',N'SPDINV01',100,90,-10)");
+        try
+        {
+            await engine.ApproveAsync("塑胶入仓单", "SRPDI01", "t");
+            Assert.Equal(100m, await Svc().StockOfAsync("SPDINV01", null));
+            await engine.ApproveAsync("塑胶盘点单", "SPDPDI01", "t");
+            Assert.Equal(90m, await Svc().StockOfAsync("SPDINV01", null));
+        }
+        finally { Clean(); }
+    }
 }

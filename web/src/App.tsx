@@ -32,6 +32,7 @@ import PlasticMaterialAnalysisPage from "./pages/plastics/PlasticMaterialAnalysi
 import PlasticDocPage from "./pages/plastics/docs/PlasticDocPage";
 import { PLASTIC_DOC_CONFIGS } from "./pages/plastics/docs/PlasticDocConfigs";
 import PlasticInventoryPage from "./pages/plastics/PlasticInventoryPage";
+import PlasticStocktakePage from "./pages/plastics/PlasticStocktakePage";
 import MaterialInventoryPage from "./pages/materials/MaterialInventoryPage";
 import MaterialLabelQueryPage from "./pages/materials/MaterialLabelQueryPage";
 import PurchaseReceiptQueryPage from "./pages/materials/PurchaseReceiptQueryPage";
@@ -115,6 +116,7 @@ export default function App() {
           <Route path="plastic-returns" element={<PlasticDocPage cfg={PLASTIC_DOC_CONFIGS["plastic-returns"]} />} />
           <Route path="plastic-warehouse-returns" element={<PlasticDocPage cfg={PLASTIC_DOC_CONFIGS["plastic-warehouse-returns"]} />} />
           <Route path="plastic-scraps" element={<PlasticDocPage cfg={PLASTIC_DOC_CONFIGS["plastic-scraps"]} />} />
+          <Route path="plastic-stocktakes" element={<PlasticStocktakePage />} />
           <Route path="plastic-inventory" element={<PlasticInventoryPage />} />
           <Route path="material-inventory" element={<MaterialInventoryPage />} />
           <Route path="material-label-query" element={<MaterialLabelQueryPage />} />
