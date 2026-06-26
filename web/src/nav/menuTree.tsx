@@ -102,7 +102,7 @@ export const MENU_TREE: MenuGroup[] = [
   ]},
   // ⑨ 塑胶报表
   { key: "g-plastic-rpt", label: "塑胶报表", children: [
-    M("塑胶库存统计表", "/plastic-inventory", "塑胶库存"), M("塑胶库存月报表"), M("塑胶进出库统计表", "/plastic-in-out", "塑胶进出库统计表"), M("塑胶类型客户统计"),
+    M("塑胶库存统计表", "/plastic-inventory", "塑胶库存"), M("塑胶库存月报表"), M("塑胶进出库统计表", "/plastic-in-out", "塑胶进出库统计表"), M("塑胶类型客户统计", "/plastic-customer-type-stats", "塑胶类型客户统计"),
     M("原料本月库存汇总"), M("塑胶分析明细查询"), M("塑胶订购单查询"), M("塑胶标签查询"),
     M("塑胶入仓查询"), M("塑胶退仓查询"), M("塑胶领料查询"), M("塑胶退料查询"),
     M("塑胶报废查询"), M("塑胶盘点查询"),
