@@ -33,6 +33,7 @@ import PlasticDocPage from "./pages/plastics/docs/PlasticDocPage";
 import { PLASTIC_DOC_CONFIGS } from "./pages/plastics/docs/PlasticDocConfigs";
 import PlasticInventoryPage from "./pages/plastics/PlasticInventoryPage";
 import PlasticStocktakePage from "./pages/plastics/PlasticStocktakePage";
+import PlasticIssueFormPage from "./pages/plastics/PlasticIssueFormPage";
 import MaterialInventoryPage from "./pages/materials/MaterialInventoryPage";
 import MaterialLabelQueryPage from "./pages/materials/MaterialLabelQueryPage";
 import PurchaseReceiptQueryPage from "./pages/materials/PurchaseReceiptQueryPage";
@@ -112,7 +113,7 @@ export default function App() {
           <Route path="plastic-common-materials" element={<PlasticCommonMaterialPage />} />
           <Route path="plastic-material-analysis" element={<PlasticMaterialAnalysisPage />} />
           <Route path="plastic-receipts" element={<PlasticDocPage cfg={PLASTIC_DOC_CONFIGS["plastic-receipts"]} />} />
-          <Route path="plastic-issues" element={<PlasticDocPage cfg={PLASTIC_DOC_CONFIGS["plastic-issues"]} />} />
+          <Route path="plastic-issues" element={<PlasticIssueFormPage />} />
           <Route path="plastic-returns" element={<PlasticDocPage cfg={PLASTIC_DOC_CONFIGS["plastic-returns"]} />} />
           <Route path="plastic-warehouse-returns" element={<PlasticDocPage cfg={PLASTIC_DOC_CONFIGS["plastic-warehouse-returns"]} />} />
           <Route path="plastic-scraps" element={<PlasticDocPage cfg={PLASTIC_DOC_CONFIGS["plastic-scraps"]} />} />
