@@ -13,6 +13,11 @@ public sealed class PlasticStockRow
     public decimal 库存数量 { get; set; }
     public string? 物料类别 { get; set; }
     public string? 仓位号 { get; set; }
+    public string? 颜色 { get; set; }
+    public string? 工模编号 { get; set; }
+    public string? 塑胶货号 { get; set; }
+    public decimal? 单价 { get; set; }
+    public decimal? 金额 { get; set; }
 }
 
 // 塑胶库存(口径=塑胶):入仓(+) / 领料(−) / 退料(+) / 退仓(−) / 报废(−) / 盘点(±)。仅审核='1',按 物料编号×仓库 汇总。
@@ -48,24 +53,30 @@ SELECT d.[物料编号],d.[物料名称],d.[规格],d.[单位],d.[仓库], d.[�
         return await c.ExecuteScalarAsync<decimal?>(sql, new { 物料编号 }) ?? 0;
     }
 
-    public async Task<IReadOnlyList<PlasticStockRow>> ListAsync(string? 仓库, string? keyword)
+    public async Task<IReadOnlyList<PlasticStockRow>> ListAsync(string? 仓库, string? keyword, string? 物料类别 = null)
     {
         var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
         var wh = string.IsNullOrWhiteSpace(仓库) ? null : 仓库.Trim();
+        var cat = string.IsNullOrWhiteSpace(物料类别) ? null : 物料类别.Trim();
         var sql = $@"
 SELECT t.[物料编号], MAX(t.[物料名称]) AS 物料名称, MAX(t.[规格]) AS 规格, MAX(t.[单位]) AS 单位,
        t.[仓库], SUM(t.[数量]) AS 库存数量,
-       MAX(m.[物料类别]) AS 物料类别, MAX(m.[仓位号]) AS 仓位号
+       MAX(m.[物料类别]) AS 物料类别, MAX(m.[仓位号]) AS 仓位号, MAX(m.[颜色]) AS 颜色,
+       MAX(g.[工模编号]) AS 工模编号, MAX(g.[塑胶货号]) AS 塑胶货号,
+       MAX(m.[单价]) AS 单价, SUM(t.[数量]) * ISNULL(MAX(m.[单价]), 0) AS 金额
 FROM ({LedgerUnion}) t
-LEFT JOIN (SELECT [物料编号], MAX([物料类别]) AS 物料类别, MAX([仓位号]) AS 仓位号
+LEFT JOIN (SELECT [物料编号], MAX([物料类别]) AS 物料类别, MAX([仓位号]) AS 仓位号, MAX([颜色]) AS 颜色, MAX([单价]) AS 单价
            FROM [塑胶物料资料] GROUP BY [物料编号]) m ON m.[物料编号]=t.[物料编号]
+LEFT JOIN (SELECT [物料编号], MAX([工模编号]) AS 工模编号, MAX([塑胶货号]) AS 塑胶货号
+           FROM [塑胶共用物料表] GROUP BY [物料编号]) g ON g.[物料编号]=t.[物料编号]
 WHERE (@wh IS NULL OR t.[仓库]=@wh)
   AND (@kw IS NULL OR t.[物料编号] LIKE @kw OR t.[物料名称] LIKE @kw OR t.[规格] LIKE @kw)
+  AND (@cat IS NULL OR m.[物料类别] = @cat)
 GROUP BY t.[物料编号], t.[仓库]
 HAVING SUM(t.[数量]) <> 0
 ORDER BY t.[物料编号], t.[仓库]";
         using var c = factory.Create();
-        var rows = await c.QueryAsync<PlasticStockRow>(sql, new { wh, kw });
+        var rows = await c.QueryAsync<PlasticStockRow>(sql, new { wh, kw, cat });
         return rows.AsList();
     }
 }
