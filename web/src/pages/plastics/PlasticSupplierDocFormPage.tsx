@@ -1,24 +1,26 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Card, Col, Form, Input, Popconfirm, Row, Space, Statistic, Table, Tag, message } from "antd";
 import { SearchOutlined } from "@ant-design/icons";
-import { plasticWarehouseReturnApi, type PWRHeader, type PWRLine } from "../../api/plasticWarehouseReturn";
+import { plasticSupplierDocApi, type PSDHeader, type PSDLine } from "../../api/plasticSupplierDoc";
 import { plasticDocApi } from "../../api/plasticDocs";
 import SupplierPicker from "./SupplierPicker";
 import PlasticReceiptPicker from "./PlasticReceiptPicker";
-import PlasticWarehouseReturnLineTable from "./PlasticWarehouseReturnLineTable";
+import PlasticSupplierDocLineTable from "./PlasticSupplierDocLineTable";
+import type { PlasticSupplierDocCfg } from "./PlasticSupplierDocConfigs";
 import { can, hidePrice } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
 
-const MENU = "塑胶退仓单";
 const today = () => new Date().toLocaleDateString("zh-CN");
 const currentUser = () => localStorage.getItem("erp_user") ?? "";
 
-export default function PlasticWarehouseReturnFormPage() {
+export default function PlasticSupplierDocFormPage({ cfg }: { cfg: PlasticSupplierDocCfg }) {
+  const MENU = cfg.menu;
+  const docApi = useMemo(() => plasticSupplierDocApi(cfg.resource), [cfg.resource]);
   const perms = usePerms();
   const priceHidden = hidePrice(perms, MENU);
   const [form] = Form.useForm<Record<string, unknown>>();
-  const [lines, setLines] = useState<PWRLine[]>([]);
-  const [rows, setRows] = useState<PWRHeader[]>([]);
+  const [lines, setLines] = useState<PSDLine[]>([]);
+  const [rows, setRows] = useState<PSDHeader[]>([]);
   const [opened, setOpened] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [supplierOpen, setSupplierOpen] = useState(false);
@@ -26,9 +28,9 @@ export default function PlasticWarehouseReturnFormPage() {
   const readOnly = opened !== null;
 
   const loadRows = useCallback(async () => {
-    try { setRows((await plasticWarehouseReturnApi.list(1, 50, "")).items); }
-    catch { message.error("加载退仓单失败"); }
-  }, []);
+    try { setRows((await docApi.list(1, 50, "")).items); }
+    catch { message.error("加载单据失败"); }
+  }, [docApi]);
   useEffect(() => { loadRows(); }, [loadRows]);
 
   const reset = useCallback(() => {
@@ -36,7 +38,7 @@ export default function PlasticWarehouseReturnFormPage() {
     form.setFieldsValue({ 日期: today(), 操作员: currentUser() });
     setLines([]); setOpened(null);
   }, [form]);
-  useEffect(() => { reset(); }, [reset]);
+  useEffect(() => { reset(); }, [reset, cfg.resource]);
 
   const bringFromReceipt = async (单号: string) => {
     try {
@@ -53,14 +55,14 @@ export default function PlasticWarehouseReturnFormPage() {
 
   const openDoc = async (单号: string) => {
     try {
-      const d = await plasticWarehouseReturnApi.get(单号);
-      const h = d.单头 ?? {} as PWRHeader;
+      const d = await docApi.get(单号);
+      const h = d.单头 ?? {} as PSDHeader;
       form.setFieldsValue({
         供应商编号: h.供应商编号, 供应商名称: h.供应商名称, 仓库: h.仓库, 备注: h.备注,
         日期: h.日期?.slice(0, 10), 操作员: h.操作员, 出库单号: h.出库单号, 入仓单号: h.入仓单号, 电脑单号: h.电脑单号,
       });
       setLines(d.明细 ?? []); setOpened(单号);
-    } catch { message.error("打开退仓单失败"); }
+    } catch { message.error("打开单据失败"); }
   };
 
   const save = async () => {
@@ -71,8 +73,8 @@ export default function PlasticWarehouseReturnFormPage() {
     if (ok.length === 0) { message.error("请至少录入一行有效物料明细(物料编号+数量)"); return; }
     setSaving(true);
     try {
-      await plasticWarehouseReturnApi.create({ ...v, 明细: ok });
-      message.success("塑胶退仓单已创建"); reset(); loadRows();
+      await docApi.create({ ...v, 明细: ok });
+      message.success(`${cfg.title}单已创建`); reset(); loadRows();
     } catch (e) {
       message.error((e as { response?: { data?: { 消息?: string } } }).response?.data?.消息 ?? "创建失败");
     } finally { setSaving(false); }
@@ -87,7 +89,7 @@ export default function PlasticWarehouseReturnFormPage() {
   const 金额合计 = lines.reduce((s, l) => s + Number(l.数量 ?? 0) * Number(l.单价 ?? 0), 0);
 
   const listColumns = [
-    { title: "退仓单号", dataIndex: "单号", key: "单号", render: (v: string) => <a onClick={() => openDoc(v)} className="erp-num">{v}</a> },
+    { title: "单号", dataIndex: "单号", key: "单号", render: (v: string) => <a onClick={() => openDoc(v)} className="erp-num">{v}</a> },
     { title: "供应商", dataIndex: "供应商名称", key: "供应商名称" },
     { title: "仓库", dataIndex: "仓库", key: "仓库" },
     { title: "数量", dataIndex: "数量", key: "数量" },
@@ -95,12 +97,12 @@ export default function PlasticWarehouseReturnFormPage() {
     { title: "状态", dataIndex: "审核", key: "审核", render: (v?: string) => v === "1" ? <Tag color="green" style={{ borderRadius: 6 }}>已审核</Tag> : <Tag style={{ borderRadius: 6 }}>未审核</Tag> },
     {
       title: "操作", key: "_op",
-      render: (_: unknown, row: PWRHeader) => (
+      render: (_: unknown, row: PSDHeader) => (
         <Space>
-          {row.审核 !== "1" && can(perms, MENU, "审核") && <a onClick={() => act(() => plasticWarehouseReturnApi.approve(row.单号!), "已审核")}>审核</a>}
-          {row.审核 === "1" && can(perms, MENU, "反审核") && <a onClick={() => act(() => plasticWarehouseReturnApi.unapprove(row.单号!), "已反审核")}>反审核</a>}
+          {row.审核 !== "1" && can(perms, MENU, "审核") && <a onClick={() => act(() => docApi.approve(row.单号!), "已审核")}>审核</a>}
+          {row.审核 === "1" && can(perms, MENU, "反审核") && <a onClick={() => act(() => docApi.unapprove(row.单号!), "已反审核")}>反审核</a>}
           {row.审核 !== "1" && can(perms, MENU, "删除") && (
-            <Popconfirm title="确认删除该退仓单?" onConfirm={() => act(() => plasticWarehouseReturnApi.remove(row.单号!), "已删除")}><a>删除</a></Popconfirm>
+            <Popconfirm title="确认删除该单据?" onConfirm={() => act(() => docApi.remove(row.单号!), "已删除")}><a>删除</a></Popconfirm>
           )}
         </Space>
       ),
@@ -108,7 +110,7 @@ export default function PlasticWarehouseReturnFormPage() {
   ];
 
   return (
-    <Card title={`塑胶退仓单${readOnly ? `（查看 ${opened}）` : "（新建）"}`} variant="borderless"
+    <Card title={`${cfg.title}单${readOnly ? `（查看 ${opened}）` : "（新建）"}`} variant="borderless"
       extra={
         <Space wrap>
           <Button onClick={reset}>新建</Button>
@@ -142,7 +144,7 @@ export default function PlasticWarehouseReturnFormPage() {
         </Row>
       </Form>
 
-      <PlasticWarehouseReturnLineTable value={lines} onChange={setLines} readOnly={readOnly} hidePrice={priceHidden} />
+      <PlasticSupplierDocLineTable value={lines} onChange={setLines} readOnly={readOnly} hidePrice={priceHidden} />
 
       <Space style={{ marginTop: 16 }} size={32}>
         <Statistic title="数量合计" value={数量合计} />
