@@ -7,6 +7,8 @@ public sealed class PlasticScrapHeaderDto
     public DateTime? 日期 { get; set; }
     public string? 报废部门 { get; set; }
     public string? 报废人 { get; set; }
+    public string? 供应商编号 { get; set; }
+    public string? 供应商名称 { get; set; }
     public string? 仓库 { get; set; }
     public decimal? 数量 { get; set; }
     public decimal? 金额 { get; set; }
@@ -14,15 +16,21 @@ public sealed class PlasticScrapHeaderDto
     public string? 审核 { get; set; }
     public string? 审核人 { get; set; }
     public string? 备注 { get; set; }
+    public string? 出库单号 { get; set; }
+    public string? 入仓单号 { get; set; }
+    public string? 电脑单号 { get; set; }
 }
 
 public sealed class PlasticScrapLineDto
 {
     public long ID { get; set; }
+    public string? 生产单号 { get; set; }
+    public string? 款号 { get; set; }
     public string? 物料编号 { get; set; }
     public string? 物料名称 { get; set; }
     public string? 规格 { get; set; }
     public string? 颜色 { get; set; }
+    public string? 塑胶货号 { get; set; }
     public string? 仓位号 { get; set; }
     public string? 单位 { get; set; }
     public decimal? 数量 { get; set; }
@@ -39,10 +47,13 @@ public sealed class PlasticScrapDetailDto
 
 public sealed class PlasticScrapCreateLineDto
 {
+    public string? 生产单号 { get; set; }
+    public string? 款号 { get; set; }
     public string? 物料编号 { get; set; }
     public string? 物料名称 { get; set; }
     public string? 规格 { get; set; }
     public string? 颜色 { get; set; }
+    public string? 塑胶货号 { get; set; }
     public string? 仓位号 { get; set; }
     public string? 单位 { get; set; }
     public decimal 数量 { get; set; }
@@ -54,7 +65,12 @@ public sealed class PlasticScrapCreateDto
 {
     public string? 报废部门 { get; set; }
     public string? 报废人 { get; set; }
+    public string? 供应商编号 { get; set; }
+    public string? 供应商名称 { get; set; }
     public string? 仓库 { get; set; }
     public string? 备注 { get; set; }
+    public string? 出库单号 { get; set; }
+    public string? 入仓单号 { get; set; }
+    public string? 电脑单号 { get; set; }
     public List<PlasticScrapCreateLineDto> 明细 { get; set; } = [];
 }
