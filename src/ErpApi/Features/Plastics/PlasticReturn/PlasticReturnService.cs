@@ -22,14 +22,16 @@ public sealed class PlasticReturnService(ISqlConnectionFactory factory, IDocumen
         using var tx = c.BeginTransaction();
         var 单号 = await docNo.NextAsync(DocType, Prefix, now, c, tx);
         await c.ExecuteAsync(@"
-INSERT INTO [塑胶退料单]([单号],[日期],[退料部门],[退料人],[仓库],[数量],[金额],[操作员],[审核],[备注])
-VALUES(@单号,@日期,@退料部门,@退料人,@仓库,@数量,@金额,@操作员,'0',@备注)",
-            new { 单号, 日期 = now, dto.退料部门, dto.退料人, dto.仓库, 数量 = 数量合计, 金额 = 金额合计, 操作员 = user, dto.备注 }, tx);
+INSERT INTO [塑胶退料单]([单号],[日期],[退料部门],[退料人],[仓库],[数量],[金额],[操作员],[审核],[备注],[供应商编号],[供应商名称],[出库单号],[入仓单号],[电脑单号])
+VALUES(@单号,@日期,@退料部门,@退料人,@仓库,@数量,@金额,@操作员,'0',@备注,@供应商编号,@供应商名称,@出库单号,@入仓单号,@电脑单号)",
+            new { 单号, 日期 = now, dto.退料部门, dto.退料人, dto.仓库, 数量 = 数量合计, 金额 = 金额合计, 操作员 = user, dto.备注,
+                  dto.供应商编号, dto.供应商名称, dto.出库单号, dto.入仓单号, dto.电脑单号 }, tx);
         foreach (var l in dto.明细)
             await c.ExecuteAsync(@"
-INSERT INTO [塑胶退料明细单]([单号],[日期],[仓库],[物料编号],[物料名称],[规格],[颜色],[仓位号],[单位],[数量],[单价],[金额],[备注])
-VALUES(@单号,@日期,@仓库,@物料编号,@物料名称,@规格,@颜色,@仓位号,@单位,@数量,@单价,@金额,@备注)",
-                new { 单号, 日期 = now, dto.仓库, l.物料编号, l.物料名称, l.规格, l.颜色, l.仓位号, l.单位, l.数量, 单价 = l.单价 ?? 0, 金额 = l.数量 * (l.单价 ?? 0), l.备注 }, tx);
+INSERT INTO [塑胶退料明细单]([单号],[日期],[仓库],[生产单号],[款号],[物料编号],[物料名称],[规格],[颜色],[塑胶货号],[仓位号],[单位],[数量],[单价],[金额],[备注])
+VALUES(@单号,@日期,@仓库,@生产单号,@款号,@物料编号,@物料名称,@规格,@颜色,@塑胶货号,@仓位号,@单位,@数量,@单价,@金额,@备注)",
+                new { 单号, 日期 = now, dto.仓库, l.生产单号, l.款号, l.物料编号, l.物料名称, l.规格, l.颜色, l.塑胶货号, l.仓位号, l.单位,
+                      l.数量, 单价 = l.单价 ?? 0, 金额 = l.数量 * (l.单价 ?? 0), l.备注 }, tx);
         tx.Commit();
         return 单号;
     }
@@ -54,9 +56,9 @@ ORDER BY [ID] DESC OFFSET (@page-1)*@size ROWS FETCH NEXT @size ROWS ONLY;", new
     {
         using var c = factory.Create();
         using var multi = await c.QueryMultipleAsync(@"
-SELECT [ID],[单号],[日期],[退料部门],[退料人],[仓库],[数量],[金额],[操作员],[审核],[审核人],[备注]
+SELECT [ID],[单号],[日期],[退料部门],[退料人],[供应商编号],[供应商名称],[仓库],[数量],[金额],[操作员],[审核],[审核人],[备注],[出库单号],[入仓单号],[电脑单号]
 FROM [塑胶退料单] WHERE [单号]=@单号;
-SELECT [ID],[物料编号],[物料名称],[规格],[颜色],[仓位号],[单位],[数量],[单价],[金额],[备注]
+SELECT [ID],[生产单号],[款号],[物料编号],[物料名称],[规格],[颜色],[塑胶货号],[仓位号],[单位],[数量],[单价],[金额],[备注]
 FROM [塑胶退料明细单] WHERE [单号]=@单号 ORDER BY [ID];", new { 单号 });
         var header = await multi.ReadFirstOrDefaultAsync<PlasticReturnHeaderDto>();
         if (header is null) return null;
