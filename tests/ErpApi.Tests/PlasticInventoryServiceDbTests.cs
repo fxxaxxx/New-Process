@@ -136,4 +136,37 @@ public class PlasticInventoryServiceDbTests(DbFixture fx)
         }
         finally { Clean(); }
     }
+
+    [SkippableFact]
+    public async Task List_brings_join_columns_and_filters_by_category()
+    {
+        using var c = fx.Open();
+        var engine = new PostingEngine(Factory(), new AuditLogger());
+        void Clean()
+        {
+            c.Execute("DELETE FROM [塑胶入仓明细单] WHERE [物料编号]=N'SINVR01'; DELETE FROM [塑胶入仓单] WHERE [单号]=N'SRINVR01'");
+            c.Execute("DELETE FROM [塑胶物料资料] WHERE [物料编号]=N'SINVR01'");
+            c.Execute("DELETE FROM [塑胶共用物料表] WHERE [物料编号]=N'SINVR01'");
+        }
+        Clean();
+        c.Execute("INSERT INTO [塑胶物料资料]([物料类别],[物料编号],[物料名称],[规格],[颜色],[仓位号],[单价]) VALUES(N'ABS',N'SINVR01',N'ABS粒',N'规A',N'黑',N'A-1',10)");
+        c.Execute("INSERT INTO [塑胶共用物料表]([物料编号],[工模编号],[塑胶货号]) VALUES(N'SINVR01',N'MJ-1',N'HH-1')");
+        c.Execute("INSERT INTO [塑胶入仓单]([单号],[仓库],[审核]) VALUES(N'SRINVR01',N'报表仓','0')");
+        c.Execute("INSERT INTO [塑胶入仓明细单]([单号],[仓库],[物料编号],[物料名称],[规格],[单位],[数量]) VALUES(N'SRINVR01',N'报表仓',N'SINVR01',N'ABS粒',N'规A',N'kg',100)");
+        try
+        {
+            await engine.ApproveAsync("塑胶入仓单", "SRINVR01", "t");
+            var rows = await Svc().ListAsync("报表仓", "SINVR01");
+            var row = Assert.Single(rows, r => r.物料编号 == "SINVR01");
+            Assert.Equal("黑", row.颜色);
+            Assert.Equal("MJ-1", row.工模编号);
+            Assert.Equal("HH-1", row.塑胶货号);
+            Assert.Equal("ABS", row.物料类别);
+            Assert.Equal(10m, row.单价);
+            Assert.Equal(1000m, row.金额);
+            Assert.Empty(await Svc().ListAsync("报表仓", "SINVR01", "不存在类"));
+            Assert.Single(await Svc().ListAsync("报表仓", "SINVR01", "ABS"));
+        }
+        finally { Clean(); }
+    }
 }
