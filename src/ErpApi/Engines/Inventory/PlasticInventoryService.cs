@@ -20,6 +20,21 @@ public sealed class PlasticStockRow
     public decimal? 金额 { get; set; }
 }
 
+public sealed class PlasticInOutRow
+{
+    public string? 物料编号 { get; set; }
+    public string? 物料名称 { get; set; }
+    public string? 规格 { get; set; }
+    public string? 颜色 { get; set; }
+    public string? 物料类别 { get; set; }
+    public string? 单位 { get; set; }
+    public string? 仓库 { get; set; }
+    public decimal 期初数量 { get; set; }
+    public decimal 本期入库 { get; set; }
+    public decimal 本期出库 { get; set; }
+    public decimal 期末数量 { get; set; }
+}
+
 // 塑胶库存(口径=塑胶):入仓(+) / 领料(−) / 退料(+) / 退仓(−) / 报废(−) / 盘点(±)。仅审核='1',按 物料编号×仓库 汇总。
 // 单据不维护余额——库存是已审核明细单的实时聚合(镜像 MaterialInventoryService)。
 public sealed class PlasticInventoryService(ISqlConnectionFactory factory)
@@ -41,6 +56,26 @@ SELECT d.[物料编号],d.[物料名称],d.[规格],d.[单位],d.[仓库], d.[�
     FROM [塑胶报废明细单] d JOIN [塑胶报废单] h ON h.[单号]=d.[单号] WHERE ISNULL(h.[审核],'0')='1'
 UNION ALL
 SELECT d.[物料编号],d.[物料名称],d.[规格],d.[单位],d.[仓库], d.[盈亏数量]
+    FROM [塑胶盘点明细单] d JOIN [塑胶盘点单] h ON h.[单号]=d.[单号] WHERE ISNULL(h.[审核],'0')='1'";
+
+    // 带单据日期的签名台账(进出库统计用;仅审核='1')。与 LedgerUnion 同 6 支,多选 h.[日期]。
+    private const string LedgerUnionDated = @"
+SELECT h.[日期] AS 日期, d.[物料编号],d.[物料名称],d.[规格],d.[单位],d.[仓库], d.[数量] AS 数量
+    FROM [塑胶入仓明细单] d JOIN [塑胶入仓单] h ON h.[单号]=d.[单号] WHERE ISNULL(h.[审核],'0')='1'
+UNION ALL
+SELECT h.[日期], d.[物料编号],d.[物料名称],d.[规格],d.[单位],d.[仓库], d.[数量]*-1
+    FROM [塑胶领料明细单] d JOIN [塑胶领料单] h ON h.[单号]=d.[单号] WHERE ISNULL(h.[审核],'0')='1'
+UNION ALL
+SELECT h.[日期], d.[物料编号],d.[物料名称],d.[规格],d.[单位],d.[仓库], d.[数量]
+    FROM [塑胶退料明细单] d JOIN [塑胶退料单] h ON h.[单号]=d.[单号] WHERE ISNULL(h.[审核],'0')='1'
+UNION ALL
+SELECT h.[日期], d.[物料编号],d.[物料名称],d.[规格],d.[单位],d.[仓库], d.[数量]*-1
+    FROM [塑胶退仓明细单] d JOIN [塑胶退仓单] h ON h.[单号]=d.[单号] WHERE ISNULL(h.[审核],'0')='1'
+UNION ALL
+SELECT h.[日期], d.[物料编号],d.[物料名称],d.[规格],d.[单位],d.[仓库], d.[数量]*-1
+    FROM [塑胶报废明细单] d JOIN [塑胶报废单] h ON h.[单号]=d.[单号] WHERE ISNULL(h.[审核],'0')='1'
+UNION ALL
+SELECT h.[日期], d.[物料编号],d.[物料名称],d.[规格],d.[单位],d.[仓库], d.[盈亏数量]
     FROM [塑胶盘点明细单] d JOIN [塑胶盘点单] h ON h.[单号]=d.[单号] WHERE ISNULL(h.[审核],'0')='1'";
 
     public async Task<decimal> StockOfAsync(string 物料编号, (SqlConnection conn, SqlTransaction tx)? scope)
@@ -78,5 +113,32 @@ ORDER BY t.[物料编号], t.[仓库]";
         using var c = factory.Create();
         var rows = await c.QueryAsync<PlasticStockRow>(sql, new { wh, kw, cat });
         return rows.AsList();
+    }
+
+    public async Task<IReadOnlyList<PlasticInOutRow>> InOutAsync(DateTime 起, DateTime 止, string? 仓库, string? keyword)
+    {
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        var wh = string.IsNullOrWhiteSpace(仓库) ? null : 仓库.Trim();
+        var qi = 起.Date;
+        var qe = 止.Date.AddDays(1);
+        var sql = $@"
+SELECT t.[物料编号], MAX(t.[物料名称]) AS 物料名称, MAX(t.[规格]) AS 规格,
+       MAX(m.[颜色]) AS 颜色, MAX(m.[物料类别]) AS 物料类别, MAX(t.[单位]) AS 单位, t.[仓库],
+       SUM(CASE WHEN t.[日期] < @qi THEN t.[数量] ELSE 0 END) AS 期初数量,
+       SUM(CASE WHEN t.[日期] >= @qi AND t.[日期] < @qe AND t.[数量] > 0 THEN t.[数量] ELSE 0 END) AS 本期入库,
+       SUM(CASE WHEN t.[日期] >= @qi AND t.[日期] < @qe AND t.[数量] < 0 THEN -t.[数量] ELSE 0 END) AS 本期出库
+FROM ({LedgerUnionDated}) t
+LEFT JOIN (SELECT [物料编号], MAX([颜色]) AS 颜色, MAX([物料类别]) AS 物料类别
+           FROM [塑胶物料资料] GROUP BY [物料编号]) m ON m.[物料编号]=t.[物料编号]
+WHERE (@wh IS NULL OR t.[仓库]=@wh)
+  AND (@kw IS NULL OR t.[物料编号] LIKE @kw OR t.[物料名称] LIKE @kw OR t.[规格] LIKE @kw)
+GROUP BY t.[物料编号], t.[仓库]
+HAVING SUM(CASE WHEN t.[日期] < @qi THEN t.[数量] ELSE 0 END) <> 0
+    OR SUM(CASE WHEN t.[日期] >= @qi AND t.[日期] < @qe THEN t.[数量] ELSE 0 END) <> 0
+ORDER BY t.[物料编号], t.[仓库]";
+        using var c = factory.Create();
+        var rows = (await c.QueryAsync<PlasticInOutRow>(sql, new { qi, qe, wh, kw })).AsList();
+        foreach (var r in rows) r.期末数量 = r.期初数量 + r.本期入库 - r.本期出库;
+        return rows;
     }
 }
