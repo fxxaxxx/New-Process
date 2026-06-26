@@ -95,6 +95,25 @@ FROM [塑胶物料明细单] WHERE [单号]=@单号 ORDER BY [ID];", new { 单�
         return new PlasticMaterialDocDetailDto { 单头 = header, 明细 = lines };
     }
 
+    // 塑胶类型客户统计:按 客户 × 加工内容(=塑胶类型) 汇总 订购数量/金额(仅审核='1' + 单据日期区间)。
+    public async Task<IReadOnlyList<PlasticCustomerTypeStatRow>> CustomerTypeStatsAsync(DateTime 起, DateTime 止, string? 客户)
+    {
+        var qi = 起.Date;
+        var qe = 止.Date.AddDays(1);
+        var ck = string.IsNullOrWhiteSpace(客户) ? null : $"%{客户.Trim()}%";
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<PlasticCustomerTypeStatRow>(@"
+SELECT h.[客户] AS 客户, ISNULL(NULLIF(LTRIM(RTRIM(d.[加工内容])), N''), N'未分类') AS 类型,
+       SUM(ISNULL(d.[订购数量],0)) AS 数量, SUM(ISNULL(d.[金额],0)) AS 金额
+FROM [塑胶物料明细单] d JOIN [塑胶物料单] h ON h.[单号]=d.[单号]
+WHERE ISNULL(h.[审核],'0')='1' AND h.[日期] >= @qi AND h.[日期] < @qe
+  AND (@ck IS NULL OR h.[客户] LIKE @ck)
+GROUP BY h.[客户], ISNULL(NULLIF(LTRIM(RTRIM(d.[加工内容])), N''), N'未分类')
+HAVING SUM(ISNULL(d.[订购数量],0)) <> 0 OR SUM(ISNULL(d.[金额],0)) <> 0
+ORDER BY h.[客户], 类型", new { qi, qe, ck });
+        return rows.AsList();
+    }
+
     // 删除:仅未审核可删;FK 顺序 明细→头。
     public async Task<bool> DeleteAsync(string 单号)
     {

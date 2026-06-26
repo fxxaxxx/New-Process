@@ -91,3 +91,11 @@ public sealed class PlasticMaterialDocCreateDto
     public string? 备注 { get; set; }
     public List<PlasticMaterialDocCreateLineDto> 明细 { get; set; } = [];
 }
+
+public sealed class PlasticCustomerTypeStatRow
+{
+    public string? 客户 { get; set; }
+    public string? 类型 { get; set; }
+    public decimal 数量 { get; set; }
+    public decimal? 金额 { get; set; }
+}
