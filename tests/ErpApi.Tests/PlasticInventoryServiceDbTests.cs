@@ -81,4 +81,34 @@ public class PlasticInventoryServiceDbTests(DbFixture fx)
             c.Execute("DELETE FROM [塑胶退料明细单] WHERE [物料编号]=N'SIRPM01'; DELETE FROM [塑胶退料单] WHERE [单号]=N'STLIR01'");
         }
     }
+
+    [SkippableFact]
+    public async Task WarehouseReturn_minus_and_Scrap_minus_after_approve()
+    {
+        using var c = fx.Open();
+        var engine = new PostingEngine(Factory(), new AuditLogger());
+        void Clean()
+        {
+            c.Execute("DELETE FROM [塑胶入仓明细单] WHERE [物料编号]=N'SWSPM01'; DELETE FROM [塑胶入仓单] WHERE [单号]=N'SRWS01'");
+            c.Execute("DELETE FROM [塑胶退仓明细单] WHERE [物料编号]=N'SWSPM01'; DELETE FROM [塑胶退仓单] WHERE [单号]=N'STCWS01'");
+            c.Execute("DELETE FROM [塑胶报废明细单] WHERE [物料编号]=N'SWSPM01'; DELETE FROM [塑胶报废单] WHERE [单号]=N'SBFWS01'");
+        }
+        Clean();
+        c.Execute("INSERT INTO [塑胶入仓单]([单号],[仓库],[审核]) VALUES(N'SRWS01',N'塑胶仓','0')");
+        c.Execute("INSERT INTO [塑胶入仓明细单]([单号],[仓库],[物料编号],[数量]) VALUES(N'SRWS01',N'塑胶仓',N'SWSPM01',100)");
+        c.Execute("INSERT INTO [塑胶退仓单]([单号],[仓库],[审核]) VALUES(N'STCWS01',N'塑胶仓','0')");
+        c.Execute("INSERT INTO [塑胶退仓明细单]([单号],[仓库],[物料编号],[数量]) VALUES(N'STCWS01',N'塑胶仓',N'SWSPM01',20)");
+        c.Execute("INSERT INTO [塑胶报废单]([单号],[仓库],[审核]) VALUES(N'SBFWS01',N'塑胶仓','0')");
+        c.Execute("INSERT INTO [塑胶报废明细单]([单号],[仓库],[物料编号],[数量]) VALUES(N'SBFWS01',N'塑胶仓',N'SWSPM01',10)");
+        try
+        {
+            await engine.ApproveAsync("塑胶入仓单", "SRWS01", "t");
+            Assert.Equal(100m, await Svc().StockOfAsync("SWSPM01", null));
+            await engine.ApproveAsync("塑胶退仓单", "STCWS01", "t");
+            Assert.Equal(80m, await Svc().StockOfAsync("SWSPM01", null));
+            await engine.ApproveAsync("塑胶报废单", "SBFWS01", "t");
+            Assert.Equal(70m, await Svc().StockOfAsync("SWSPM01", null));
+        }
+        finally { Clean(); }
+    }
 }
