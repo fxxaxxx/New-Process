@@ -1,0 +1,188 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Button, Card, Checkbox, Col, Form, Input, InputNumber, Popconfirm, Row, Select, Space, Statistic, Table, Tag, message } from "antd";
+import { SearchOutlined } from "@ant-design/icons";
+import { plasticIssueApi, type PIHeader, type PILine } from "../../api/plasticIssue";
+import { plasticInventoryApi } from "../../api/plasticInventory";
+import EmployeePicker from "../materials/EmployeePicker";
+import PlasticIssueLineTable from "./PlasticIssueLineTable";
+import { can } from "../../auth/permissions";
+import { usePerms } from "../../auth/PermissionContext";
+
+const MENU = "塑胶领料单";
+const today = () => new Date().toLocaleDateString("zh-CN");
+const currentUser = () => localStorage.getItem("erp_user") ?? "";
+
+export default function PlasticIssueFormPage() {
+  const perms = usePerms();
+  const [form] = Form.useForm<Record<string, unknown>>();
+  const 仓库 = Form.useWatch("仓库", form);
+  const [lines, setLines] = useState<PILine[]>([]);
+  const [rows, setRows] = useState<PIHeader[]>([]);
+  const [opened, setOpened] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [empPickFor, setEmpPickFor] = useState<string | null>(null);
+  const [mergePrint, setMergePrint] = useState(true);
+  const [stock, setStock] = useState<Record<string, number>>({});
+  const readOnly = opened !== null;
+
+  const loadRows = useCallback(async () => {
+    try { setRows((await plasticIssueApi.list(1, 50, "")).items); }
+    catch { message.error("加载领料单失败"); }
+  }, []);
+  useEffect(() => { loadRows(); }, [loadRows]);
+
+  useEffect(() => {
+    const wh = (仓库 as string) || "";
+    if (!wh) { setStock({}); return; }
+    plasticInventoryApi.list(wh).then(list => {
+      const m: Record<string, number> = {};
+      for (const r of list) if (r.物料编号) m[r.物料编号] = r.库存数量;
+      setStock(m);
+    }).catch(() => setStock({}));
+  }, [仓库]);
+
+  const reset = useCallback(() => {
+    form.resetFields();
+    form.setFieldsValue({ 日期: today(), 操作员: currentUser(), 领料备注: "生产领料" });
+    setLines([]); setOpened(null);
+  }, [form]);
+  useEffect(() => { reset(); }, [reset]);
+
+  const openDoc = async (单号: string) => {
+    try {
+      const d = await plasticIssueApi.get(单号);
+      const h = d.单头 ?? {} as PIHeader;
+      form.setFieldsValue({
+        领料部门: h.领料部门, 领料人: h.领料人, 仓库: h.仓库, 备注: h.备注,
+        日期: h.日期?.slice(0, 10), 操作员: h.操作员, 电脑单号: h.电脑单号, 收件人: h.收件人, 领料备注: h.领料备注,
+        胶箱数: h.胶箱数, 纸箱数: h.纸箱数, 钙塑箱数: h.钙塑箱数, 卡板数: h.卡板数,
+      });
+      setLines(d.明细 ?? []); setOpened(单号);
+    } catch { message.error("打开领料单失败"); }
+  };
+
+  const save = async () => {
+    if (readOnly) { message.info("查看模式:请先「新建」再录入"); return; }
+    let v: Record<string, unknown>;
+    try { v = await form.validateFields(); } catch { return; }
+    const ok = lines.filter(l => l.物料编号 && Number(l.数量) > 0);
+    if (ok.length === 0) { message.error("请至少录入一行有效物料明细(物料编号+数量)"); return; }
+    setSaving(true);
+    try {
+      await plasticIssueApi.create({ ...v, 明细: ok });
+      message.success("塑胶领料单已创建"); reset(); loadRows();
+    } catch (e) {
+      message.error((e as { response?: { data?: { 消息?: string } } }).response?.data?.消息 ?? "创建失败");
+    } finally { setSaving(false); }
+  };
+
+  const act = async (fn: () => Promise<unknown>, ok: string) => {
+    try { await fn(); message.success(ok); loadRows(); }
+    catch (e) { message.error((e as { response?: { data?: { 消息?: string } } }).response?.data?.消息 ?? "操作失败"); }
+  };
+
+  const stockRefRows = useMemo(() => {
+    const seen = new Set<string>(); const out: { 物料编号: string; 物料名称?: string; 库存数量: number }[] = [];
+    lines.forEach(l => { if (l.物料编号 && !seen.has(l.物料编号)) { seen.add(l.物料编号); out.push({ 物料编号: l.物料编号, 物料名称: l.物料名称, 库存数量: stock[l.物料编号] ?? 0 }); } });
+    return out;
+  }, [lines, stock]);
+
+  const empField = (name: string, label: string, required?: boolean) => (
+    <Form.Item name={name} label={label} rules={required ? [{ required: true, message: `请选${label}` }] : undefined}>
+      <Input readOnly placeholder="点🔍选人"
+        suffix={readOnly ? null : <SearchOutlined style={{ cursor: "pointer", color: "#1677ff" }} onClick={() => setEmpPickFor(name)} />} />
+    </Form.Item>
+  );
+  const numField = (name: string, label: string) => (
+    <Form.Item name={name} label={label}><InputNumber min={0} precision={0} disabled={readOnly} style={{ width: "100%" }} /></Form.Item>
+  );
+
+  const listColumns = [
+    { title: "领料单号", dataIndex: "单号", key: "单号", render: (v: string) => <a onClick={() => openDoc(v)} className="erp-num">{v}</a> },
+    { title: "领料部门", dataIndex: "领料部门", key: "领料部门" },
+    { title: "领料人", dataIndex: "领料人", key: "领料人" },
+    { title: "仓库", dataIndex: "仓库", key: "仓库" },
+    { title: "数量", dataIndex: "数量", key: "数量" },
+    { title: "日期", dataIndex: "日期", key: "日期", render: (v?: string) => v?.slice(0, 10) },
+    { title: "状态", dataIndex: "审核", key: "审核", render: (v?: string) => v === "1" ? <Tag color="green" style={{ borderRadius: 6 }}>已审核</Tag> : <Tag style={{ borderRadius: 6 }}>未审核</Tag> },
+    {
+      title: "操作", key: "_op",
+      render: (_: unknown, row: PIHeader) => (
+        <Space>
+          {row.审核 !== "1" && can(perms, MENU, "审核") && <a onClick={() => act(() => plasticIssueApi.approve(row.单号!), "已审核")}>审核</a>}
+          {row.审核 === "1" && can(perms, MENU, "反审核") && <a onClick={() => act(() => plasticIssueApi.unapprove(row.单号!), "已反审核")}>反审核</a>}
+          {row.审核 !== "1" && can(perms, MENU, "删除") && (
+            <Popconfirm title="确认删除该领料单?" onConfirm={() => act(() => plasticIssueApi.remove(row.单号!), "已删除")}><a>删除</a></Popconfirm>
+          )}
+        </Space>
+      ),
+    },
+  ];
+
+  return (
+    <Card title={`塑胶领料单${readOnly ? `（查看 ${opened}）` : "（新建）"}`} variant="borderless"
+      extra={
+        <Space wrap>
+          <Button onClick={reset}>新建</Button>
+          {can(perms, MENU, "保存") && <Button type="primary" loading={saving} disabled={readOnly} onClick={save}>保存</Button>}
+          <Button onClick={() => window.print()}>打印</Button>
+          <Checkbox checked={mergePrint} onChange={e => setMergePrint(e.target.checked)}>打印合并表格</Checkbox>
+        </Space>
+      }>
+      <Form form={form} layout="vertical" size="small">
+        <Row gutter={12}>
+          <Col span={5}><Form.Item name="领料部门" label="部门"><Input disabled={readOnly} /></Form.Item></Col>
+          <Col span={4}><Form.Item name="日期" label="日期"><Input disabled /></Form.Item></Col>
+          <Col span={5}>{empField("领料人", "领料人", true)}</Col>
+          <Col span={4}><Form.Item name="操作员" label="操作员"><Input disabled /></Form.Item></Col>
+          <Col span={3}><Form.Item name="仓库" label="仓库" rules={[{ required: true, message: "请填仓库" }]}><Input disabled={readOnly} /></Form.Item></Col>
+          <Col span={3}><Form.Item name="电脑单号" label="电脑单号"><Input disabled /></Form.Item></Col>
+        </Row>
+        <Row gutter={12}>
+          <Col span={3}>{numField("胶箱数", "胶箱数")}</Col>
+          <Col span={3}>{numField("纸箱数", "纸箱")}</Col>
+          <Col span={3}>{numField("钙塑箱数", "钙塑箱")}</Col>
+          <Col span={3}>{numField("卡板数", "卡板数")}</Col>
+          <Col span={5}>{empField("收件人", "收件人")}</Col>
+          <Col span={4}>
+            <Form.Item name="领料备注" label="领料备注">
+              <Select disabled={readOnly} options={[{ value: "生产领料" }, { value: "样品领料" }, { value: "维修领料" }]} />
+            </Form.Item>
+          </Col>
+          <Col span={3}><Form.Item name="备注" label="备注"><Input disabled={readOnly} /></Form.Item></Col>
+        </Row>
+      </Form>
+
+      <Row gutter={12}>
+        <Col span={17}>
+          <PlasticIssueLineTable value={lines} onChange={setLines} readOnly={readOnly} />
+        </Col>
+        <Col span={7}>
+          <Table size="small" pagination={false} rowKey="物料编号"
+            title={() => "库存参考"}
+            dataSource={stockRefRows}
+            columns={[
+              { title: "序号", key: "_i", width: 50, render: (_: unknown, __: unknown, i: number) => i + 1 },
+              { title: "物料编号", dataIndex: "物料编号" },
+              { title: "物料名称", dataIndex: "物料名称" },
+              { title: "库存数量", dataIndex: "库存数量", align: "right" as const },
+            ]} />
+        </Col>
+      </Row>
+
+      <Space style={{ marginTop: 16 }} size={32}>
+        <Statistic title="数量合计" value={lines.reduce((s, l) => s + Number(l.数量 ?? 0), 0)} />
+        <Statistic title="重量合计" value={"0.0"} />
+        <Statistic title="制单人" value={currentUser()} />
+      </Space>
+
+      <div style={{ marginTop: 24 }}>
+        <Table rowKey="id" size="middle" dataSource={rows} columns={listColumns} pagination={{ pageSize: 10 }} />
+      </div>
+
+      <EmployeePicker open={empPickFor !== null}
+        onPick={姓名 => { if (empPickFor) form.setFieldValue(empPickFor, 姓名); }}
+        onClose={() => setEmpPickFor(null)} />
+    </Card>
+  );
+}
