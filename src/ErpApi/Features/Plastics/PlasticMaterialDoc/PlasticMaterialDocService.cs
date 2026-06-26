@@ -114,6 +114,29 @@ ORDER BY h.[客户], 类型", new { qi, qe, ck });
         return rows.AsList();
     }
 
+    // 塑胶分析明细查询:塑胶物料明细 JOIN 单头(日期) + LEFT JOIN 生产制单(款号/完成) + LEFT JOIN 塑胶物料资料(材料/单位)。
+    public async Task<IReadOnlyList<PlasticAnalysisDetailRow>> AnalysisDetailAsync(DateTime 起, DateTime 止, string? keyword, string? 完成)
+    {
+        var qi = 起.Date; var qe = 止.Date.AddDays(1);
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        var done = string.IsNullOrWhiteSpace(完成) ? null : 完成.Trim();
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<PlasticAnalysisDetailRow>(@"
+SELECT h.[日期], d.[生产单号], p.[款号], d.[货号], d.[物料编号], d.[物料名称], d.[颜色],
+       m.[物料类别] AS 材料, m.[单位], d.[加工内容], d.[订购数量] AS 数量,
+       d.[加工单价], d.[金额], ISNULL(p.[完成], N'否') AS 完成
+FROM [塑胶物料明细单] d
+JOIN [塑胶物料单] h ON h.[单号] = d.[单号]
+LEFT JOIN [生产制单] p ON p.[生产单号] = d.[生产单号]
+LEFT JOIN (SELECT [物料编号], MAX([物料类别]) AS 物料类别, MAX([单位]) AS 单位
+           FROM [塑胶物料资料] GROUP BY [物料编号]) m ON m.[物料编号] = d.[物料编号]
+WHERE h.[日期] >= @qi AND h.[日期] < @qe
+  AND (@kw IS NULL OR d.[生产单号] LIKE @kw OR p.[款号] LIKE @kw OR d.[货号] LIKE @kw OR d.[物料编号] LIKE @kw OR d.[物料名称] LIKE @kw)
+  AND (@done IS NULL OR ISNULL(p.[完成], N'否') = @done)
+ORDER BY h.[日期] DESC, d.[单号], d.[ID]", new { qi, qe, kw, done });
+        return rows.AsList();
+    }
+
     // 删除:仅未审核可删;FK 顺序 明细→头。
     public async Task<bool> DeleteAsync(string 单号)
     {
