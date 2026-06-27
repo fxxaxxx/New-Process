@@ -149,3 +149,31 @@ public sealed class PlasticOrderQuerySummaryRow
     public decimal? 数量 { get; set; }
     public decimal? 金额 { get; set; }
 }
+
+public sealed class PlasticLabelQueryDetailRow
+{
+    public DateTime? 日期 { get; set; }
+    public string? 单号 { get; set; }
+    public string? 款号 { get; set; }
+    public string? 工模编号 { get; set; }
+    public string? 物料编号 { get; set; }
+    public string? 物料名称 { get; set; }
+    public string? 塑胶货号 { get; set; }
+    public string? 颜色 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 数量 { get; set; }
+    public string? 备注 { get; set; }
+    public string? 审核 { get; set; }
+}
+
+public sealed class PlasticLabelQuerySummaryRow
+{
+    public string? 款号 { get; set; }
+    public string? 工模编号 { get; set; }
+    public string? 物料编号 { get; set; }
+    public string? 物料名称 { get; set; }
+    public string? 颜色 { get; set; }
+    public string? 塑胶货号 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 数量 { get; set; }
+}
