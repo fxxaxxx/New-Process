@@ -91,4 +91,56 @@ FROM [塑胶盘点明细单] WHERE [单号]=@单号 ORDER BY [ID];", new { 单�
         tx.Commit();
         return true;
     }
+
+    private static string ApprovalFilter(string? 审核情况) => 审核情况 switch
+    {
+        "已审核" => " AND ISNULL(h.[审核],'0')='1'",
+        "未审核" => " AND ISNULL(h.[审核],'0')<>'1'",
+        _ => ""
+    };
+
+    public async Task<IReadOnlyList<PlasticStocktakeQueryDetailRow>> StocktakeQueryDetailAsync(
+        DateTime 起, DateTime 止, string? keyword, string? 审核情况, string? 物料类别)
+    {
+        var qi = 起.Date; var qe = 止.Date.AddDays(1);
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        var cat = string.IsNullOrWhiteSpace(物料类别) ? null : 物料类别.Trim();
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<PlasticStocktakeQueryDetailRow>($@"
+SELECT h.[日期], d.[单号], d.[物料编号], d.[物料名称], d.[颜色], cm.[塑胶货号] AS 塑胶货号, cm.[塑胶货号] AS 共用货号,
+       d.[单位], d.[系统数量], d.[盘点数量], d.[盈亏数量],
+       m.[单价] AS 单价, d.[盈亏数量]*ISNULL(m.[单价],0) AS 金额, d.[备注], h.[审核]
+FROM [塑胶盘点明细单] d
+JOIN [塑胶盘点单] h ON h.[单号] = d.[单号]
+LEFT JOIN (SELECT [物料编号], MAX([塑胶货号]) AS 塑胶货号 FROM [塑胶共用物料表] GROUP BY [物料编号]) cm ON cm.[物料编号] = d.[物料编号]
+LEFT JOIN (SELECT [物料编号], MAX([物料类别]) AS 物料类别, MAX([单价]) AS 单价 FROM [塑胶物料资料] GROUP BY [物料编号]) m ON m.[物料编号] = d.[物料编号]
+WHERE h.[日期] >= @qi AND h.[日期] < @qe
+  AND (@kw IS NULL OR d.[物料编号] LIKE @kw OR d.[物料名称] LIKE @kw)
+  AND (@cat IS NULL OR m.[物料类别] = @cat){ApprovalFilter(审核情况)}
+ORDER BY h.[日期] DESC, d.[单号], d.[ID]", new { qi, qe, kw, cat });
+        return rows.AsList();
+    }
+
+    public async Task<IReadOnlyList<PlasticStocktakeQuerySummaryRow>> StocktakeQuerySummaryAsync(
+        DateTime 起, DateTime 止, string? keyword, string? 审核情况, string? 物料类别)
+    {
+        var qi = 起.Date; var qe = 止.Date.AddDays(1);
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        var cat = string.IsNullOrWhiteSpace(物料类别) ? null : 物料类别.Trim();
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<PlasticStocktakeQuerySummaryRow>($@"
+SELECT d.[物料编号], MAX(d.[物料名称]) AS 物料名称, d.[颜色], MAX(cm.[塑胶货号]) AS 塑胶货号, MAX(m.[物料类别]) AS 物料类别, MAX(d.[单位]) AS 单位,
+       SUM(d.[系统数量]) AS 系统数量, SUM(d.[盘点数量]) AS 盘点数量, SUM(d.[盈亏数量]) AS 盈亏数量,
+       MAX(m.[单价]) AS 单价, SUM(d.[盈亏数量]*ISNULL(m.[单价],0)) AS 金额
+FROM [塑胶盘点明细单] d
+JOIN [塑胶盘点单] h ON h.[单号] = d.[单号]
+LEFT JOIN (SELECT [物料编号], MAX([塑胶货号]) AS 塑胶货号 FROM [塑胶共用物料表] GROUP BY [物料编号]) cm ON cm.[物料编号] = d.[物料编号]
+LEFT JOIN (SELECT [物料编号], MAX([物料类别]) AS 物料类别, MAX([单价]) AS 单价 FROM [塑胶物料资料] GROUP BY [物料编号]) m ON m.[物料编号] = d.[物料编号]
+WHERE h.[日期] >= @qi AND h.[日期] < @qe
+  AND (@kw IS NULL OR d.[物料编号] LIKE @kw OR d.[物料名称] LIKE @kw)
+  AND (@cat IS NULL OR m.[物料类别] = @cat){ApprovalFilter(审核情况)}
+GROUP BY d.[物料编号], d.[颜色]
+ORDER BY d.[物料编号]", new { qi, qe, kw, cat });
+        return rows.AsList();
+    }
 }

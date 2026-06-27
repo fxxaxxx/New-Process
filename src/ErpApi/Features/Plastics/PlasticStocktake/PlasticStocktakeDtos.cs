@@ -58,3 +58,37 @@ public sealed class PlasticStocktakeDetailDto
     public PlasticStocktakeHeaderDto? 单头 { get; set; }
     public List<PlasticStocktakeLineRowDto> 明细 { get; set; } = [];
 }
+
+public sealed class PlasticStocktakeQueryDetailRow
+{
+    public DateTime? 日期 { get; set; }
+    public string? 单号 { get; set; }
+    public string? 物料编号 { get; set; }
+    public string? 物料名称 { get; set; }
+    public string? 颜色 { get; set; }
+    public string? 塑胶货号 { get; set; }
+    public string? 共用货号 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 系统数量 { get; set; }
+    public decimal? 盘点数量 { get; set; }
+    public decimal? 盈亏数量 { get; set; }
+    public decimal? 单价 { get; set; }
+    public decimal? 金额 { get; set; }
+    public string? 备注 { get; set; }
+    public string? 审核 { get; set; }
+}
+
+public sealed class PlasticStocktakeQuerySummaryRow
+{
+    public string? 物料编号 { get; set; }
+    public string? 物料名称 { get; set; }
+    public string? 颜色 { get; set; }
+    public string? 塑胶货号 { get; set; }
+    public string? 物料类别 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 系统数量 { get; set; }
+    public decimal? 盘点数量 { get; set; }
+    public decimal? 盈亏数量 { get; set; }
+    public decimal? 单价 { get; set; }
+    public decimal? 金额 { get; set; }
+}
