@@ -74,3 +74,40 @@ public sealed class PlasticScrapCreateDto
     public string? 电脑单号 { get; set; }
     public List<PlasticScrapCreateLineDto> 明细 { get; set; } = [];
 }
+
+public sealed class PlasticScrapQueryDetailRow
+{
+    public DateTime? 日期 { get; set; }
+    public string? 单号 { get; set; }
+    public string? 生产单号 { get; set; }
+    public string? 款号 { get; set; }
+    public string? 报废部门 { get; set; }
+    public string? 报废人 { get; set; }
+    public string? 物料编号 { get; set; }
+    public string? 物料名称 { get; set; }
+    public string? 颜色 { get; set; }
+    public string? 塑胶货号 { get; set; }
+    public string? 共用物料 { get; set; }
+    public string? 共用货号 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 数量 { get; set; }
+    public decimal? 单价 { get; set; }
+    public decimal? 金额 { get; set; }
+    public string? 备注 { get; set; }
+    public string? 审核 { get; set; }
+}
+
+public sealed class PlasticScrapQuerySummaryRow
+{
+    public string? 物料编号 { get; set; }
+    public string? 物料名称 { get; set; }
+    public string? 颜色 { get; set; }
+    public string? 塑胶货号 { get; set; }
+    public string? 共用物料 { get; set; }
+    public string? 共用货号 { get; set; }
+    public string? 物料类别 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 数量 { get; set; }
+    public decimal? 单价 { get; set; }
+    public decimal? 金额 { get; set; }
+}
