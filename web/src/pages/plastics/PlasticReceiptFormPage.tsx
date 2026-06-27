@@ -2,18 +2,20 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Card, Col, Form, Input, Popconfirm, Row, Space, Statistic, Table, Tag, message } from "antd";
 import { SearchOutlined } from "@ant-design/icons";
 import { plasticSupplierDocApi, type PSDHeader, type PSDLine } from "../../api/plasticSupplierDoc";
+import { plasticDocApi } from "../../api/plasticDocs";
 import SupplierPicker from "./SupplierPicker";
+import PlasticReceiptPicker from "./PlasticReceiptPicker";
 import PlasticReceiptLineTable from "./PlasticReceiptLineTable";
+import type { PlasticReceiptFormCfg } from "./PlasticReceiptFormConfigs";
 import { can, hidePrice } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
 
-const MENU = "塑胶入仓单";
-const RESOURCE = "plastic-receipts";
 const today = () => new Date().toLocaleDateString("zh-CN");
 const currentUser = () => localStorage.getItem("erp_user") ?? "";
 
-export default function PlasticReceiptFormPage() {
-  const docApi = useMemo(() => plasticSupplierDocApi(RESOURCE), []);
+export default function PlasticReceiptFormPage({ cfg }: { cfg: PlasticReceiptFormCfg }) {
+  const MENU = cfg.menu;
+  const docApi = useMemo(() => plasticSupplierDocApi(cfg.resource), [cfg.resource]);
   const perms = usePerms();
   const priceHidden = hidePrice(perms, MENU);
   const [form] = Form.useForm<Record<string, unknown>>();
@@ -22,6 +24,7 @@ export default function PlasticReceiptFormPage() {
   const [opened, setOpened] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [supplierOpen, setSupplierOpen] = useState(false);
+  const [receiptOpen, setReceiptOpen] = useState(false);
   const readOnly = opened !== null;
 
   const loadRows = useCallback(async () => {
@@ -35,7 +38,25 @@ export default function PlasticReceiptFormPage() {
     form.setFieldsValue({ 日期: today(), 操作员: currentUser() });
     setLines([]); setOpened(null);
   }, [form]);
-  useEffect(() => { reset(); }, [reset]);
+  useEffect(() => { reset(); }, [reset, cfg.resource]);
+
+  const bringFromReceipt = async (单号: string) => {
+    try {
+      const d = await plasticDocApi("plastic-receipts").get(单号);
+      const h = d.单头 as { 供应商编号?: string; 供应商名称?: string; 订单单号?: string } | undefined;
+      form.setFieldsValue({ 入仓单号: 单号, 供应商编号: h?.供应商编号, 供应商名称: h?.供应商名称, 订单单号: h?.订单单号 });
+      setLines((d.明细 ?? []).map(l => {
+        const x = l as { 订单单号?: string; 生产单号?: string; 款号?: string; 工模编号?: string; 塑胶货号?: string };
+        return {
+          订单单号: x.订单单号, 生产单号: x.生产单号, 款号: x.款号,
+          工模编号: x.工模编号, 物料编号: l.物料编号, 物料名称: l.物料名称,
+          规格: l.规格, 颜色: l.颜色, 塑胶货号: x.塑胶货号, 仓位号: l.仓位号, 单位: l.单位,
+          数量: Number(l.数量 ?? 0), 单价: l.单价 ?? undefined,
+        };
+      }));
+      message.success(`已带出入仓单 ${单号} 的明细`);
+    } catch { message.error("带出入仓单明细失败"); }
+  };
 
   const openDoc = async (单号: string) => {
     try {
@@ -58,7 +79,7 @@ export default function PlasticReceiptFormPage() {
     setSaving(true);
     try {
       await docApi.create({ ...v, 明细: ok });
-      message.success("塑胶入仓单已创建"); reset(); loadRows();
+      message.success(`${cfg.title}单已创建`); reset(); loadRows();
     } catch (e) {
       message.error((e as { response?: { data?: { 消息?: string } } }).response?.data?.消息 ?? "创建失败");
     } finally { setSaving(false); }
@@ -94,7 +115,7 @@ export default function PlasticReceiptFormPage() {
   ];
 
   return (
-    <Card title={`塑胶入仓单（加工入仓）${readOnly ? `（查看 ${opened}）` : "（新建）"}`} variant="borderless"
+    <Card title={`${cfg.title}单${readOnly ? `（查看 ${opened}）` : "（新建）"}`} variant="borderless"
       extra={
         <Space wrap>
           <Button onClick={reset}>新建</Button>
@@ -112,7 +133,14 @@ export default function PlasticReceiptFormPage() {
             <Form.Item name="供应商编号" hidden><Input /></Form.Item>
           </Col>
           <Col span={4}><Form.Item name="日期" label="日期"><Input disabled /></Form.Item></Col>
-          <Col span={5}><Form.Item name="入仓单号" label="入库单号"><Input disabled={readOnly} /></Form.Item></Col>
+          <Col span={5}>
+            <Form.Item name="入仓单号" label="入库单号">
+              {cfg.allowReceiptPick
+                ? <Input readOnly placeholder="点🔍选入仓单带出"
+                    suffix={readOnly ? null : <SearchOutlined style={{ cursor: "pointer", color: "#1677ff" }} onClick={() => setReceiptOpen(true)} />} />
+                : <Input disabled={readOnly} />}
+            </Form.Item>
+          </Col>
           <Col span={5}><Form.Item name="订单单号" label="订单单号"><Input disabled={readOnly} /></Form.Item></Col>
           <Col span={4}><Form.Item name="电脑单号" label="电脑单号"><Input disabled /></Form.Item></Col>
         </Row>
@@ -138,6 +166,7 @@ export default function PlasticReceiptFormPage() {
       <SupplierPicker open={supplierOpen}
         onPick={row => form.setFieldsValue({ 供应商编号: row.供应商编号, 供应商名称: row.供应商名称 })}
         onClose={() => setSupplierOpen(false)} />
+      {cfg.allowReceiptPick && <PlasticReceiptPicker open={receiptOpen} onPick={bringFromReceipt} onClose={() => setReceiptOpen(false)} />}
     </Card>
   );
 }
