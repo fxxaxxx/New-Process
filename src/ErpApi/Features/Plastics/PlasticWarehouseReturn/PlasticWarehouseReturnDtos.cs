@@ -17,6 +17,7 @@ public sealed class PlasticWarehouseReturnHeaderDto
     public string? 出库单号 { get; set; }
     public string? 入仓单号 { get; set; }
     public string? 电脑单号 { get; set; }
+    public string? 订单单号 { get; set; }
 }
 
 public sealed class PlasticWarehouseReturnLineDto
@@ -24,6 +25,7 @@ public sealed class PlasticWarehouseReturnLineDto
     public long ID { get; set; }
     public string? 生产单号 { get; set; }
     public string? 款号 { get; set; }
+    public string? 工模编号 { get; set; }
     public string? 物料编号 { get; set; }
     public string? 物料名称 { get; set; }
     public string? 规格 { get; set; }
@@ -35,6 +37,7 @@ public sealed class PlasticWarehouseReturnLineDto
     public decimal? 单价 { get; set; }
     public decimal? 金额 { get; set; }
     public string? 备注 { get; set; }
+    public string? 订单单号 { get; set; }
 }
 
 public sealed class PlasticWarehouseReturnDetailDto
@@ -47,6 +50,7 @@ public sealed class PlasticWarehouseReturnCreateLineDto
 {
     public string? 生产单号 { get; set; }
     public string? 款号 { get; set; }
+    public string? 工模编号 { get; set; }
     public string? 物料编号 { get; set; }
     public string? 物料名称 { get; set; }
     public string? 规格 { get; set; }
@@ -57,6 +61,7 @@ public sealed class PlasticWarehouseReturnCreateLineDto
     public decimal 数量 { get; set; }
     public decimal? 单价 { get; set; }
     public string? 备注 { get; set; }
+    public string? 订单单号 { get; set; }
 }
 
 public sealed class PlasticWarehouseReturnCreateDto
@@ -68,5 +73,6 @@ public sealed class PlasticWarehouseReturnCreateDto
     public string? 出库单号 { get; set; }
     public string? 入仓单号 { get; set; }
     public string? 电脑单号 { get; set; }
+    public string? 订单单号 { get; set; }
     public List<PlasticWarehouseReturnCreateLineDto> 明细 { get; set; } = [];
 }
