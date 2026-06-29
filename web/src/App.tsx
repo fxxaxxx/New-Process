@@ -33,6 +33,7 @@ import PlasticInventoryPage from "./pages/plastics/PlasticInventoryPage";
 import PlasticInOutReportPage from "./pages/plastics/PlasticInOutReportPage";
 import PlasticAnalysisDetailPage from "./pages/plastics/PlasticAnalysisDetailPage";
 import PlasticOrderMakePage from "./pages/plastics/PlasticOrderMakePage";
+import PlasticProcessOrderMakePage from "./pages/plastics/PlasticProcessOrderMakePage";
 import PlasticCustomerTypeStatsPage from "./pages/plastics/PlasticCustomerTypeStatsPage";
 import PlasticRawMaterialSummaryPage from "./pages/plastics/PlasticRawMaterialSummaryPage";
 import PlasticOrderQueryPage from "./pages/plastics/PlasticOrderQueryPage";
@@ -139,6 +140,7 @@ export default function App() {
           <Route path="plastic-in-out" element={<PlasticInOutReportPage />} />
           <Route path="plastic-analysis-detail" element={<PlasticAnalysisDetailPage />} />
           <Route path="plastic-order-make" element={<PlasticOrderMakePage />} />
+          <Route path="plastic-process-order-make" element={<PlasticProcessOrderMakePage />} />
           <Route path="plastic-purchase-orders" element={<PlasticPurchaseOrderPage />} />
           <Route path="plastic-purchase-progress" element={<PlasticPurchaseProgressPage />} />
           <Route path="plastic-customer-type-stats" element={<PlasticCustomerTypeStatsPage />} />
