@@ -111,7 +111,7 @@ export const MENU_TREE: MenuGroup[] = [
   { key: "g-outsource", label: "发外加工", children: [
     M("加工厂资料", "/master/加工厂资料", "加工厂资料"),
     M("塑胶加工订单制作", "/plastic-process-order-make", "塑胶加工订单制作"),
-    M("塑胶加工采购单"),
+    M("塑胶加工采购单", "/plastic-process-purchase-orders", "塑胶加工采购单"),
     M("加工采购查询"),
     M("白件领料单"),
     M("加工入仓单"),
