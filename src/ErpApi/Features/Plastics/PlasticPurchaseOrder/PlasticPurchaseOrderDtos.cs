@@ -82,3 +82,22 @@ public sealed class PlasticPurchaseOrderBasisRow
     public string? 色粉号 { get; set; }
     public string? 用料名称 { get; set; }
 }
+
+public sealed class PlasticPurchaseProgressRow
+{
+    public DateTime? 订购日期 { get; set; }
+    public DateTime? 交货日期 { get; set; }
+    public string? 采购单号 { get; set; }
+    public string? 生产单号 { get; set; }
+    public string? 款号 { get; set; }
+    public string? 物料编号 { get; set; }
+    public string? 物料名称 { get; set; }
+    public string? 模具编号 { get; set; }
+    public string? 颜色 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 订购数量 { get; set; }
+    public decimal? 入仓数量 { get; set; }
+    public decimal? 欠数 { get; set; }
+    public string? 供应商名称 { get; set; }
+    public string? 审核 { get; set; }
+}
