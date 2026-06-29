@@ -233,6 +233,28 @@ ORDER BY p.[款号], d.[工模编号], d.[物料编号]", new { qi, qe, kw, cat 
         return rows.AsList();
     }
 
+    // 塑胶订单制作:已审核(调整审核='1')塑胶 BOM 按生产单平铺展开(订购数量=用量×计划数量·金额=订购数量×加工单价)。
+    public async Task<IReadOnlyList<PlasticOrderMakeRow>> OrderMakeListAsync(DateTime 起, DateTime 止, string? keyword)
+    {
+        var qi = 起.Date; var qe = 止.Date.AddDays(1);
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<PlasticOrderMakeRow>(@"
+SELECT pm.[日期] AS 单据日期, g.[生产单号], pm.[款号], g.[货号] AS 塑胶货号, p.[工模编号], p.[物料编号], p.[物料名称], p.[颜色],
+       p.[用料名称], m.[单位], p.[用量], pm.[计划数量],
+       p.[用量]*ISNULL(pm.[计划数量],0) AS 订购数量, p.[加工单价],
+       p.[用量]*ISNULL(pm.[计划数量],0)*ISNULL(p.[加工单价],0) AS 金额
+FROM [生产制单货号] g
+JOIN [塑胶共用物料表] p ON p.[塑胶货号] = g.[货号]
+JOIN [生产制单] pm ON pm.[生产单号] = g.[生产单号]
+LEFT JOIN (SELECT [物料编号], MAX([单位]) AS 单位 FROM [塑胶物料资料] GROUP BY [物料编号]) m ON m.[物料编号] = p.[物料编号]
+WHERE pm.[日期] >= @qi AND pm.[日期] < @qe
+  AND p.[调整审核] = '1'
+  AND (@kw IS NULL OR g.[生产单号] LIKE @kw OR pm.[款号] LIKE @kw OR p.[物料编号] LIKE @kw OR p.[物料名称] LIKE @kw OR g.[货号] LIKE @kw)
+ORDER BY g.[生产单号], p.[物料编号]", new { qi, qe, kw });
+        return rows.AsList();
+    }
+
     // 删除:仅未审核可删;FK 顺序 明细→头。
     public async Task<bool> DeleteAsync(string 单号)
     {
