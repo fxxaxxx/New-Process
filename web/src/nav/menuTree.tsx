@@ -115,7 +115,7 @@ export const MENU_TREE: MenuGroup[] = [
     M("加工采购查询", "/plastic-process-purchase-query", "加工采购查询"),
     M("白件领料单", "/plastic-white-part-issue", "白件领料单"),
     M("加工入仓单", "/plastic-receipts", "塑胶入仓单"),
-    M("采购加工进度表"),
+    M("采购加工进度表", "/plastic-process-purchase-progress", "采购加工进度表"),
     M("采购加工明细表"),
     M("加工领料进度表"),
     M("物料发外欠数表"),
