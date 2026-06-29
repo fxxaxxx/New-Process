@@ -91,7 +91,7 @@ export const MENU_TREE: MenuGroup[] = [
   ]},
   // ⑦ 塑胶采购
   { key: "g-plastic-pur", label: "塑胶采购", children: [
-    M("塑胶采购分析", "/plastic-material-analysis", "塑胶物料单"), M("塑胶物料设置"), M("塑胶订单制作", "/plastic-order-make", "塑胶订单制作"), M("塑胶采购订单"),
+    M("塑胶采购分析", "/plastic-material-analysis", "塑胶物料单"), M("塑胶物料设置"), M("塑胶订单制作", "/plastic-order-make", "塑胶订单制作"), M("塑胶采购订单", "/plastic-purchase-orders", "塑胶采购订单"),
     M("塑胶进度表"), M("塑胶进度明细表"), M("塑胶物料进出汇总"),
   ]},
   // ⑧ 塑胶仓库
