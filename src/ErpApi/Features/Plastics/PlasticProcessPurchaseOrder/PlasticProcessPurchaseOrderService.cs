@@ -85,6 +85,56 @@ FROM [塑胶加工采购单明细] WHERE [单号]=@单号 ORDER BY [ID];", new {
         return new PlasticProcessPurchaseOrderDetailDto { 单头 = header, 明细 = lines };
     }
 
+    private static string ApprovalFilter(string? 审核情况) => 审核情况 switch
+    {
+        "已审核" => " AND ISNULL(h.[审核],'0')='1'",
+        "未审核" => " AND ISNULL(h.[审核],'0')<>'1'",
+        _ => "",
+    };
+
+    public async Task<IReadOnlyList<PlasticProcessPurchaseQueryDetailRow>> QueryDetailAsync(
+        DateTime 起, DateTime 止, string? keyword, string? 审核情况, string? 物料类别)
+    {
+        var qi = 起.Date; var qe = 止.Date.AddDays(1);
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        var cat = string.IsNullOrWhiteSpace(物料类别) ? null : 物料类别.Trim();
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<PlasticProcessPurchaseQueryDetailRow>($@"
+SELECT h.[日期] AS 单据日期, d.[单号], h.[加工厂名称], d.[生产单号], d.[款号], d.[模具编号], d.[物料编号], d.[物料名称],
+       d.[用料名称], d.[颜色], d.[加工内容], m.[单位], d.[数量], d.[单价], d.[金额], d.[备注], h.[审核]
+FROM [塑胶加工采购单明细] d
+JOIN [塑胶加工采购单] h ON h.[单号] = d.[单号]
+LEFT JOIN (SELECT [物料编号], MAX([单位]) AS 单位, MAX([物料类别]) AS 物料类别 FROM [塑胶物料资料] GROUP BY [物料编号]) m ON m.[物料编号] = d.[物料编号]
+WHERE h.[日期] >= @qi AND h.[日期] < @qe
+  AND (@kw IS NULL OR d.[单号] LIKE @kw OR h.[加工厂名称] LIKE @kw OR d.[生产单号] LIKE @kw OR d.[款号] LIKE @kw OR d.[物料编号] LIKE @kw OR d.[物料名称] LIKE @kw)
+  AND (@cat IS NULL OR m.[物料类别] = @cat){ApprovalFilter(审核情况)}
+ORDER BY h.[日期] DESC, d.[单号], d.[ID]", new { qi, qe, kw, cat });
+        return rows.AsList();
+    }
+
+    public async Task<IReadOnlyList<PlasticProcessPurchaseQuerySummaryRow>> QuerySummaryAsync(
+        DateTime 起, DateTime 止, string? keyword, string? 审核情况, string? 物料类别)
+    {
+        var qi = 起.Date; var qe = 止.Date.AddDays(1);
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        var cat = string.IsNullOrWhiteSpace(物料类别) ? null : 物料类别.Trim();
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<PlasticProcessPurchaseQuerySummaryRow>($@"
+SELECT d.[模具编号], d.[物料编号], MAX(d.[物料名称]) AS 物料名称, d.[颜色],
+       MAX(cm.[共用原料编号]) AS 共用物料, d.[加工内容], MAX(m.[物料类别]) AS 物料类别, MAX(m.[单位]) AS 单位,
+       SUM(d.[数量]) AS 订购数量, SUM(ISNULL(d.[金额],0)) AS 总金额
+FROM [塑胶加工采购单明细] d
+JOIN [塑胶加工采购单] h ON h.[单号] = d.[单号]
+LEFT JOIN (SELECT [物料编号], MAX([共用原料编号]) AS 共用原料编号 FROM [塑胶共用物料表] GROUP BY [物料编号]) cm ON cm.[物料编号] = d.[物料编号]
+LEFT JOIN (SELECT [物料编号], MAX([单位]) AS 单位, MAX([物料类别]) AS 物料类别 FROM [塑胶物料资料] GROUP BY [物料编号]) m ON m.[物料编号] = d.[物料编号]
+WHERE h.[日期] >= @qi AND h.[日期] < @qe
+  AND (@kw IS NULL OR d.[单号] LIKE @kw OR h.[加工厂名称] LIKE @kw OR d.[生产单号] LIKE @kw OR d.[款号] LIKE @kw OR d.[物料编号] LIKE @kw OR d.[物料名称] LIKE @kw)
+  AND (@cat IS NULL OR m.[物料类别] = @cat){ApprovalFilter(审核情况)}
+GROUP BY d.[模具编号], d.[物料编号], d.[颜色], d.[加工内容]
+ORDER BY d.[物料编号]", new { qi, qe, kw, cat });
+        return rows.AsList();
+    }
+
     public async Task<bool> DeleteAsync(string 单号)
     {
         using var c = factory.Create();
