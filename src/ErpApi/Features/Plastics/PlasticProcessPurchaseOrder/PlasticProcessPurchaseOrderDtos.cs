@@ -81,3 +81,38 @@ public sealed class PlasticProcessPurchaseOrderBasisRow
     public string? 加工内容 { get; set; }
     public decimal? 单价 { get; set; }
 }
+
+public sealed class PlasticProcessPurchaseQueryDetailRow
+{
+    public DateTime? 单据日期 { get; set; }
+    public string? 单号 { get; set; }
+    public string? 加工厂名称 { get; set; }
+    public string? 生产单号 { get; set; }
+    public string? 款号 { get; set; }
+    public string? 模具编号 { get; set; }
+    public string? 物料编号 { get; set; }
+    public string? 物料名称 { get; set; }
+    public string? 用料名称 { get; set; }
+    public string? 颜色 { get; set; }
+    public string? 加工内容 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 数量 { get; set; }
+    public decimal? 单价 { get; set; }
+    public decimal? 金额 { get; set; }
+    public string? 备注 { get; set; }
+    public string? 审核 { get; set; }
+}
+
+public sealed class PlasticProcessPurchaseQuerySummaryRow
+{
+    public string? 模具编号 { get; set; }
+    public string? 物料编号 { get; set; }
+    public string? 物料名称 { get; set; }
+    public string? 颜色 { get; set; }
+    public string? 共用物料 { get; set; }
+    public string? 加工内容 { get; set; }
+    public string? 物料类别 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 订购数量 { get; set; }
+    public decimal? 总金额 { get; set; }
+}
