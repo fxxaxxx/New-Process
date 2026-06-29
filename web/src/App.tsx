@@ -39,6 +39,7 @@ import PlasticOrderQueryPage from "./pages/plastics/PlasticOrderQueryPage";
 import PlasticIssueQueryPage from "./pages/plastics/PlasticIssueQueryPage";
 import PlasticReturnQueryPage from "./pages/plastics/PlasticReturnQueryPage";
 import PlasticScrapQueryPage from "./pages/plastics/PlasticScrapQueryPage";
+import PlasticReceiptQueryPage from "./pages/plastics/PlasticReceiptQueryPage";
 import PlasticStocktakeQueryPage from "./pages/plastics/PlasticStocktakeQueryPage";
 import PlasticLabelQueryPage from "./pages/plastics/PlasticLabelQueryPage";
 import PlasticStocktakePage from "./pages/plastics/PlasticStocktakePage";
@@ -141,6 +142,7 @@ export default function App() {
           <Route path="plastic-issue-query" element={<PlasticIssueQueryPage />} />
           <Route path="plastic-return-query" element={<PlasticReturnQueryPage />} />
           <Route path="plastic-scrap-query" element={<PlasticScrapQueryPage />} />
+          <Route path="plastic-receipt-query" element={<PlasticReceiptQueryPage />} />
           <Route path="plastic-stocktake-query" element={<PlasticStocktakeQueryPage />} />
           <Route path="plastic-label-query" element={<PlasticLabelQueryPage />} />
           <Route path="material-inventory" element={<MaterialInventoryPage />} />
