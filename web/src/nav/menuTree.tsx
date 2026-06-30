@@ -24,7 +24,7 @@ export const MENU_TREE: MenuGroup[] = [
     M("仓库位置设置"),
     M("备份数据"),
     M("还原数据"),
-    M("塑胶原料资料表"),
+    M("塑胶原料资料表", "/plastic-raw-material-master", "塑胶原料资料表"),
     M("啤机机型啤工表"),
     M("供应商资料", "/master/供应商资料", "供应商资料"),
     M("客户资料", "/master/客户资料", "客户资料"),
