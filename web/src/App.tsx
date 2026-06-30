@@ -27,6 +27,7 @@ import ProgressDetailPage from "./pages/production/ProgressDetailPage";
 import MaterialDocRouter from "./pages/materials/MaterialDocRouter";
 import MaterialMasterPage from "./pages/materials/MaterialMasterPage";
 import PlasticMaterialMasterPage from "./pages/plastics/PlasticMaterialMasterPage";
+import PlasticRawMaterialMasterPage from "./pages/plastics/PlasticRawMaterialMasterPage";
 import PlasticCommonMaterialPage from "./pages/plastics/PlasticCommonMaterialPage";
 import PlasticMaterialAnalysisPage from "./pages/plastics/PlasticMaterialAnalysisPage";
 import PlasticInventoryPage from "./pages/plastics/PlasticInventoryPage";
@@ -135,6 +136,7 @@ export default function App() {
           <Route path="materials/:doc" element={<MaterialDocRouter />} />
           <Route path="material-master" element={<MaterialMasterPage />} />
           <Route path="plastic-material-master" element={<PlasticMaterialMasterPage />} />
+          <Route path="plastic-raw-material-master" element={<PlasticRawMaterialMasterPage />} />
           <Route path="plastic-common-materials" element={<PlasticCommonMaterialPage />} />
           <Route path="plastic-material-analysis" element={<PlasticMaterialAnalysisPage />} />
           <Route path="plastic-receipts" element={<PlasticReceiptFormPage cfg={PLASTIC_RECEIPT_FORM_CONFIGS["plastic-receipts"]} />} />
