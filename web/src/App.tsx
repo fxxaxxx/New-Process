@@ -58,6 +58,7 @@ import PlasticProcessPurchaseDetailPage from "./pages/plastics/PlasticProcessPur
 import PlasticProcessIssueProgressPage from "./pages/plastics/PlasticProcessIssueProgressPage";
 import PlasticProcessShortagePage from "./pages/plastics/PlasticProcessShortagePage";
 import PlasticWhitePartIssuePage from "./pages/plastics/PlasticWhitePartIssuePage";
+import PlasticRawMaterialDemandPage from "./pages/plastics/PlasticRawMaterialDemandPage";
 import { PLASTIC_SUPPLIER_DOC_CONFIGS } from "./pages/plastics/PlasticSupplierDocConfigs";
 import { PLASTIC_RECEIPT_FORM_CONFIGS } from "./pages/plastics/PlasticReceiptFormConfigs";
 import MaterialInventoryPage from "./pages/materials/MaterialInventoryPage";
@@ -158,6 +159,7 @@ export default function App() {
           <Route path="plastic-process-issue-progress" element={<PlasticProcessIssueProgressPage />} />
           <Route path="plastic-process-shortage" element={<PlasticProcessShortagePage />} />
           <Route path="plastic-white-part-issue" element={<PlasticWhitePartIssuePage />} />
+          <Route path="plastic-raw-material-demand" element={<PlasticRawMaterialDemandPage />} />
           <Route path="plastic-purchase-progress" element={<PlasticPurchaseProgressPage />} />
           <Route path="plastic-customer-type-stats" element={<PlasticCustomerTypeStatsPage />} />
           <Route path="plastic-raw-material-summary" element={<PlasticRawMaterialSummaryPage />} />
