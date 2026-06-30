@@ -41,4 +41,32 @@ ORDER BY [物料编号] OFFSET (@page-1)*@size ROWS FETCH NEXT @size ROWS ONLY;"
         var items = (await multi.ReadAsync<PlasticRawMaterialRow>()).AsList();
         return new PagedResult<PlasticRawMaterialRow>(items, total);
     }
+
+    public async Task<IReadOnlyList<PlasticRawMaterialPurchaseRow>> PurchaseAnalysisAsync(
+        string? 物料类别, string? keyword, bool onlyBuy)
+    {
+        var cat = string.IsNullOrWhiteSpace(物料类别) ? null : 物料类别.Trim();
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<PlasticRawMaterialPurchaseRow>(@"
+SELECT m.[物料编号] AS 原料编号, MAX(m.[物料名称]) AS 原料名称, MAX(m.[规格]) AS 规格,
+       MAX(m.[物料类别]) AS 物料类别, MAX(m.[单位]) AS 单位,
+       MAX(ISNULL(m.[库存],0)) AS 当前库存, MAX(ISNULL(m.[安全库存],0)) AS 安全库存,
+       MAX(ISNULL(dm.[生产需求],0)) AS 生产需求,
+       MAX(ISNULL(m.[安全库存],0)) + MAX(ISNULL(dm.[生产需求],0)) - MAX(ISNULL(m.[库存],0)) AS 可购数量
+FROM [塑胶原料资料] m
+LEFT JOIN (
+    SELECT d.[原料编号], SUM(d.[需求数量KG]) AS 生产需求
+    FROM [原料生产需求明细单] d
+    JOIN [原料生产需求表] h ON h.[单号] = d.[单号]
+    WHERE ISNULL(h.[审核],'0') = '1'
+    GROUP BY d.[原料编号]
+) dm ON dm.[原料编号] = m.[物料编号]
+WHERE (@cat IS NULL OR m.[物料类别] = @cat)
+  AND (@kw IS NULL OR m.[物料编号] LIKE @kw OR m.[物料名称] LIKE @kw)
+GROUP BY m.[物料编号]
+HAVING (@onlyBuy = 0 OR (MAX(ISNULL(m.[安全库存],0)) + MAX(ISNULL(dm.[生产需求],0)) - MAX(ISNULL(m.[库存],0))) > 0)
+ORDER BY m.[物料编号]", new { cat, kw, onlyBuy = onlyBuy ? 1 : 0 });
+        return rows.AsList();
+    }
 }

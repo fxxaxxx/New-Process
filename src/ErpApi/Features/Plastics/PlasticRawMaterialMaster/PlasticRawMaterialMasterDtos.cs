@@ -28,3 +28,16 @@ public sealed class PlasticRawMaterialRow
     public string? 供应商名称 { get; set; }
     public string? 备注 { get; set; }
 }
+
+public sealed class PlasticRawMaterialPurchaseRow
+{
+    public string? 原料编号 { get; set; }
+    public string? 原料名称 { get; set; }
+    public string? 规格 { get; set; }
+    public string? 物料类别 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 当前库存 { get; set; }
+    public decimal? 安全库存 { get; set; }
+    public decimal? 生产需求 { get; set; }
+    public decimal? 可购数量 { get; set; }
+}
