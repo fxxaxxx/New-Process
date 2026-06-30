@@ -118,7 +118,7 @@ export const MENU_TREE: MenuGroup[] = [
     M("采购加工进度表", "/plastic-process-purchase-progress", "采购加工进度表"),
     M("采购加工明细表", "/plastic-process-purchase-detail", "采购加工明细表"),
     M("加工领料进度表", "/plastic-process-issue-progress", "加工领料进度表"),
-    M("物料发外欠数表"),
+    M("物料发外欠数表", "/plastic-process-shortage", "物料发外欠数表"),
     M("生产加工缺料表"),
   ]},
   // ⑪ 原料仓库

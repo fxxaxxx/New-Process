@@ -245,6 +245,44 @@ ORDER BY o.[单号] DESC, d.[ID]", new { f, 起, 止 = 止Excl, kw, done });
         return rows.AsList();
     }
 
+    public async Task<IReadOnlyList<PlasticProcessShortageRow>> ShortageAsync(
+        string? 物料类别, string? 审核情况, string? keyword, bool onlyOwed)
+    {
+        var cat = string.IsNullOrWhiteSpace(物料类别) ? null : 物料类别.Trim();
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        var appr = 审核情况 switch
+        {
+            "已审核" => " AND ISNULL(o.[审核],'0')='1'",
+            "未审核" => " AND ISNULL(o.[审核],'0')<>'1'",
+            _ => "",
+        };
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<PlasticProcessShortageRow>($@"
+SELECT d.[物料编号], MAX(cm.[共用原料编号]) AS 共用物料编号, MAX(d.[物料名称]) AS 物料名称,
+       d.[模具编号], MAX(cn.[物料名称]) AS 共用物料, MAX(m.[物料类别]) AS 物料类别, MAX(m.[单位]) AS 单位,
+       SUM(d.[数量] - ISNULL(rk.[入仓数量],0)) AS 欠数,
+       MAX(d.[单价]) AS 单价,
+       SUM((d.[数量] - ISNULL(rk.[入仓数量],0)) * ISNULL(d.[单价],0)) AS 金额
+FROM [塑胶加工采购单明细] d
+JOIN [塑胶加工采购单] o ON o.[单号] = d.[单号]
+LEFT JOIN (SELECT [物料编号], MAX([单位]) AS 单位, MAX([物料类别]) AS 物料类别, MAX([物料名称]) AS 物料名称 FROM [塑胶物料资料] GROUP BY [物料编号]) m ON m.[物料编号] = d.[物料编号]
+LEFT JOIN (SELECT [物料编号], MAX([共用原料编号]) AS 共用原料编号 FROM [塑胶共用物料表] GROUP BY [物料编号]) cm ON cm.[物料编号] = d.[物料编号]
+LEFT JOIN (SELECT [物料编号], MAX([物料名称]) AS 物料名称 FROM [塑胶物料资料] GROUP BY [物料编号]) cn ON cn.[物料编号] = cm.[共用原料编号]
+LEFT JOIN (
+    SELECT r.[生产单号], r.[物料编号], ISNULL(r.[颜色],'') AS 颜色键, SUM(r.[数量]) AS 入仓数量
+    FROM [塑胶入仓明细单] r
+    JOIN [塑胶入仓单] h ON h.[单号] = r.[单号]
+    WHERE ISNULL(h.[审核],'0') = '1'
+    GROUP BY r.[生产单号], r.[物料编号], ISNULL(r.[颜色],'')
+) rk ON rk.[生产单号] = d.[生产单号] AND rk.[物料编号] = d.[物料编号] AND rk.[颜色键] = ISNULL(d.[颜色],'')
+WHERE (@cat IS NULL OR m.[物料类别] = @cat)
+  AND (@kw IS NULL OR d.[物料编号] LIKE @kw OR d.[物料名称] LIKE @kw){appr}
+GROUP BY d.[物料编号], d.[模具编号]
+HAVING (@onlyOwed = 0 OR SUM(d.[数量] - ISNULL(rk.[入仓数量],0)) > 0)
+ORDER BY d.[物料编号]", new { cat, kw, onlyOwed = onlyOwed ? 1 : 0 });
+        return rows.AsList();
+    }
+
     public async Task<bool> DeleteAsync(string 单号)
     {
         using var c = factory.Create();

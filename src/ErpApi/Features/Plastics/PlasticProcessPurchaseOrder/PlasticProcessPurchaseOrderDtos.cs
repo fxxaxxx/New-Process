@@ -194,3 +194,17 @@ public sealed class PlasticProcessIssueProgressRow
     public string? 完成情况 { get; set; }
     public string? 加工厂名称 { get; set; }
 }
+
+public sealed class PlasticProcessShortageRow
+{
+    public string? 物料编号 { get; set; }
+    public string? 共用物料编号 { get; set; }
+    public string? 物料名称 { get; set; }
+    public string? 模具编号 { get; set; }
+    public string? 共用物料 { get; set; }
+    public string? 物料类别 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 欠数 { get; set; }
+    public decimal? 单价 { get; set; }
+    public decimal? 金额 { get; set; }
+}
