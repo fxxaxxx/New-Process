@@ -208,6 +208,43 @@ ORDER BY o.[单号] DESC, d.[ID]", new { f, 起, 止 = 止Excl, kw, done });
         return rows.AsList();
     }
 
+    public async Task<IReadOnlyList<PlasticProcessIssueProgressRow>> IssueProgressAsync(
+        string? 加工厂, DateTime? 起, DateTime? 止, string? keyword, string? 完成情况)
+    {
+        var f = string.IsNullOrWhiteSpace(加工厂) ? null : $"%{加工厂.Trim()}%";
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        var 止Excl = 止?.Date.AddDays(1);
+        var done = 完成情况 switch { "已完成" => 1, "未完成" => 0, _ => -1 };
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<PlasticProcessIssueProgressRow>(@"
+SELECT o.[日期] AS 订购日期, o.[交货日期], o.[单号] AS 订购单号, d.[生产单号], d.[款号],
+       d.[模具编号], d.[物料编号], d.[物料名称], d.[用料名称], d.[颜色], d.[加工内容], m.[单位],
+       d.[数量] AS 订购数量, d.[单价], d.[金额] AS 订购金额,
+       rk.[领料日期], rk.[领料单号], ISNULL(rk.[领料数量], 0) AS 领料数量,
+       d.[数量] - ISNULL(rk.[领料数量], 0) AS 未完成数量,
+       (d.[数量] - ISNULL(rk.[领料数量], 0)) * ISNULL(d.[单价], 0) AS 未完成金额,
+       CASE WHEN d.[数量] - ISNULL(rk.[领料数量], 0) <= 0 THEN N'已完成' ELSE N'未完成' END AS 完成情况,
+       o.[加工厂名称]
+FROM [塑胶加工采购单明细] d
+JOIN [塑胶加工采购单] o ON o.[单号] = d.[单号]
+LEFT JOIN (SELECT [物料编号], MAX([单位]) AS 单位 FROM [塑胶物料资料] GROUP BY [物料编号]) m ON m.[物料编号] = d.[物料编号]
+LEFT JOIN (
+    SELECT r.[生产单号], r.[物料编号], ISNULL(r.[颜色],'') AS 颜色键,
+           SUM(r.[数量]) AS 领料数量, MAX(r.[单号]) AS 领料单号, MAX(h.[日期]) AS 领料日期
+    FROM [白件领料明细单] r
+    JOIN [白件领料单] h ON h.[单号] = r.[单号]
+    WHERE ISNULL(h.[审核],'0') = '1'
+    GROUP BY r.[生产单号], r.[物料编号], ISNULL(r.[颜色],'')
+) rk ON rk.[生产单号] = d.[生产单号] AND rk.[物料编号] = d.[物料编号] AND rk.[颜色键] = ISNULL(d.[颜色],'')
+WHERE (@f IS NULL OR o.[加工厂编号] LIKE @f OR o.[加工厂名称] LIKE @f)
+  AND (@起 IS NULL OR o.[日期] >= @起)
+  AND (@止 IS NULL OR o.[日期] < @止)
+  AND (@kw IS NULL OR d.[生产单号] LIKE @kw OR d.[款号] LIKE @kw OR d.[物料编号] LIKE @kw OR d.[物料名称] LIKE @kw)
+  AND (@done = -1 OR (@done = 1 AND (d.[数量] - ISNULL(rk.[领料数量],0)) <= 0) OR (@done = 0 AND (d.[数量] - ISNULL(rk.[领料数量],0)) > 0))
+ORDER BY o.[单号] DESC, d.[ID]", new { f, 起, 止 = 止Excl, kw, done });
+        return rows.AsList();
+    }
+
     public async Task<bool> DeleteAsync(string 单号)
     {
         using var c = factory.Create();

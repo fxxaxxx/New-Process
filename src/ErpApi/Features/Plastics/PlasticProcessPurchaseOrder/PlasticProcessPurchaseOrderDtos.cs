@@ -168,3 +168,29 @@ public sealed class PlasticProcessPurchaseDetailRow
     public string? 完成情况 { get; set; }
     public string? 加工厂名称 { get; set; }
 }
+
+public sealed class PlasticProcessIssueProgressRow
+{
+    public DateTime? 订购日期 { get; set; }
+    public DateTime? 交货日期 { get; set; }
+    public string? 订购单号 { get; set; }
+    public string? 生产单号 { get; set; }
+    public string? 款号 { get; set; }
+    public string? 模具编号 { get; set; }
+    public string? 物料编号 { get; set; }
+    public string? 物料名称 { get; set; }
+    public string? 用料名称 { get; set; }
+    public string? 颜色 { get; set; }
+    public string? 加工内容 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 订购数量 { get; set; }
+    public decimal? 单价 { get; set; }
+    public decimal? 订购金额 { get; set; }
+    public DateTime? 领料日期 { get; set; }
+    public string? 领料单号 { get; set; }
+    public decimal? 领料数量 { get; set; }
+    public decimal? 未完成数量 { get; set; }
+    public decimal? 未完成金额 { get; set; }
+    public string? 完成情况 { get; set; }
+    public string? 加工厂名称 { get; set; }
+}
