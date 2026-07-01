@@ -141,12 +141,13 @@ builder.Services.AddScoped<ErpApi.Features.Plastics.PlasticRawMaterialReceipt.Pl
 
 - [ ] **Step 7: 建库应用两个 SQL**
 
-Run(PowerShell,环境变量 `ERP_TEST_DB` / `ERP_DB` 已配,参考既往 worklog 的建库方式;若用 sqlcmd):
+DB 用 LocalDB,库名 `erp`(开发)与 `erp_test`(测试)。新 SQL 直接用 sqlcmd 应用到两个库(若 LocalDB 停止态先 `SqlLocalDB start MSSQLLocalDB`):
 ```
-sqlcmd -S "(localdb)\MSSQLLocalDB" -d ErpDb -i db/33_raw_material_receipt.sql
-sqlcmd -S "(localdb)\MSSQLLocalDB" -d ErpDb -i db/seed_raw_material_receipt_perms.sql
+sqlcmd -S "(localdb)\MSSQLLocalDB" -d erp -i db/33_raw_material_receipt.sql
+sqlcmd -S "(localdb)\MSSQLLocalDB" -d erp_test -i db/33_raw_material_receipt.sql
+sqlcmd -S "(localdb)\MSSQLLocalDB" -d erp -i db/seed_raw_material_receipt_perms.sql
 ```
-Expected: 两条命令无错(表创建 / 1 row affected)。测试库 `ERP_TEST_DB` 同样各跑一次。
+Expected: 无错(表创建;seed 仅需 dev 库 `erp`,1 row affected)。建表 SQL 两库都要跑(测试用 `erp_test`)。
 
 - [ ] **Step 8: 后端编译确认地基不破坏**
 
