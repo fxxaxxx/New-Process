@@ -9,7 +9,7 @@ export interface PlasticRawMaterialRow {
   单位?: string; 仓位号?: string; 商品名称?: string;
   单价?: number | null; 销售价?: number | null; 起订量?: number | null; 安全库存?: number | null;
   库存?: number | null; 最低库存?: number | null; 最高库存?: number | null;
-  供应商编号?: string; 供应商名称?: string; 备注?: string;
+  供应商编号?: string; 供应商名称?: string; 产地?: string; 每包重量?: number | null; 备注?: string;
 }
 
 export const plasticRawMaterialMasterApi = {

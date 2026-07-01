@@ -19,5 +19,7 @@ public sealed class 塑胶原料资料 : MasterEntity
     [Column("供应商编号")] public string? 供应商编号 { get; set; }
     [Column("款号")] public string? 款号 { get; set; }
     [Column("货币")] public string? 货币 { get; set; }
+    [Column("产地")] public string? 产地 { get; set; }
+    [Column("每包重量")] public decimal? 每包重量 { get; set; }
     [Column("备注")] public string? 备注 { get; set; }
 }
