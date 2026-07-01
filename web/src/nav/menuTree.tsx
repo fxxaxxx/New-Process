@@ -125,7 +125,7 @@ export const MENU_TREE: MenuGroup[] = [
   { key: "g-raw", label: "原料仓库", children: [
     M("原料资料"), M("原料生产需求表", "/plastic-raw-material-demand", "原料生产需求表"), M("原料采购分析表", "/plastic-raw-material-purchase-analysis", "原料采购分析表"), M("原料采购订单", "/plastic-raw-material-purchase-order", "原料采购订单"),
     M("原料采购进度表"), M("原料出库进度表"), M("原料入仓单", "/plastic-raw-material-receipt", "原料入仓单"), M("原料退仓单", "/plastic-raw-material-return", "原料退仓单"),
-    M("原料出库表", "/plastic-raw-material-stock-issue", "原料出库表"), M("原料退库表", "/plastic-raw-material-stock-return", "原料退库表"), M("原料盘点单"),
+    M("原料出库表", "/plastic-raw-material-stock-issue", "原料出库表"), M("原料退库表", "/plastic-raw-material-stock-return", "原料退库表"), M("原料盘点单", "/plastic-raw-material-stocktake", "原料盘点单"),
   ]},
   // ⑫ 原料报表
   { key: "g-raw-rpt", label: "原料报表", children: [
