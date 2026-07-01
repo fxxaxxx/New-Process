@@ -21,5 +21,7 @@ CREATE TABLE [塑胶原料资料] (
     [供应商名称] nvarchar(80) NULL,
     [款号] nvarchar(40) NULL,
     [货币] nvarchar(20) NULL,
+    [产地] nvarchar(60) NULL,
+    [每包重量] decimal(18,4) NULL,
     [备注] nvarchar(200) NULL
 );

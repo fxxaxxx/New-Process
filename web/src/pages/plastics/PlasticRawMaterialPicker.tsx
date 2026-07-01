@@ -34,6 +34,8 @@ export default function PlasticRawMaterialPicker({ open, onPick, onClose }: {
     { title: "物料名称", dataIndex: "物料名称", width: 150 },
     { title: "规格", dataIndex: "规格", width: 110 },
     { title: "商品名称", dataIndex: "商品名称", width: 120 },
+    { title: "产地", dataIndex: "产地", width: 90 },
+    { title: "每包重量", dataIndex: "每包重量", width: 80 },
     { title: "单位", dataIndex: "单位", width: 60 },
   ];
 

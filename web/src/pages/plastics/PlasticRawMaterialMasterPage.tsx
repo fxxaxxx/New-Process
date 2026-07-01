@@ -102,6 +102,8 @@ export default function PlasticRawMaterialMasterPage() {
     { title: "规格", dataIndex: "规格", width: 100 },
     { title: "颜色", dataIndex: "颜色", width: 70 },
     { title: "商品名称", dataIndex: "商品名称", width: 130 },
+    { title: "产地", dataIndex: "产地", width: 90 },
+    { title: "每包重量", dataIndex: "每包重量", width: 80, align: "right" as const, render: (v?: number | null) => v ?? "" },
     { title: "单位", dataIndex: "单位", width: 60 },
     { title: "单价", dataIndex: "单价", width: 90, align: "right" as const, render: money },
     { title: "销售价", dataIndex: "销售价", width: 90, align: "right" as const, render: money },
@@ -177,6 +179,8 @@ export default function PlasticRawMaterialMasterPage() {
           <Form.Item name="颜色" label="颜色"><Input /></Form.Item>
           <Form.Item name="商品名称" label="商品名称"><Input /></Form.Item>
           <Form.Item name="单位" label="单位"><Input /></Form.Item>
+          <Form.Item name="产地" label="产地"><Input /></Form.Item>
+          <Form.Item name="每包重量" label="每包重量"><InputNumber min={0} style={{ width: "100%" }} /></Form.Item>
           <Form.Item name="仓位号" label="仓位号"><Input /></Form.Item>
           {!priceHidden && (
             <>
