@@ -58,6 +58,7 @@ builder.Services.AddScoped<ErpApi.Features.Plastics.PlasticRawMaterialReceipt.Pl
 builder.Services.AddScoped<ErpApi.Features.Plastics.PlasticRawMaterialReturn.PlasticRawMaterialReturnService>();
 builder.Services.AddScoped<ErpApi.Features.Plastics.PlasticRawMaterialStockReturn.PlasticRawMaterialStockReturnService>();
 builder.Services.AddScoped<ErpApi.Features.Plastics.PlasticRawMaterialStockIssue.PlasticRawMaterialStockIssueService>();
+builder.Services.AddScoped<ErpApi.Features.Plastics.PlasticRawMaterialStocktake.PlasticRawMaterialStocktakeService>();
 builder.Services.AddScoped<ErpApi.Features.Plastics.PlasticReceipt.PlasticReceiptService>();
 builder.Services.AddScoped<ErpApi.Features.Plastics.PlasticIssue.PlasticIssueService>();
 builder.Services.AddScoped<ErpApi.Features.Plastics.PlasticReturn.PlasticReturnService>();

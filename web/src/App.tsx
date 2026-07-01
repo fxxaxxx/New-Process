@@ -65,6 +65,7 @@ import PlasticRawMaterialReceiptPage from "./pages/plastics/PlasticRawMaterialRe
 import PlasticRawMaterialReturnPage from "./pages/plastics/PlasticRawMaterialReturnPage";
 import PlasticRawMaterialStockReturnPage from "./pages/plastics/PlasticRawMaterialStockReturnPage";
 import PlasticRawMaterialStockIssuePage from "./pages/plastics/PlasticRawMaterialStockIssuePage";
+import PlasticRawMaterialStocktakePage from "./pages/plastics/PlasticRawMaterialStocktakePage";
 import { PLASTIC_SUPPLIER_DOC_CONFIGS } from "./pages/plastics/PlasticSupplierDocConfigs";
 import { PLASTIC_RECEIPT_FORM_CONFIGS } from "./pages/plastics/PlasticReceiptFormConfigs";
 import MaterialInventoryPage from "./pages/materials/MaterialInventoryPage";
@@ -172,6 +173,7 @@ export default function App() {
           <Route path="plastic-raw-material-return" element={<PlasticRawMaterialReturnPage />} />
           <Route path="plastic-raw-material-stock-return" element={<PlasticRawMaterialStockReturnPage />} />
           <Route path="plastic-raw-material-stock-issue" element={<PlasticRawMaterialStockIssuePage />} />
+          <Route path="plastic-raw-material-stocktake" element={<PlasticRawMaterialStocktakePage />} />
           <Route path="plastic-purchase-progress" element={<PlasticPurchaseProgressPage />} />
           <Route path="plastic-customer-type-stats" element={<PlasticCustomerTypeStatsPage />} />
           <Route path="plastic-raw-material-summary" element={<PlasticRawMaterialSummaryPage />} />
