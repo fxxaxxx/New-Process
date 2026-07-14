@@ -21,9 +21,9 @@ BEGIN
     [更新时间] datetime2 NOT NULL CONSTRAINT [DF_半成品共用物料设置_更新时间] DEFAULT(SYSDATETIME())
   );
 END;
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name=N'UX_半成品共用物料设置_产品货号')
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name=N'UX_半成品共用物料设置_产品货号' AND object_id = OBJECT_ID(N'[半成品共用物料设置]'))
   CREATE UNIQUE INDEX [UX_半成品共用物料设置_产品货号] ON [半成品共用物料设置]([产品货号]);
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name=N'IX_半成品共用物料设置_共用审核')
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name=N'IX_半成品共用物料设置_共用审核' AND object_id = OBJECT_ID(N'[半成品共用物料设置]'))
   CREATE INDEX [IX_半成品共用物料设置_共用审核] ON [半成品共用物料设置]([共用物料编号],[调整审核]);
 
 IF OBJECT_ID(N'[装配物料报价]', N'U') IS NULL
@@ -47,5 +47,5 @@ BEGIN
     [备注] nvarchar(500) NULL
   );
 END;
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name=N'IX_装配物料报价_产品货号')
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name=N'IX_装配物料报价_产品货号' AND object_id = OBJECT_ID(N'[装配物料报价]'))
   CREATE INDEX [IX_装配物料报价_产品货号] ON [装配物料报价]([产品货号],[顺序],[ID]);
