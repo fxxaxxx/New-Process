@@ -115,9 +115,30 @@ export function loadSemiFinishedCommonMaterialFilters(
     const value = storage.getItem(SEMI_FINISHED_COMMON_MATERIAL_FILTER_STORAGE_KEY);
     if (!value) return {};
     const parsed: unknown = JSON.parse(value);
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
-      ? parsed as SemiFinishedCommonMaterialFilterState
-      : {};
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+
+    const source = parsed as Record<string, unknown>;
+    const filters: SemiFinishedCommonMaterialFilterState = {};
+    const stringKeys = [
+      "field", "查询字段", "keyword", "duplicate", "重复内容",
+      "pending", "待操作物料", "audit", "审核情况",
+    ] as const;
+    const booleanKeys = ["exact", "精确"] as const;
+    const numberKeys = ["page", "size"] as const;
+
+    for (const key of stringKeys) {
+      if (typeof source[key] === "string") filters[key] = source[key];
+    }
+    for (const key of booleanKeys) {
+      if (typeof source[key] === "boolean") filters[key] = source[key];
+    }
+    for (const key of numberKeys) {
+      if (typeof source[key] === "number" && Number.isFinite(source[key])) {
+        filters[key] = source[key];
+      }
+    }
+
+    return filters;
   } catch {
     return {};
   }

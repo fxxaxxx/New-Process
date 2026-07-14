@@ -97,6 +97,66 @@ describe("半成品共用物料前端契约", () => {
     expect(loadSemiFinishedCommonMaterialFilters(session)).toEqual({});
   });
 
+  it("discards wrong-typed stored fields before query construction", () => {
+    const stored = new Map<string, string>([[
+      "semi-finished-common-materials.filters",
+      JSON.stringify({
+        field: {},
+        查询字段: 42,
+        keyword: 1,
+        exact: "true",
+        精确: null,
+        duplicate: ["显示重复"],
+        重复内容: false,
+        pending: {},
+        待操作物料: 1,
+        audit: [],
+        审核情况: {},
+        page: "3",
+        size: {},
+      }),
+    ]]);
+    const session = {
+      getItem: (key: string) => stored.get(key) ?? null,
+      setItem: (key: string, value: string) => stored.set(key, value),
+      removeItem: (key: string) => stored.delete(key),
+    } satisfies Pick<Storage, "getItem" | "setItem" | "removeItem">;
+
+    const filters = loadSemiFinishedCommonMaterialFilters(session);
+
+    expect(filters).toEqual({});
+    expect(() => buildSemiFinishedCommonMaterialParams(filters)).not.toThrow();
+  });
+
+  it("keeps valid stored fields while dropping malformed and unknown fields", () => {
+    const stored = new Map<string, string>([[
+      "semi-finished-common-materials.filters",
+      JSON.stringify({
+        field: "客户",
+        keyword: { trim: "not-a-function" },
+        exact: true,
+        page: 3,
+        size: 25,
+        unknown: "ignored",
+      }),
+    ]]);
+    const session = {
+      getItem: (key: string) => stored.get(key) ?? null,
+      setItem: (key: string, value: string) => stored.set(key, value),
+      removeItem: (key: string) => stored.delete(key),
+    } satisfies Pick<Storage, "getItem" | "setItem" | "removeItem">;
+
+    const filters = loadSemiFinishedCommonMaterialFilters(session);
+
+    expect(filters).toEqual({ field: "客户", exact: true, page: 3, size: 25 });
+    expect(buildSemiFinishedCommonMaterialParams(filters)).toEqual({
+      查询字段: "客户",
+      精确: true,
+      page: 3,
+      size: 25,
+    });
+  });
+
   it("keeps styles detail extensions and quotes optional and typed", () => {
     const view: StyleMaterialsView = {
       款号: "STYLE-1",
