@@ -21,4 +21,28 @@ public sealed class SemiFinishedCommonMaterialController(
         var canSeePrice = await perms.HasAsync(CurrentUser, Menu, PermissionAction.单价);
         return Ok(await svc.ListAsync(query, canSeePrice));
     }
+
+    [HttpPost("{产品货号}/audit")]
+    public async Task<IActionResult> Audit(string 产品货号)
+    {
+        if (!await perms.HasAsync(CurrentUser, Menu, PermissionAction.审核)) return Forbid();
+        try { await svc.SetAuditAsync(产品货号, true, CurrentUser); }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("不存在"))
+        { return NotFound(new { 消息 = ex.Message }); }
+        catch (InvalidOperationException ex)
+        { return Conflict(new { 消息 = ex.Message }); }
+        return NoContent();
+    }
+
+    [HttpPost("{产品货号}/reverse-audit")]
+    public async Task<IActionResult> ReverseAudit(string 产品货号)
+    {
+        if (!await perms.HasAsync(CurrentUser, Menu, PermissionAction.反审核)) return Forbid();
+        try { await svc.SetAuditAsync(产品货号, false, CurrentUser); }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("不存在"))
+        { return NotFound(new { 消息 = ex.Message }); }
+        catch (InvalidOperationException ex)
+        { return Conflict(new { 消息 = ex.Message }); }
+        return NoContent();
+    }
 }

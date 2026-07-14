@@ -6,6 +6,53 @@ namespace ErpApi.Features.Warehouse.Semi.CommonMaterials;
 
 public sealed class SemiFinishedCommonMaterialService(ISqlConnectionFactory factory)
 {
+    public async Task SetAuditAsync(string 产品货号, bool audited, string user)
+    {
+        using var c = factory.Create();
+        await c.OpenAsync();
+        using var tx = c.BeginTransaction();
+        try
+        {
+            var style = await c.QuerySingleOrDefaultAsync<StyleHeaderRow>(@"
+SELECT TOP (1) [款号],[款式] FROM [款号总表]
+WHERE [款号]=@产品货号 ORDER BY [ID] DESC", new { 产品货号 }, tx);
+            if (style is null) throw new InvalidOperationException($"产品货号 [{产品货号}] 不存在。");
+            var existing = await c.ExecuteScalarAsync<int>(
+                "SELECT COUNT(*) FROM [半成品共用物料设置] WHERE [产品货号]=@产品货号",
+                new { 产品货号 }, tx);
+            if (!audited && existing == 0)
+                throw new InvalidOperationException($"产品货号 [{产品货号}] 尚未审核。");
+            var header = await c.QuerySingleOrDefaultAsync<MaterialHeaderRow>(@"
+SELECT TOP (1) [产品编号],[单位],[备注]
+FROM [款号物料总表] WHERE [款号]=@产品货号 ORDER BY [ID] DESC", new { 产品货号 }, tx);
+
+            await c.ExecuteAsync(@"
+MERGE [半成品共用物料设置] AS target
+USING (SELECT @产品货号 AS [产品货号], @产品装配名称 AS [产品装配名称],
+              @配件编号 AS [配件编号], @单位 AS [单位], @备注内容 AS [备注内容]) AS source
+ON target.[产品货号] = source.[产品货号]
+WHEN MATCHED THEN UPDATE SET
+    [调整审核]=@调整审核,
+    [审核人]=CASE WHEN @调整审核=1 THEN @审核人 ELSE NULL END,
+    [审核时间]=CASE WHEN @调整审核=1 THEN SYSDATETIME() ELSE NULL END
+WHEN NOT MATCHED AND @调整审核=1 THEN
+    INSERT([产品货号],[产品装配名称],[配件编号],[单位],[备注内容],[调整审核],[审核人],[审核时间])
+    VALUES(source.[产品货号],source.[产品装配名称],source.[配件编号],source.[单位],source.[备注内容],@调整审核,@审核人,SYSDATETIME());
+", new
+            {
+                产品货号, 产品装配名称 = style.款式, 配件编号 = header?.产品编号,
+                单位 = header?.单位, 备注内容 = header?.备注,
+                调整审核 = audited ? 1 : 0, 审核人 = user
+            }, tx);
+            tx.Commit();
+        }
+        catch
+        {
+            try { tx.Rollback(); } catch { }
+            throw;
+        }
+    }
+
     public async Task<PagedResult<SemiFinishedCommonMaterialRow>> ListAsync(
         SemiFinishedCommonMaterialQuery query,
         bool canSeePrice)
@@ -108,5 +155,18 @@ OFFSET (@page - 1) * @size ROWS FETCH NEXT @size ROWS ONLY;";
                 row.库存单价 = null;
 
         return new PagedResult<SemiFinishedCommonMaterialRow>(items, total);
+    }
+
+    private sealed class StyleHeaderRow
+    {
+        public string? 款号 { get; set; }
+        public string? 款式 { get; set; }
+    }
+
+    private sealed class MaterialHeaderRow
+    {
+        public string? 产品编号 { get; set; }
+        public string? 单位 { get; set; }
+        public string? 备注 { get; set; }
     }
 }

@@ -1,3 +1,9 @@
+IF OBJECT_ID(N'[款号物料明细表]', N'U') IS NOT NULL
+   AND COL_LENGTH(N'[款号物料明细表]', N'工模编号') IS NULL
+BEGIN
+  ALTER TABLE [款号物料明细表] ADD [工模编号] nvarchar(100) NULL;
+END;
+
 IF OBJECT_ID(N'[半成品共用物料设置]', N'U') IS NULL
 BEGIN
   CREATE TABLE [半成品共用物料设置](

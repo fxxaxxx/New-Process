@@ -65,8 +65,39 @@ public sealed class StyleController(
     {
         if (!await AllowAsync(PermissionAction.保存)) return Forbid();
         try { await svc.ReplaceMaterialsAsync(款号, dto); }
-        catch (InvalidOperationException ex) { return NotFound(new { 消息 = ex.Message }); }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("不存在"))
+        { return NotFound(new { 消息 = ex.Message }); }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("合作方类型"))
+        { return BadRequest(new { 消息 = ex.Message }); }
+        catch (InvalidOperationException ex)
+        { return Conflict(new { 消息 = ex.Message }); }
         await AuditAsync("款号物料明细表", "修改", $"款号={款号}");
+        return NoContent();
+    }
+
+    [HttpPost("{款号}/audit")]
+    public async Task<IActionResult> AuditMaterials(string 款号)
+    {
+        if (!await AllowAsync(PermissionAction.审核)) return Forbid();
+        try { await svc.SetAuditAsync(款号, true, CurrentUser); }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("不存在"))
+        { return NotFound(new { 消息 = ex.Message }); }
+        catch (InvalidOperationException ex)
+        { return Conflict(new { 消息 = ex.Message }); }
+        await AuditAsync("半成品共用物料设置", "审核", $"产品货号={款号}");
+        return NoContent();
+    }
+
+    [HttpPost("{款号}/reverse-audit")]
+    public async Task<IActionResult> ReverseAuditMaterials(string 款号)
+    {
+        if (!await AllowAsync(PermissionAction.反审核)) return Forbid();
+        try { await svc.SetAuditAsync(款号, false, CurrentUser); }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("不存在"))
+        { return NotFound(new { 消息 = ex.Message }); }
+        catch (InvalidOperationException ex)
+        { return Conflict(new { 消息 = ex.Message }); }
+        await AuditAsync("半成品共用物料设置", "反审核", $"产品货号={款号}");
         return NoContent();
     }
 
