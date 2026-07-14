@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   Button, Card, Checkbox, Col, DatePicker, Form, Input, InputNumber, Modal, Popconfirm,
@@ -148,6 +148,7 @@ export default function BomSetupPage() {
   const perms = usePerms();
   const canOpen = can(perms, MENU, "打开");
   const canSave = can(perms, MENU, "保存");
+  const canEditPrices = can(perms, MENU, "单价");
   const canAudit = can(perms, MENU, "审核");
   const canReverseAudit = can(perms, MENU, "反审核");
   const [form] = Form.useForm<HeaderForm>();
@@ -166,8 +167,8 @@ export default function BomSetupPage() {
   const [saving, setSaving] = useState(false);
   const [auditSaving, setAuditSaving] = useState(false);
   const [audited, setAudited] = useState(false);
-  const [hasExtensionData, setHasExtensionData] = useState(true);
-  const [hasQuoteData, setHasQuoteData] = useState(true);
+  const [hasExtensionData, setHasExtensionData] = useState(false);
+  const [hasQuoteData, setHasQuoteData] = useState(false);
   const readOnly = audited;
 
   const [customers, setCustomers] = useState<CustomerPick[]>([]);
@@ -189,17 +190,22 @@ export default function BomSetupPage() {
   const [partnerKw, setPartnerKw] = useState("");
   const [partnerLoading, setPartnerLoading] = useState(false);
   const [partnerForRow, setPartnerForRow] = useState<number | null>(null);
+  const [partnerForQuote, setPartnerForQuote] = useState<number | null>(null);
+  const loadVersion = useRef(0);
 
   const patch = (key: number, p: Partial<MatRow>) =>
     setRows(rs => rs.map(r => (r.key === key ? { ...r, ...p } : r)));
-  const patchQuote = (key: number, p: Partial<QuoteRow>) =>
+  const patchQuote = (key: number, p: Partial<QuoteRow>) => {
+    if (isAssembly) setHasQuoteData(true);
     setQuoteRows(rs => rs.map(r => (r.key === key ? { ...r, ...p } : r)));
+  };
 
   const reset = useCallback(() => {
+    loadVersion.current += 1;
     setLoaded款号("");
     setAudited(false);
-    setHasExtensionData(true);
-    setHasQuoteData(true);
+    setHasExtensionData(false);
+    setHasQuoteData(false);
     form.resetFields();
     form.setFieldsValue({
       日期: dayjs(),
@@ -210,7 +216,9 @@ export default function BomSetupPage() {
       操作员: currentUser,
     });
     setRows(blankRows());
-    setQuoteRows([newQuoteRow()]);
+    setQuoteRows([]);
+    setPartnerForRow(null);
+    setPartnerForQuote(null);
   }, [currentUser, form]);
 
   useEffect(() => {
@@ -260,36 +268,40 @@ export default function BomSetupPage() {
   const loadDoc = useCallback(async (productNo: string, preserveCustomer = false) => {
     const key = productNo.trim();
     if (!key) return;
+    const requestVersion = ++loadVersion.current;
     try {
       const full = await stylesApi.materials(key);
+      if (requestVersion !== loadVersion.current) return;
       const first = full.物料?.[0];
-      const hasExtension = Object.prototype.hasOwnProperty.call(full, "扩展");
-      const hasQuotes = Object.prototype.hasOwnProperty.call(full, "报价");
+      const hasExtension = isAssembly
+        && Object.prototype.hasOwnProperty.call(full, "扩展")
+        && full.扩展 != null;
+      const hasQuotes = isAssembly
+        && Object.prototype.hasOwnProperty.call(full, "报价")
+        && Array.isArray(full.报价);
       const extension = full.扩展;
       const current = form.getFieldsValue();
       setLoaded款号(key);
       setHasExtensionData(hasExtension);
       setHasQuoteData(hasQuotes);
-      setAudited(Boolean(extension?.调整审核));
+      setAudited(hasExtension && Boolean(extension?.调整审核));
       form.setFieldsValue({
         客户编号: preserveCustomer ? current.客户编号 : first?.客户编号 ?? current.客户编号,
         客户名称: preserveCustomer ? current.客户名称 : first?.客户名称 ?? current.客户名称,
         产品货号: key,
         产品名称: String(full.款式 ?? ""),
         日期: first?.日期 ? dayjs(first.日期) : current.日期 ?? dayjs(),
-        ...(hasExtension ? {
-          配件编号: extension?.配件编号 ?? current.配件编号,
-          共用物料编号: extension?.共用物料编号 ?? current.共用物料编号,
-          装配方式: extension?.装配方式 ?? current.装配方式,
-          产品装配名称: extension?.产品装配名称 ?? current.产品装配名称 ?? String(full.款式 ?? ""),
-          类别: extension?.类别 ?? current.类别 ?? "未包装半成品",
-          库存单价HK: extension?.库存单价HK ?? current.库存单价HK ?? 0,
-          半成品计算库存: extension?.半成品计算库存 ?? current.半成品计算库存 ?? false,
-          其他成本HK: extension?.其他成本HK ?? current.其他成本HK,
-          需求用量: extension?.需求用量 ?? current.需求用量 ?? 1,
-          备注: extension?.备注内容 ?? current.备注,
-        } : {}),
-        单位: extension?.单位 ?? first?.单位 ?? current.单位 ?? "PCS",
+        配件编号: hasExtension ? extension?.配件编号 ?? undefined : undefined,
+        共用物料编号: hasExtension ? extension?.共用物料编号 ?? undefined : undefined,
+        装配方式: hasExtension ? extension?.装配方式 ?? undefined : undefined,
+        产品装配名称: hasExtension ? extension?.产品装配名称 ?? String(full.款式 ?? "") : undefined,
+        类别: hasExtension ? extension?.类别 ?? "未包装半成品" : undefined,
+        库存单价HK: hasExtension ? extension?.库存单价HK ?? undefined : undefined,
+        半成品计算库存: hasExtension ? extension?.半成品计算库存 ?? false : undefined,
+        其他成本HK: hasExtension ? extension?.其他成本HK ?? undefined : undefined,
+        需求用量: hasExtension ? extension?.需求用量 ?? 1 : undefined,
+        备注: hasExtension ? extension?.备注内容 ?? undefined : undefined,
+        单位: hasExtension ? extension?.单位 ?? first?.单位 ?? "PCS" : first?.单位 ?? "PCS",
         操作员: current.操作员 ?? currentUser,
       });
       setRows(rowsFromMaterials((full.物料 ?? []) as MaterialPick[]));
@@ -312,13 +324,17 @@ export default function BomSetupPage() {
               默认: q.是否默认 ?? false,
               备注: q.备注 ?? "",
             }))
-          : [newQuoteRow()]);
+          : []);
+      } else {
+        setQuoteRows([]);
       }
+      setPartnerForRow(null);
+      setPartnerForQuote(null);
       setOpenModal(false);
     } catch (e) {
-      message.error(errMsg(e, "产品货号不存在或加载失败"));
+      if (requestVersion === loadVersion.current) message.error(errMsg(e, "产品货号不存在或加载失败"));
     }
-  }, [currentUser, form]);
+  }, [currentUser, form, isAssembly]);
 
   useEffect(() => {
     if (款号Param) loadDoc(款号Param);
@@ -326,6 +342,7 @@ export default function BomSetupPage() {
   }, [款号Param, loadDoc, reset]);
 
   const onCustomerChange = (customerNo?: string) => {
+    loadVersion.current += 1;
     const picked = customers.find(c => c.客户编号 === customerNo);
     form.setFieldsValue({
       客户编号: customerNo,
@@ -335,14 +352,22 @@ export default function BomSetupPage() {
     });
     setLoaded款号("");
     setRows(blankRows());
-    setQuoteRows([newQuoteRow()]);
+    setQuoteRows([]);
+    setHasExtensionData(false);
+    setHasQuoteData(false);
+    setPartnerForRow(null);
+    setPartnerForQuote(null);
   };
 
   const onProductChange = async (productNo?: string) => {
     if (!productNo) {
+      loadVersion.current += 1;
       form.setFieldsValue({ 产品货号: undefined, 产品名称: undefined });
       setLoaded款号("");
       setRows(blankRows());
+      setQuoteRows([]);
+      setHasExtensionData(false);
+      setHasQuoteData(false);
       return;
     }
     const customerNo = form.getFieldValue("客户编号");
@@ -411,8 +436,13 @@ export default function BomSetupPage() {
     loadPickList("");
   };
 
-  const openPartnerPicker = (rowKey: number | null = null, type: "factory" | "supplier" = "supplier") => {
+  const openPartnerPicker = (
+    rowKey: number | null = null,
+    type: "factory" | "supplier" = "supplier",
+    quoteKey: number | null = null,
+  ) => {
     setPartnerForRow(rowKey);
+    setPartnerForQuote(quoteKey);
     setPartnerTab(type);
     setPartnerKw("");
     setPartnerOpen(true);
@@ -454,18 +484,33 @@ export default function BomSetupPage() {
   }, [partnerOpen, partnerTab, loadPartnerList]);
 
   const choosePartner = (row: FactoryPick | SupplierPick) => {
-    const mat = rows.find(r => r.key === partnerForRow);
     const isFactory = partnerTab === "factory";
+    const 编号 = isFactory ? (row as FactoryPick).加工厂编号 ?? "" : (row as SupplierPick).供应商编号 ?? "";
+    const 名称 = isFactory ? (row as FactoryPick).加工厂名称 ?? "" : (row as SupplierPick).供应商名称 ?? "";
+    const 货币 = isFactory ? "HK$" : (row as SupplierPick).货币 ?? "HK$";
+    if (partnerForQuote != null) {
+      if (isAssembly) setHasQuoteData(true);
+      setQuoteRows(prev => prev.map(q => q.key === partnerForQuote
+        ? { ...q, 类型: isFactory ? "加工厂" : "供应商", 编号, 名称, 货币 }
+        : q));
+      setPartnerOpen(false);
+      setPartnerForQuote(null);
+      setPartnerForRow(null);
+      return;
+    }
+    const mat = rows.find(r => r.key === partnerForRow);
     const quote = newQuoteRow({
       类型: isFactory ? "加工厂" : "供应商",
-      编号: isFactory ? (row as FactoryPick).加工厂编号 ?? "" : (row as SupplierPick).供应商编号 ?? "",
-      名称: isFactory ? (row as FactoryPick).加工厂名称 ?? "" : (row as SupplierPick).供应商名称 ?? "",
-      货币: isFactory ? "HK$" : (row as SupplierPick).货币 ?? "HK$",
+      编号,
+      名称,
+      货币,
       物料编号: mat?.物料编号,
       物料名称: mat?.物料名称,
     });
-    setQuoteRows(prev => [...prev.filter(q => q.编号 || q.名称), quote]);
+    if (isAssembly) setHasQuoteData(true);
+    setQuoteRows(prev => [...prev.filter(q => q.物料编号 || q.物料名称 || q.编号 || q.名称), quote]);
     setPartnerOpen(false);
+    setPartnerForRow(null);
   };
 
   const addRow = () => setRows(rs => [...rs, newRow()]);
@@ -498,8 +543,8 @@ export default function BomSetupPage() {
         共用物料编号: v.共用物料编号 || undefined,
         装配方式: v.装配方式 || undefined,
         类别: v.类别 || undefined,
-        库存单价HK: v.库存单价HK ?? null,
-        其他成本HK: v.其他成本HK ?? null,
+        库存单价HK: canEditPrices ? v.库存单价HK ?? null : null,
+        其他成本HK: canEditPrices ? v.其他成本HK ?? null : null,
         需求用量: v.需求用量 ?? null,
         单位: v.单位 || undefined,
         半成品计算库存: !!v.半成品计算库存,
@@ -518,10 +563,10 @@ export default function BomSetupPage() {
           合作方名称: q.名称.trim() || null,
           报价日期: q.报价日期 || null,
           货币: q.货币 || null,
-          单价: q.单价 ?? null,
-          港币价: q.港币 ?? null,
-          对比相差: q.对比相差 ?? null,
-          相差比例: q.相差比例 ?? null,
+          单价: canEditPrices ? q.单价 ?? null : null,
+          港币价: canEditPrices ? q.港币 ?? null : null,
+          对比相差: canEditPrices ? q.对比相差 ?? null : null,
+          相差比例: canEditPrices ? q.相差比例 ?? null : null,
           是否默认: !!q.默认,
           顺序: i + 1,
           备注: q.备注 || null,
@@ -681,7 +726,8 @@ export default function BomSetupPage() {
            value={String(v ?? "")}
            disabled={readOnly}
           placeholder="选择"
-          onSearch={() => openPartnerPicker(null, r.类型 === "加工厂" ? "factory" : "supplier")}
+          data-role="quote-partner"
+          onSearch={() => openPartnerPicker(null, r.类型 === "加工厂" ? "factory" : "supplier", r.key)}
           onChange={e => patchQuote(r.key, { 名称: e.target.value })}
         />
       ),
@@ -712,11 +758,15 @@ export default function BomSetupPage() {
     },
     {
       title: "单价", dataIndex: "单价", width: 110,
-      render: (v, r) => <InputNumber disabled={readOnly} style={{ width: 96 }} min={0} value={v} onChange={n => patchQuote(r.key, { 单价: n ?? undefined })} />,
+      render: (v, r) => canEditPrices
+        ? <InputNumber data-price-field="quote-unit-price" disabled={readOnly} style={{ width: 96 }} min={0} value={v} onChange={n => patchQuote(r.key, { 单价: n ?? undefined })} />
+        : <Input data-price-field="quote-unit-price" disabled value="***" style={{ width: 96 }} />,
     },
     {
       title: "港币", dataIndex: "港币", width: 110,
-      render: (v, r) => <InputNumber disabled={readOnly} style={{ width: 96 }} min={0} value={v} onChange={n => patchQuote(r.key, { 港币: n ?? undefined })} />,
+      render: (v, r) => canEditPrices
+        ? <InputNumber data-price-field="quote-hkd-price" disabled={readOnly} style={{ width: 96 }} min={0} value={v} onChange={n => patchQuote(r.key, { 港币: n ?? undefined })} />
+        : <Input data-price-field="quote-hkd-price" disabled value="***" style={{ width: 96 }} />,
     },
     {
       title: "备注", dataIndex: "备注", width: 150,
@@ -725,14 +775,24 @@ export default function BomSetupPage() {
     {
       title: "默认", dataIndex: "默认", width: 80, align: "center",
       render: (v, r) => (
-        <a onClick={() => { if (!readOnly) setQuoteRows(qs => qs.map(q => ({ ...q, 默认: q.key === r.key }))); }}>
+        <a onClick={() => {
+          if (!readOnly) {
+            if (isAssembly) setHasQuoteData(true);
+            setQuoteRows(qs => qs.map(q => ({ ...q, 默认: q.key === r.key })));
+          }
+        }}>
           {v ? <Tag color="blue">默认</Tag> : "设为默认"}
         </a>
       ),
     },
     {
       title: "", width: 60,
-      render: (_v, r) => <a onClick={() => { if (!readOnly) setQuoteRows(qs => qs.filter(q => q.key !== r.key)); }}>删除</a>,
+      render: (_v, r) => <a onClick={() => {
+        if (!readOnly) {
+          if (isAssembly) setHasQuoteData(true);
+          setQuoteRows(qs => qs.filter(q => q.key !== r.key));
+        }
+      }}>删除</a>,
     },
   ];
 
@@ -784,7 +844,17 @@ export default function BomSetupPage() {
       variant="borderless"
       extra={toolbar}
     >
-      <Form form={form} layout="vertical" size="small">
+      <Form
+        form={form}
+        layout="vertical"
+        size="small"
+        onValuesChange={(changed: Partial<HeaderForm>) => {
+          if (isAssembly && Object.keys(changed).some(field => [
+            "配件编号", "共用物料编号", "装配方式", "产品装配名称", "类别",
+            "库存单价HK", "其他成本HK", "需求用量", "单位", "半成品计算库存", "备注",
+          ].includes(field))) setHasExtensionData(true);
+        }}
+      >
         <Row gutter={12}>
           <Col span={3}>
             <Form.Item name="客户编号" label="客户" rules={[{ required: true, message: "请先选择客户" }]}>
@@ -826,13 +896,21 @@ export default function BomSetupPage() {
               <Select disabled={readOnly} options={["未包装半成品", "半成品", "成品"].map(v => ({ value: v, label: v }))} />
             </Form.Item>
           </Col>
-          <Col span={3}><Form.Item name="库存单价HK" label="库存单价(HK$)"><InputNumber disabled={readOnly} min={0} style={{ width: "100%" }} /></Form.Item></Col>
+          <Col span={3}>
+            {canEditPrices
+              ? <Form.Item name="库存单价HK" label="库存单价(HK$)"><InputNumber data-price-field="extension-inventory-price" disabled={readOnly} min={0} style={{ width: "100%" }} /></Form.Item>
+              : <Form.Item label="库存单价(HK$)"><Input data-price-field="extension-inventory-price" disabled value="***" /></Form.Item>}
+          </Col>
           <Col span={3}><Form.Item name="需求用量" label="需求用量"><InputNumber disabled={readOnly} min={0} style={{ width: "100%" }} /></Form.Item></Col>
           <Col span={2}><Form.Item name="单位" label="单位"><Input disabled={readOnly} placeholder="PCS" /></Form.Item></Col>
           <Col span={3}><Form.Item name="操作员" label="操作员"><Input disabled /></Form.Item></Col>
         </Row>
         <Row gutter={12}>
-          <Col span={4}><Form.Item name="其他成本HK" label="其他成本(HK$)"><InputNumber disabled={readOnly} min={0} style={{ width: "100%" }} /></Form.Item></Col>
+          <Col span={4}>
+            {canEditPrices
+              ? <Form.Item name="其他成本HK" label="其他成本(HK$)"><InputNumber data-price-field="extension-other-cost" disabled={readOnly} min={0} style={{ width: "100%" }} /></Form.Item>
+              : <Form.Item label="其他成本(HK$)"><Input data-price-field="extension-other-cost" disabled value="***" /></Form.Item>}
+          </Col>
           <Col span={4}>
             <Form.Item name="半成品计算库存" label="半成品计算库存" valuePropName="checked">
               <Checkbox disabled={readOnly}>计算库存</Checkbox>
