@@ -82,6 +82,7 @@ builder.Services.AddScoped<ErpApi.Features.Warehouse.Finished.FinishedVendorRetu
 builder.Services.AddScoped<ErpApi.Features.Warehouse.Semi.SemiReceiptService>();
 builder.Services.AddScoped<ErpApi.Features.Warehouse.Semi.SemiIssueService>();
 builder.Services.AddScoped<ErpApi.Features.Warehouse.Semi.SemiStocktakeService>();
+builder.Services.AddScoped<ErpApi.Features.Warehouse.Semi.CommonMaterials.SemiFinishedCommonMaterialService>();
 builder.Services.AddScoped<ErpApi.Features.MonthEnd.MonthEndService>();
 builder.Services.AddScoped<ErpApi.Features.MonthEnd.PeriodLockService>();
 builder.Services.AddScoped<ErpApi.Features.Sales.SalesShipmentService>();
