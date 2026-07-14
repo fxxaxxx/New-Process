@@ -153,7 +153,7 @@ export const MENU_TREE: MenuGroup[] = [
   ]},
   // ⑯ 半成品仓库
   { key: "g-semi", label: "半成品仓库", children: [
-    M("半成品共用物料表"),
+    M("半成品共用物料表", "/semi-finished-common-materials", "半成品共用物料表"),
     M("半成品标签单"),
     M("半成品欠料分析表"),
     M("半成品入仓单", "/semi-receipts", "半成品入仓"),

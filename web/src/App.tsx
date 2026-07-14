@@ -7,6 +7,7 @@ import MasterRouter from "./pages/master/MasterRouter";
 import Dashboard from "./pages/Dashboard";
 import StyleDetailPage from "./pages/styles/StyleDetailPage";
 import BomSetupPage from "./pages/styles/BomSetupPage";
+import SemiFinishedCommonMaterialsPage from "./pages/semi/SemiFinishedCommonMaterialsPage";
 import OrdersPage from "./pages/orders/OrdersPage";
 import ProductionNoticePage from "./pages/production/ProductionNoticePage";
 import ProductionQueryPage from "./pages/production/ProductionQueryPage";
@@ -124,6 +125,7 @@ export default function App() {
           <Route path="master/:menu" element={<MasterRouter />} />
           <Route path="styles/:styleNo" element={<StyleDetailPage />} />
           <Route path="bom-setup" element={<BomSetupPage />} />
+          <Route path="semi-finished-common-materials" element={<SemiFinishedCommonMaterialsPage />} />
           <Route path="orders" element={<OrdersPage />} />
           <Route path="production" element={<ProductionNoticePage />} />
           <Route path="production-query" element={<ProductionQueryPage />} />
