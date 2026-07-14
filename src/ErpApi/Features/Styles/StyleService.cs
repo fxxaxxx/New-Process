@@ -64,11 +64,9 @@ ORDER BY [顺序],[ID];", new { 款号 });
         if (style is null) return null;
         var 物料 = (await multi.ReadAsync<款号物料明细表>()).AsList();
         var header = await multi.ReadFirstOrDefaultAsync<MaterialHeaderRow>();
-        var 扩展 = await multi.ReadFirstOrDefaultAsync<AssemblyMaterialExtensionDto>()
-            ?? new AssemblyMaterialExtensionDto(
-                style.款式, header?.产品编号, null, null, null, null, null, null,
-                header?.单位, false, header?.备注, false, null, null);
-        var 报价 = (await multi.ReadAsync<AssemblyMaterialQuoteDto>()).AsList();
+        var 扩展 = await multi.ReadFirstOrDefaultAsync<AssemblyMaterialExtensionDto>();
+        var quotes = (await multi.ReadAsync<AssemblyMaterialQuoteDto>()).AsList();
+        IReadOnlyList<AssemblyMaterialQuoteDto>? 报价 = quotes.Count == 0 ? null : quotes;
         return new StyleMaterialsViewDto(款号, style.款式, 物料, 扩展, 报价);
     }
 

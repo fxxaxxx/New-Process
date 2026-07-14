@@ -57,6 +57,22 @@ VALUES('2026-07-13',N'0003',N'ZURU',N'PART-1',N'STYLE-1',N'产品一',N'头备�
     }
 
     [SkippableFact]
+    public async Task Legacy_style_without_optional_sections_returns_absent_sections()
+    {
+        SkipIfDatabaseUnavailable();
+        Cleanup();
+        SeedStyle();
+
+        var loaded = await Style().GetMaterialsViewAsync("STYLE-1");
+
+        Assert.NotNull(loaded);
+        Assert.Null(loaded!.扩展);
+        Assert.Null(loaded.报价);
+
+        Cleanup();
+    }
+
+    [SkippableFact]
     public async Task ReplaceMaterials_round_trips_extension_quotes_and_row_fields()
     {
         SkipIfDatabaseUnavailable();
@@ -126,7 +142,7 @@ VALUES('2026-07-13',N'0003',N'ZURU',N'PART-1',N'STYLE-1',N'产品一',N'头备�
         await Style().ReplaceMaterialsAsync("STYLE-1", new BomSaveDto(
             null, null, null, null, [], null, []));
         var cleared = await Style().GetMaterialsViewAsync("STYLE-1");
-        Assert.Empty(cleared!.报价);
+        Assert.Null(cleared!.报价);
         Assert.Equal("COMMON-1", cleared.扩展.共用物料编号);
 
         Cleanup();

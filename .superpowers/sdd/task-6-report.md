@@ -2,25 +2,30 @@
 
 ## Changed Hunks
 
+- `src/ErpApi/Features/Styles/StyleService.cs` and `StyleDtos.cs`
+  - Preserve optional-section presence in `GET /api/styles/{款号}/materials`: absent extension data is `扩展: null`, and absent quote rows are `报价: null`.
+  - Keep non-empty persisted quote rows as an ordered array; save semantics still distinguish omitted sections from an explicit empty quote list.
+- `src/ErpApi/Features/Styles/StyleMaterialsPricePolicy.cs`
+  - Redaction preserves null optional sections while continuing to clear protected prices.
 - `web/src/pages/styles/BomSetupPage.tsx`
-  - Hydrates extension fields, BOM row `工模编号`/`备注`, and persisted quote rows in service order.
-  - Saves extension data, ordered quotes, and BOM row metadata through the typed `stylesApi` payload.
-  - Derives the `单价` permission, masks protected extension/quote prices as `***`, disables their editors, and omits protected price edits from the client payload while retaining backend enforcement.
-  - Uses assembly route context plus actual response section presence, clears omitted extension/quote state during document switches, and keeps legacy `/bom-setup` saves free of new sections unless the assembly flow activates them.
-  - Replaces the selected partner on an existing quote row without dropping its material, quote, or audit metadata; explicit new partner selections remain append operations.
-  - Guards document hydration with a request version so stale responses cannot overwrite a newer load.
-  - Uses the existing `/styles/{款号}/audit` and `/reverse-audit` endpoints, refreshes after state changes, and keeps audited details read-only until reverse audit.
-  - Honors `款号` and `return` query parameters; close returns to the supplied route or browser history.
+  - Keeps optional sections omitted until the assembly route loads them or the user intentionally edits assembly/quote state.
+  - Gates audit and reverse-audit controls and calls to `/assembly-material-setup`; legacy `/bom-setup` cannot create the new extension through audit.
+  - Retains price masking, price-preserving server policy, stale-load protection, quote partner replacement, read-only audited state, and close navigation behavior.
+- `tests/ErpApi.Tests/StyleAssemblyMaterialsDbTests.cs` and `StyleMaterialsPricePermissionTests.cs`
+  - Cover absent-section service hydration, explicit empty quote clearing, and null-safe price redaction; DB round-trip/audit tests remain skippable when `ERP_TEST_DB` is unavailable.
 - `web/src/__tests__/bomSetupAssemblyPersistence.test.ts`
-  - Replaces raw source-string checks with component/behavioral coverage for price masking/disablement, omitted-section document switches, legacy payload omission, quote partner replacement, and stale response ordering.
+  - Covers optional-section activation after an assembly edit, extension/quote hydrate-save, legacy audit gating, assembly audit endpoint use, audited read-only state, close routing, and prior regressions.
 
 ## Verification
 
-- Focused Vitest: `1` file, `5` tests passed.
-- Full Vitest: `45` files, `153` tests passed.
-- TypeScript and production build: `npm run build` passed; Vite emitted the existing large-chunk warning.
-- Production build: `npm run build` passed; Vite emitted the existing large-chunk warning.
+- Focused Vitest: `1` file, `11` tests passed.
+- Full Vitest: `45` files, `159` tests passed.
+- Frontend production build: `npm run build` passed; Vite emitted the existing large-chunk warning.
+- Focused backend non-DB policy tests: `4` passed.
+- Relevant assembly DB tests: `6` skipped because the configured LocalDB `ERP_TEST_DB` connection is unavailable.
+- Relevant price-permission API DB test: `1` skipped for the same unavailable `ERP_TEST_DB` connection.
+- Backend Release build: passed with `0` warnings and `0` errors.
 
 ## Commit
 
-`fix: harden assembly material detail workflow`
+`fix: preserve assembly optional section compatibility`

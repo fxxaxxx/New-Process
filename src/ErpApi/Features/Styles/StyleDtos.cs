@@ -31,8 +31,8 @@ public sealed record BomSaveDto(
 // BOM物料设置轻量载入：款式、物料行、装配扩展和报价。
 public sealed record StyleMaterialsViewDto(
     string 款号, string? 款式, IReadOnlyList<款号物料明细表> 物料,
-    AssemblyMaterialExtensionDto 扩展,
-    IReadOnlyList<AssemblyMaterialQuoteDto> 报价);
+    AssemblyMaterialExtensionDto? 扩展,
+    IReadOnlyList<AssemblyMaterialQuoteDto>? 报价);
 
 public sealed record StyleFullDto(
     款号总表 主档,

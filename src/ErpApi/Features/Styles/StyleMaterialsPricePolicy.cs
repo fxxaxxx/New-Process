@@ -4,8 +4,8 @@ public static class StyleMaterialsPricePolicy
 {
     public static StyleMaterialsViewDto Redact(StyleMaterialsViewDto dto) => dto with
     {
-        扩展 = dto.扩展 with { 库存单价HK = null, 其他成本HK = null },
-        报价 = dto.报价.Select(Redact).ToList()
+        扩展 = dto.扩展 is null ? null : dto.扩展 with { 库存单价HK = null, 其他成本HK = null },
+        报价 = dto.报价?.Select(Redact).ToList()
     };
 
     public static BomSaveDto PreserveProtectedPrices(

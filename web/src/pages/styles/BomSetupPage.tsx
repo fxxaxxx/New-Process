@@ -611,6 +611,7 @@ export default function BomSetupPage() {
   };
 
   const changeAudit = async () => {
+    if (!isAssembly) return;
     const key = loaded款号 || form.getFieldValue("产品货号");
     if (!key || (audited ? !canReverseAudit : !canAudit)) return;
     setAuditSaving(true);
@@ -645,8 +646,8 @@ export default function BomSetupPage() {
           <Button danger disabled={readOnly} icon={<DeleteOutlined />}>删除</Button>
         </Popconfirm>
       )}
-      {canAudit && !audited && <Button icon={<CheckOutlined />} loading={auditSaving} onClick={changeAudit}>审核</Button>}
-      {canReverseAudit && audited && <Button icon={<CloseOutlined />} loading={auditSaving} onClick={changeAudit}>反审核</Button>}
+      {isAssembly && canAudit && !audited && <Button icon={<CheckOutlined />} loading={auditSaving} onClick={changeAudit}>审核</Button>}
+      {isAssembly && canReverseAudit && audited && <Button icon={<CloseOutlined />} loading={auditSaving} onClick={changeAudit}>反审核</Button>}
       <Button icon={<PrinterOutlined />} onClick={() => message.info("打印功能开发中")}>打印</Button>
       <Button icon={<CloseOutlined />} onClick={close}>关闭</Button>
     </Space>

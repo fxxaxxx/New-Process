@@ -1,7 +1,7 @@
 import { act, cloneElement, createElement, useRef, useState, type ReactElement, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import BomSetupPage from "../pages/styles/BomSetupPage";
+import BomSetupPage, { buildCloseTarget } from "../pages/styles/BomSetupPage";
 
 const pageMock = vi.hoisted(() => ({
   inputNumbers: [] as Record<string, unknown>[],
@@ -10,6 +10,7 @@ const pageMock = vi.hoisted(() => ({
   masterList: vi.fn(),
   materials: vi.fn(),
   navigate: vi.fn(),
+  apiPost: vi.fn(),
   partnerList: vi.fn(),
   perms: {} as Record<string, Record<string, boolean>>,
   saveMaterials: vi.fn(),
@@ -34,7 +35,7 @@ vi.mock("../api/master", () => ({
   masterApi: () => ({ list: pageMock.masterList }),
 }));
 
-vi.mock("../api/client", () => ({ api: { post: vi.fn().mockResolvedValue(undefined) } }));
+vi.mock("../api/client", () => ({ api: { post: pageMock.apiPost } }));
 
 vi.mock("react-router-dom", () => ({
   useLocation: () => ({ pathname: pageMock.location }),
@@ -62,6 +63,8 @@ let activeForm: {
   validateFields: () => Promise<Record<string, unknown>>;
 } | undefined;
 
+let activeOnValuesChange: ((changed: Record<string, unknown>) => void) | undefined;
+
 vi.mock("antd", () => {
   const Button = ({ children, disabled, onClick }: { children?: ReactNode; disabled?: boolean; onClick?: () => void }) => {
     pageMock.buttons.push({ label: String(children ?? ""), disabled, onClick });
@@ -69,12 +72,12 @@ vi.mock("antd", () => {
   };
   const Input = (props: Record<string, unknown>) => {
     pageMock.inputs.push(props);
-    return createElement("input", { value: props.value == null ? "" : String(props.value), disabled: props.disabled });
+    return createElement("input", { value: props.value == null ? "" : String(props.value), disabled: props.disabled, onChange: props.onChange });
   };
   Input.Search = Input;
   const InputNumber = (props: Record<string, unknown>) => {
     pageMock.inputNumbers.push(props);
-    return createElement("input", { value: props.value == null ? "" : String(props.value), disabled: props.disabled });
+    return createElement("input", { value: props.value == null ? "" : String(props.value), disabled: props.disabled, onChange: props.onChange });
   };
   const DatePicker = (props: Record<string, unknown>) => createElement("input", { value: String(props.value ?? ""), disabled: props.disabled });
   const Checkbox = (props: Record<string, unknown>) => createElement("input", { type: "checkbox", checked: props.checked, disabled: props.disabled });
@@ -97,7 +100,10 @@ vi.mock("antd", () => {
     }))));
   };
   const Form = Object.assign(
-    ({ children }: { children?: ReactNode }) => createElement("form", null, children),
+    ({ children, onValuesChange }: { children?: ReactNode; onValuesChange?: (changed: Record<string, unknown>) => void }) => {
+      activeOnValuesChange = onValuesChange;
+      return createElement("form", null, children);
+    },
     {
       useForm: () => {
         const [, rerender] = useState(0);
@@ -125,7 +131,17 @@ vi.mock("antd", () => {
           : child?.props && Object.prototype.hasOwnProperty.call(child.props, "checked")
             ? { "aria-label": label, checked: value }
             : { "aria-label": label, value };
-        return createElement("label", null, label, child ? cloneElement(child, props) : null);
+        const childProps = child && name
+          ? {
+              ...props,
+              onChange: (event: { target?: { value?: unknown; checked?: unknown } }) => {
+                const value = event.target?.checked ?? event.target?.value;
+                if (activeForm) activeForm.values[name] = value;
+                activeOnValuesChange?.({ [name]: value });
+              },
+            }
+          : props;
+        return createElement("label", null, label, child ? cloneElement(child, childProps) : null);
       },
     },
   );
@@ -225,6 +241,7 @@ beforeEach(() => {
   pageMock.masterList.mockReset().mockResolvedValue({ items: [], total: 0 });
   pageMock.materials.mockReset().mockResolvedValue(full("STYLE-1"));
   pageMock.navigate.mockReset();
+  pageMock.apiPost.mockReset().mockResolvedValue(undefined);
   pageMock.partnerList.mockReset().mockResolvedValue({ items: [{ 供应商编号: "SUP-2", 供应商名称: "新供应商", 货币: "HK$" }], total: 1 });
   pageMock.perms = { 款号资料: { 打开: true, 保存: true, 删除: true, 单价: true, 审核: true, 反审核: true } };
   pageMock.saveMaterials.mockReset().mockResolvedValue(undefined);
@@ -232,6 +249,7 @@ beforeEach(() => {
   pageMock.tables = [];
   pageMock.buttons = [];
   activeForm = undefined;
+  activeOnValuesChange = undefined;
   storage.clear();
 });
 
@@ -279,6 +297,68 @@ describe("装配物料设置持久化行为", () => {
     expect(body).not.toHaveProperty("扩展");
     expect(body).not.toHaveProperty("报价");
     expect(body).toHaveProperty("明细");
+  });
+
+  it("activates the extension only after an assembly user edit when sections were absent", async () => {
+    pageMock.materials.mockReset().mockResolvedValue(full("STYLE-1", { 扩展: null, 报价: null }));
+    await mount();
+
+    const extensionName = latestInput("产品装配名称");
+    await act(async () => { (extensionName?.onChange as ((event: unknown) => void) | undefined)?.({ target: { value: "新装配名称" } }); });
+    await act(async () => { latestButton("保存").onClick?.(); });
+    await settle();
+
+    const body = pageMock.saveMaterials.mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(body).toHaveProperty("扩展");
+    expect(body).not.toHaveProperty("报价");
+  });
+
+  it("hydrates and saves persisted extension and quote sections", async () => {
+    await mount();
+
+    await act(async () => {
+      (latestInput("产品装配名称")?.onChange as ((event: unknown) => void) | undefined)?.({ target: { value: "产品一装配新版" } });
+      latestButton("保存").onClick?.();
+    });
+    await settle();
+
+    const body = pageMock.saveMaterials.mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(body.扩展).toMatchObject({ 产品装配名称: "产品一装配新版" });
+    expect(body.报价).toMatchObject([{ ID: 7, 合作方名称: "原供应商", 备注: "保留元数据" }]);
+  });
+
+  it("keeps audited assembly details read-only and exposes reverse audit", async () => {
+    pageMock.materials.mockReset().mockResolvedValue(full("STYLE-1", {
+      扩展: { ...extension, 调整审核: true, 审核人: "auditor" },
+    }));
+    await mount();
+
+    expect(latestButton("保存").disabled).toBe(true);
+    expect(latestInput("产品装配名称")?.disabled).toBe(true);
+    expect(latestButton("反审核").disabled).not.toBe(true);
+  });
+
+  it("calls the assembly audit endpoint from the assembly route", async () => {
+    await mount();
+
+    await act(async () => { latestButton("审核").onClick?.(); });
+    await settle();
+
+    expect(pageMock.apiPost).toHaveBeenCalledWith("/styles/STYLE-1/audit");
+  });
+
+  it("uses the supplied return route when closing", () => {
+    expect(buildCloseTarget("/semi-finished-common-materials")).toBe("/semi-finished-common-materials");
+    expect(buildCloseTarget(null)).toBe(-1);
+  });
+
+  it("does not expose or call assembly audit from the legacy BOM route", async () => {
+    pageMock.location = "/bom-setup";
+    await mount();
+
+    expect(pageMock.buttons.some(button => button.label === "审核")).toBe(false);
+    expect(pageMock.buttons.some(button => button.label === "反审核")).toBe(false);
+    expect(pageMock.apiPost).not.toHaveBeenCalled();
   });
 
   it("replaces an existing quote partner while preserving the quote metadata", async () => {

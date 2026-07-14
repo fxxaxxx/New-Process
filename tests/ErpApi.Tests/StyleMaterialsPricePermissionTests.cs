@@ -74,6 +74,16 @@ public sealed class StyleMaterialsPricePolicyTests
             emptyQuotes, Extension(1m, 2m), [Quote(1, 1m, 1m, 0m, 0m)]).报价!);
     }
 
+    [Fact]
+    public void Redact_preserves_absent_optional_sections()
+    {
+        var redacted = StyleMaterialsPricePolicy.Redact(
+            new StyleMaterialsViewDto("STYLE-OLD", "产品", [], null, null));
+
+        Assert.Null(redacted.扩展);
+        Assert.Null(redacted.报价);
+    }
+
     private static StyleMaterialsViewDto View(
         AssemblyMaterialExtensionDto extension, IReadOnlyList<AssemblyMaterialQuoteDto> quotes)
         => new("STYLE-PRICE", "产品", [], extension, quotes);
