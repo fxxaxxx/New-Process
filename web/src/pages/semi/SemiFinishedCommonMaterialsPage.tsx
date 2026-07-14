@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Card, Input, Select, Space, Table, Tag, message } from "antd";
+import {
+  CloseOutlined,
+  ExportOutlined,
+  PrinterOutlined,
+  SearchOutlined,
+  TableOutlined,
+} from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { can } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
@@ -17,6 +24,7 @@ import {
   saveSemiFinishedCommonMaterialFilters,
   type SemiFinishedCommonMaterialFilterState,
 } from "../../utils/semiFinishedCommonMaterials";
+import { downloadCsv, printTable, type ExportCol } from "../../utils/tableExport";
 
 const MENU = "半成品共用物料表";
 const PAGE_SIZE = 50;
@@ -53,6 +61,7 @@ export default function SemiFinishedCommonMaterialsPage() {
   const navigate = useNavigate();
   const canOpen = can(perms, MENU, "打开");
   const canSeePrice = can(perms, MENU, "单价");
+  const canPrint = can(perms, MENU, "打印");
   const [filters, setFilters] = useState<SemiFinishedCommonMaterialFilterState>(initialFilters);
   const [rows, setRows] = useState<SemiFinishedCommonMaterialRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -90,11 +99,14 @@ export default function SemiFinishedCommonMaterialsPage() {
     setFilters(current => ({ ...current, [key]: value }));
   };
 
-  const runExactQuery = () => {
-    const next = { ...filters, exact: true, page: 1 };
+  const runQuery = (exact: boolean) => {
+    const next = { ...filters, exact, page: 1 };
     setFilters(next);
     void loadRows(next);
   };
+
+  const runContainsQuery = () => runQuery(false);
+  const runExactQuery = () => runQuery(true);
 
   const changePage = (page: number, size = filters.size ?? PAGE_SIZE) => {
     const next = { ...filters, page, size };
@@ -127,6 +139,27 @@ export default function SemiFinishedCommonMaterialsPage() {
     { title: "备注内容", dataIndex: "备注内容", width: 220 },
   ], [canSeePrice]);
 
+  const exportColumns = useMemo<ExportCol[]>(() => [
+    { title: "客户", key: "客户" },
+    { title: "产品货号", key: "产品货号" },
+    { title: "产品名称", key: "产品名称" },
+    { title: "产品装配名称", key: "产品装配名称" },
+    {
+      title: "库存单价",
+      key: "库存单价",
+      fmt: value => String(maskSemiFinishedCommonMaterialPrice(
+        typeof value === "number" ? value : null,
+        canSeePrice,
+      )),
+    },
+    { title: "配件编号", key: "配件编号" },
+    { title: "共用物料编号", key: "共用物料编号" },
+    { title: "调整审核", key: "调整审核" },
+    { title: "备注内容", key: "备注内容" },
+  ], [canSeePrice]);
+
+  const exportDisabled = !canPrint || loading || rows.length === 0;
+
   if (!canOpen) {
     return (
       <Card variant="borderless">
@@ -144,11 +177,13 @@ export default function SemiFinishedCommonMaterialsPage() {
           onChange={value => updateFilter("field", value)}
           style={{ width: 150 }}
         />
-        <Input
+        <Input.Search
           allowClear
           value={filters.keyword ?? ""}
           placeholder="请输入关键字"
           onChange={event => updateFilter("keyword", event.target.value)}
+          onSearch={runContainsQuery}
+          loading={loading}
           style={{ width: 220 }}
         />
         <Select
@@ -169,7 +204,35 @@ export default function SemiFinishedCommonMaterialsPage() {
           onChange={value => updateFilter("audit", value)}
           style={{ width: 120 }}
         />
-        <Button type="primary" onClick={runExactQuery}>精确查询</Button>
+        <Button
+          type="primary"
+          icon={<SearchOutlined />}
+          disabled={loading}
+          onClick={runContainsQuery}
+        >查询</Button>
+        <Button disabled={loading} onClick={runExactQuery}>精确查询</Button>
+      </Space>
+      <Space wrap style={{ width: "100%", marginBottom: 16 }}>
+        <Button icon={<TableOutlined />} disabled>表格设置</Button>
+        <Button
+          icon={<ExportOutlined />}
+          disabled={exportDisabled}
+          onClick={() => downloadCsv(
+            "半成品共用物料表.csv",
+            exportColumns,
+            rows as unknown as Record<string, unknown>[],
+          )}
+        >导出EXCEL</Button>
+        <Button
+          icon={<PrinterOutlined />}
+          disabled={exportDisabled}
+          onClick={() => printTable(
+            "半成品共用物料表",
+            exportColumns,
+            rows as unknown as Record<string, unknown>[],
+          )}
+        >打印</Button>
+        <Button danger icon={<CloseOutlined />} onClick={() => navigate(-1)}>关闭</Button>
       </Space>
       <Table<SemiFinishedCommonMaterialRow>
         rowKey="产品货号"

@@ -7,10 +7,17 @@ import appSource from "../App.tsx?raw";
 import SemiFinishedCommonMaterialsPage from "../pages/semi/SemiFinishedCommonMaterialsPage";
 
 const pageMock = vi.hoisted(() => ({
-  buttons: [] as { label: string; onClick?: () => void }[],
-  inputs: [] as { value?: string; onChange?: (event: { target: { value: string } }) => void }[],
+  buttons: [] as { label: string; disabled?: boolean; onClick?: () => void }[],
+  exportCsv: vi.fn(),
+  inputs: [] as {
+    value?: string;
+    onChange?: (event: { target: { value: string } }) => void;
+    onSearch?: () => void;
+  }[],
   list: vi.fn(),
   navigate: vi.fn(),
+  perms: {} as Record<string, Record<string, boolean>>,
+  printTable: vi.fn(),
   selects: [] as { value?: string; onChange?: (value: string) => void; options: { value: string; label?: string }[] }[],
   tableProps: undefined as {
     dataSource: Record<string, unknown>[];
@@ -19,7 +26,7 @@ const pageMock = vi.hoisted(() => ({
 }));
 
 vi.mock("../auth/PermissionContext", () => ({
-  usePerms: () => ({ "半成品共用物料表": { 打开: true, 单价: true } }),
+  usePerms: () => pageMock.perms,
 }));
 
 vi.mock("../api/semiFinishedCommonMaterials", () => ({
@@ -31,13 +38,30 @@ vi.mock("react-router-dom", async () => {
   return { ...actual, useNavigate: () => pageMock.navigate };
 });
 
+vi.mock("../utils/tableExport", () => ({
+  downloadCsv: pageMock.exportCsv,
+  printTable: pageMock.printTable,
+}));
+
+vi.mock("@ant-design/icons", () => ({
+  CloseOutlined: () => null,
+  ExportOutlined: () => null,
+  PrinterOutlined: () => null,
+  SearchOutlined: () => null,
+  TableOutlined: () => null,
+}));
+
 vi.mock("antd", () => {
-  const Button = ({ children, onClick }: { children?: ReactNode; onClick?: () => void }) => {
-    pageMock.buttons.push({ label: String(children ?? ""), onClick });
+  const Button = ({ children, disabled, onClick }: { children?: ReactNode; disabled?: boolean; onClick?: () => void }) => {
+    pageMock.buttons.push({ label: String(children ?? ""), disabled, onClick });
     return createElement("button", { onClick }, children);
   };
   const Card = ({ children }: { children?: ReactNode }) => createElement("main", null, children);
-  const Input = (props: { value?: string; onChange?: (event: { target: { value: string } }) => void }) => {
+  const Input = (props: {
+    value?: string;
+    onChange?: (event: { target: { value: string } }) => void;
+    onSearch?: () => void;
+  }) => {
     pageMock.inputs.push(props);
     return createElement("input", null);
   };
@@ -184,13 +208,30 @@ function latestButton(label: string) {
   return button;
 }
 
+function latestInput() {
+  const input = pageMock.inputs.at(-1);
+  if (!input) throw new Error("Missing query input");
+  return input;
+}
+
+async function mountPage() {
+  await act(async () => {
+    root = createRoot(container as unknown as Element);
+    root.render(createElement(SemiFinishedCommonMaterialsPage));
+  });
+  await settle();
+}
+
 beforeEach(() => {
   container = testDocument.createElement("div");
   testDocument.body.appendChild(container);
   pageMock.buttons = [];
+  pageMock.exportCsv.mockReset();
   pageMock.inputs = [];
   pageMock.list.mockReset().mockResolvedValue({ items: [row], total: 1 });
   pageMock.navigate.mockReset();
+  pageMock.perms = { "半成品共用物料表": { 打开: true, 单价: true, 打印: true } };
+  pageMock.printTable.mockReset();
   pageMock.selects = [];
   pageMock.tableProps = undefined;
   storage.clear();
@@ -213,12 +254,33 @@ describe("半成品共用物料表页面", () => {
     expect(appSource).toContain('<Route path="semi-finished-common-materials" element={<SemiFinishedCommonMaterialsPage />} />');
   });
 
-  it("sends server-side filters and opens the encoded assembly detail on row double-click", async () => {
-    await act(async () => {
-      root = createRoot(container as unknown as Element);
-      root.render(createElement(SemiFinishedCommonMaterialsPage));
-    });
+  it("runs a contains query from both the query button and Enter", async () => {
+    await mountPage();
+
+    await act(async () => { latestInput().onChange?.({ target: { value: " 产品 " } }); });
+    await act(async () => { latestButton("查询").onClick?.(); });
     await settle();
+
+    expect(pageMock.list).toHaveBeenLastCalledWith(expect.objectContaining({
+      keyword: "产品",
+      精确: false,
+      page: 1,
+      size: 50,
+    }));
+
+    await act(async () => { latestInput().onChange?.({ target: { value: " A-2 " } }); });
+    await act(async () => { latestInput().onSearch?.(); });
+    await settle();
+
+    expect(pageMock.list).toHaveBeenLastCalledWith(expect.objectContaining({
+      keyword: "A-2",
+      精确: false,
+      page: 1,
+    }));
+  });
+
+  it("runs an exact server query and opens the encoded assembly detail on row double-click", async () => {
+    await mountPage();
 
     await act(async () => { latestSelect("显示重复").onChange?.("显示重复"); });
     await act(async () => { latestButton("精确查询").onClick?.(); });
@@ -236,5 +298,42 @@ describe("半成品共用物料表页面", () => {
       "/assembly-material-setup?款号=A%2FB&return=%2Fsemi-finished-common-materials",
     );
     expect(storage.has("semi-finished-common-materials.filters")).toBe(true);
+  });
+
+  it("provides the unified toolbar actions and delegates export, print, and close", async () => {
+    await mountPage();
+
+    expect(latestButton("表格设置").disabled).toBe(true);
+    expect(latestButton("导出EXCEL").disabled).toBe(false);
+    expect(latestButton("打印").disabled).toBe(false);
+
+    await act(async () => { latestButton("导出EXCEL").onClick?.(); });
+    await act(async () => { latestButton("打印").onClick?.(); });
+    await act(async () => { latestButton("关闭").onClick?.(); });
+
+    expect(pageMock.exportCsv).toHaveBeenCalledWith(
+      "半成品共用物料表.csv",
+      expect.any(Array),
+      [row],
+    );
+    expect(pageMock.printTable).toHaveBeenCalledWith(
+      "半成品共用物料表",
+      expect.any(Array),
+      [row],
+    );
+    const exportColumns = pageMock.exportCsv.mock.calls[0]?.[1] as { title: string }[];
+    expect(exportColumns.map(column => column.title)).toEqual([
+      "客户", "产品货号", "产品名称", "产品装配名称", "库存单价",
+      "配件编号", "共用物料编号", "调整审核", "备注内容",
+    ]);
+    expect(pageMock.navigate).toHaveBeenCalledWith(-1);
+  });
+
+  it("disables export and print without print permission", async () => {
+    pageMock.perms = { "半成品共用物料表": { 打开: true, 单价: true, 打印: false } };
+    await mountPage();
+
+    expect(latestButton("导出EXCEL").disabled).toBe(true);
+    expect(latestButton("打印").disabled).toBe(true);
   });
 });
