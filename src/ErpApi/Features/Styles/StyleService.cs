@@ -93,7 +93,7 @@ VALUES(@款号,@款式,@颜色编号,@颜色名称,@ID)",
     }
 
     // 整组替换 BOM、装配扩展和报价；三部分共用一个 Dapper 事务。
-    public async Task ReplaceMaterialsAsync(string 款号, BomSaveDto dto)
+    public async Task ReplaceMaterialsAsync(string 款号, BomSaveDto dto, bool canEditPrices = true)
     {
         using var c = factory.Create();
         await c.OpenAsync();
@@ -111,12 +111,36 @@ WHERE [产品货号]=@款号;", new { 款号 }, tx);
             if (audited)
                 throw new InvalidOperationException($"款号 [{款号}] 已审核，不能保存，请先反审核。");
 
-            ValidateQuotes(dto.报价);
+            var saveDto = dto;
+            if (!canEditPrices && (dto.扩展 is not null || dto.报价 is not null))
+            {
+                var existingExtension = dto.扩展 is null
+                    ? null
+                    : await c.QueryFirstOrDefaultAsync<AssemblyMaterialExtensionDto>(@"
+SELECT TOP (1) [产品装配名称],[配件编号],[共用物料编号],[装配方式],[类别],
+       [库存单价HK],[其他成本HK],[需求用量],[单位],[半成品计算库存],[备注内容],
+       [调整审核],[审核人],[审核时间]
+FROM [半成品共用物料设置] WITH (UPDLOCK, HOLDLOCK)
+WHERE [产品货号]=@款号
+ORDER BY [ID] DESC;", new { 款号 }, tx);
+                var existingQuotes = dto.报价 is null
+                    ? []
+                    : (await c.QueryAsync<AssemblyMaterialQuoteDto>(@"
+SELECT [ID],[物料编号],[物料名称],[合作方类型],[合作方编号],[合作方名称],
+       [报价日期],[货币],[单价],[港币价],[对比相差],[相差比例],[是否默认],[顺序],[备注]
+FROM [装配物料报价] WITH (UPDLOCK, HOLDLOCK)
+WHERE [产品货号]=@款号
+ORDER BY [顺序],[ID];", new { 款号 }, tx)).AsList();
+                saveDto = StyleMaterialsPricePolicy.PreserveProtectedPrices(
+                    dto, existingExtension, existingQuotes);
+            }
+
+            ValidateQuotes(saveDto.报价);
 
             var 款式 = await c.ExecuteScalarAsync<string?>(
                 "SELECT TOP (1) [款式] FROM [款号总表] WHERE [款号]=@款号 ORDER BY [ID] DESC", new { 款号 }, tx);
             await c.ExecuteAsync("DELETE FROM [款号物料明细表] WHERE [款号]=@款号", new { 款号 }, tx);
-            var materials = dto.明细 ?? [];
+            var materials = saveDto.明细 ?? [];
             for (var i = 0; i < materials.Count; i++)
             {
                 var m = materials[i];
@@ -126,21 +150,21 @@ VALUES(@款号,@款式,@顺序,@客户编号,@客户名称,@日期,@物料编号
                     new
                     {
                         款号, 款式, 顺序 = (i + 1).ToString(),
-                        dto.客户编号, dto.客户名称, dto.日期,
+                        saveDto.客户编号, saveDto.客户名称, saveDto.日期,
                         m.物料编号, m.物料名称, m.物料类别, m.规格, m.颜色,
                         m.工模编号,
-                        单位 = string.IsNullOrWhiteSpace(m.单位) ? dto.单位 : m.单位,
+                        单位 = string.IsNullOrWhiteSpace(m.单位) ? saveDto.单位 : m.单位,
                         m.使用数量, m.备注
                     }, tx);
             }
 
-            if (dto.扩展 is not null)
-                await UpsertExtensionAsync(c, tx, 款号, dto.扩展);
+            if (saveDto.扩展 is not null)
+                await UpsertExtensionAsync(c, tx, 款号, saveDto.扩展);
 
-            if (dto.报价 is not null)
+            if (saveDto.报价 is not null)
             {
                 await c.ExecuteAsync("DELETE FROM [装配物料报价] WHERE [产品货号]=@款号", new { 款号 }, tx);
-                foreach (var q in dto.报价)
+                foreach (var q in saveDto.报价)
                     await c.ExecuteAsync(@"
 INSERT INTO [装配物料报价]([产品货号],[物料编号],[物料名称],[合作方类型],[合作方编号],[合作方名称],
     [报价日期],[货币],[单价],[港币价],[对比相差],[相差比例],[是否默认],[顺序],[备注])

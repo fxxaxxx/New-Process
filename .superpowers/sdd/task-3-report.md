@@ -22,3 +22,14 @@ Verification:
 - Live DB assertions were not run: configured LocalDB automatic instance is unavailable. No production database was used.
 
 Feature commit: `d5d7e4f` (`feat: persist assembly material setup details`).
+
+## I1 Price Permission Follow-up
+
+- `StyleController` now checks the existing `款号资料/单价` permission for material-detail reads and writes without changing the `款号资料` or `半成品共用物料表` menu boundaries.
+- Reads without `单价` redact extension costs (`库存单价HK`, `其他成本HK`) and all quote price fields (`单价`, `港币价`, `对比相差`, `相差比例`).
+- Writes without `单价` preserve protected values from existing extension/quote rows inside the same Dapper transaction. New quote rows receive null protected prices; omitted sections remain preserved and an explicit empty quote list still clears quotes.
+- Added focused policy tests and a controller/service API round-trip test in `StyleMaterialsPricePermissionTests.cs`.
+- Focused result: 3 passed, 6 skipped, 0 failed. The six integration tests, including the new API permission test, were skipped because the configured LocalDB instance was unavailable; no production database was used.
+- Release backend build: passed with 0 warnings and 0 errors.
+
+Follow-up commit: `fix: enforce assembly material price permission`.

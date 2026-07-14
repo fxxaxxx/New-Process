@@ -47,6 +47,8 @@ public sealed class StyleController(
         if (!await AllowAsync(PermissionAction.打开)) return Forbid();
         var dto = await svc.GetMaterialsViewAsync(款号);
         if (dto is null) return NotFound();
+        if (!await AllowAsync(PermissionAction.单价))
+            dto = StyleMaterialsPricePolicy.Redact(dto);
         return Ok(dto);
     }
 
@@ -64,7 +66,8 @@ public sealed class StyleController(
     public async Task<IActionResult> PutMaterials(string 款号, [FromBody] BomSaveDto dto)
     {
         if (!await AllowAsync(PermissionAction.保存)) return Forbid();
-        try { await svc.ReplaceMaterialsAsync(款号, dto); }
+        var canEditPrices = await AllowAsync(PermissionAction.单价);
+        try { await svc.ReplaceMaterialsAsync(款号, dto, canEditPrices); }
         catch (InvalidOperationException ex) when (ex.Message.Contains("不存在"))
         { return NotFound(new { 消息 = ex.Message }); }
         catch (InvalidOperationException ex) when (ex.Message.Contains("合作方类型"))
