@@ -78,8 +78,6 @@ export default function SemiWarehouseReturnPage() {
   ];
 
   if (!canOpen) return <Card variant="borderless"><div style={{ padding: 24, color: "#8c8c8c" }}>无权访问该页面</div></Card>;
-  const receiptNo = Form.useWatch("入仓单号", form) ?? "";
-  void receiptNo;
   return <Card title="半成品退仓单" variant="borderless" extra={<Space wrap>
     <Button icon={<FileAddOutlined />} disabled={busy} onClick={reset}>新建</Button>
     <Button icon={<FolderOpenOutlined />} disabled={busy} onClick={() => setOpenOpen(true)}>打开</Button>
