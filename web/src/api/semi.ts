@@ -8,10 +8,13 @@ export interface SRCreate { 日期?: string; 订单单号?: string; 仓库: stri
 export interface SRHeader { id: number; 单号?: string; 订单单号?: string; 供应商编号?: string; 供应商名称?: string; 部门?: string; 生产单号?: string; 款号?: string; 仓库?: string; 日期?: string; 数量?: number; 金额?: number | null; 操作员?: string; 审核?: string; 备注?: string }
 export interface SRDetail { 单头: SRHeader | null; 明细: (SRLine & { id: number; 金额?: number | null })[] }
 
-// ---- 领料 ----
-export interface SILine { 物料编号?: string; 物料名称?: string; 规格?: string; 颜色?: string; 单位?: string; 数量: number; 单价?: number }
-export interface SICreate { 仓库: string; 生产单号?: string; 款号?: string; 部门?: string; 领料人?: string; 备注?: string; 明细: SILine[] }
-export interface SIHeader { id: number; 单号?: string; 仓库?: string; 部门?: string; 领料人?: string; 日期?: string; 数量?: number; 金额?: number | null; 审核?: string; 备注?: string }
+// ---- 领料（半成品出库单 · 自由选产品版）----
+export interface SIProductRow { 配件编号: string; 客户?: string | null; 产品货号?: string | null; 产品名称?: string | null; 产品装配名称?: string | null; 生产单号?: string | null; 加工单价?: number | null; 库存单价?: number | null }
+export interface SILineInput { 配件编号: string; 客户?: string | null; 产品货号?: string | null; 产品名称?: string | null; 产品装配名称?: string | null; 生产单号?: string | null; 数量: number; 备注?: string | null }
+export interface SILineRow { ID?: number; 配件编号?: string | null; 客户?: string | null; 产品货号?: string | null; 产品名称?: string | null; 产品装配名称?: string | null; 生产单号?: string | null; 规格?: string | null; 颜色?: string | null; 单位?: string | null; 数量?: number | null; 单价?: number | null; 金额?: number | null; 备注?: string | null }
+export interface SICreate { 日期?: string; 仓库: string; 部门?: string | null; 领料人?: string | null; 拉长?: string | null; 收件人?: string | null; 领料备注?: string | null; 件数?: number | null; 卡板数?: number | null; 制单人?: string | null; 备注?: string | null; 明细: SILineInput[] }
+export interface SIHeader { ID?: number; id?: number; 单号?: string; 仓库?: string; 部门?: string | null; 领料人?: string | null; 拉长?: string | null; 收件人?: string | null; 领料备注?: string | null; 件数?: number | null; 卡板数?: number | null; 制单人?: string | null; 日期?: string; 审核日期?: string | null; 数量?: number | null; 金额?: number | null; 操作员?: string | null; 审核?: string; 审核人?: string | null; 备注?: string | null }
+export interface SIDetail { 单头: SIHeader | null; 明细: SILineRow[] }
 
 // ---- 盘点 ----
 export interface SSBasisRow { 物料编号?: string; 物料名称?: string; 规格?: string; 颜色?: string; 系统数量: number }
@@ -43,10 +46,17 @@ export const semiReceiptApi = {
 };
 export const semiIssueApi = {
   list: (page = 1, size = 20, keyword = "") => api.get<Paged<SIHeader>>("/semi-issues", { params: { page, size, keyword } }).then(r => r.data),
+  get: (单号: string) => api.get<SIDetail>(`/semi-issues/${enc(单号)}`).then(r => r.data),
   create: (body: SICreate) => api.post<{ 单号: string }>("/semi-issues", body).then(r => r.data),
+  update: (单号: string, body: SICreate) => api.put<SIDetail>(`/semi-issues/${enc(单号)}`, body).then(r => r.data),
   remove: (单号: string) => api.delete(`/semi-issues/${enc(单号)}`),
   approve: (单号: string) => api.post(`/semi-issues/${enc(单号)}/approve`),
   unapprove: (单号: string) => api.post(`/semi-issues/${enc(单号)}/unapprove`),
+  products: (params: { page?: number; size?: number; field?: string; keyword?: string; exact?: boolean } = {}) =>
+    api.get<Paged<SIProductRow>>("/semi-issues/products", { params }).then(r => r.data),
+  adjacent: (单号: string, next: boolean) =>
+    api.get<SIDetail | undefined>(`/semi-issues/${enc(单号)}/adjacent`, { params: { next } })
+      .then(r => r.status === 204 ? undefined : r.data),
 };
 export const semiStocktakeApi = {
   basis: (仓库: string) => api.get<SSBasisRow[]>("/semi-stocktakes/basis", { params: { 仓库 } }).then(r => r.data),
