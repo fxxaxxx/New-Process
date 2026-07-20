@@ -203,4 +203,121 @@ public class MaterialInventoryDbTests(DbFixture fx)
             Cleanup(c);
         }
     }
+
+    [SkippableFact]
+    public async Task List_enriches_auxiliary_unit_value_and_location()
+    {
+        Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
+        using var c = fx.Open();
+        c.Execute("DELETE FROM [采购入仓明细单] WHERE [物料编号]=N'AUXINV01'");
+        c.Execute("DELETE FROM [采购入仓单] WHERE [单号]=N'AUXINVRK01'");
+        c.Execute("DELETE FROM [物料资料] WHERE [物料编号]=N'AUXINV01'");
+
+        c.Execute(@"INSERT INTO [物料资料]([物料编号],[物料名称],[规格],[单位],[物料类别],[码换算],[仓库位置])
+                    VALUES(N'AUXINV01',N'辅料库存胶纸',N'2.5*90Y',N'卷',N'辅料资料',N'366',N'A-01')");
+        c.Execute("INSERT INTO [采购入仓单]([单号],[仓库],[审核]) VALUES(N'AUXINVRK01',N'辅料仓库','1')");
+        c.Execute(@"INSERT INTO [采购入仓明细单]([单号],[仓库],[物料编号],[物料名称],[规格],[单位],[数量])
+                    VALUES(N'AUXINVRK01',N'辅料仓库',N'AUXINV01',N'辅料库存胶纸',N'2.5*90Y',N'卷',12)");
+
+        try
+        {
+            var rows = await Svc().ListAsync(仓库: "辅料仓库", keyword: null, 物料类别: "辅料资料");
+            var row = Assert.Single(rows, x => x.物料编号 == "AUXINV01");
+            Assert.Equal("366", row.每单位数值);
+            Assert.Equal("A-01", row.仓库位置);
+        }
+        finally
+        {
+            c.Execute("DELETE FROM [采购入仓明细单] WHERE [物料编号]=N'AUXINV01'");
+            c.Execute("DELETE FROM [采购入仓单] WHERE [单号]=N'AUXINVRK01'");
+            c.Execute("DELETE FROM [物料资料] WHERE [物料编号]=N'AUXINV01'");
+        }
+    }
+
+    private void CleanupAuxiliaryMonthly(Microsoft.Data.SqlClient.SqlConnection c)
+    {
+        c.Execute("DELETE FROM [采购入仓明细单] WHERE [物料编号] IN (N'AUXMON01',N'AUXMON02')");
+        c.Execute("DELETE FROM [采购入仓单] WHERE [单号] IN (N'AUXMRK0',N'AUXMRK1',N'AUXMIGN')");
+        c.Execute("DELETE FROM [退料明细单] WHERE [物料编号] IN (N'AUXMON01',N'AUXMON02')");
+        c.Execute("DELETE FROM [退料单] WHERE [单号] IN (N'AUXMTL1')");
+        c.Execute("DELETE FROM [领料明细单] WHERE [物料编号] IN (N'AUXMON01',N'AUXMON02')");
+        c.Execute("DELETE FROM [领料单] WHERE [单号] IN (N'AUXMLL1')");
+        c.Execute("DELETE FROM [采购退仓明细单] WHERE [物料编号] IN (N'AUXMON01',N'AUXMON02')");
+        c.Execute("DELETE FROM [采购退仓单] WHERE [单号] IN (N'AUXMCT1')");
+        c.Execute("DELETE FROM [报废明细单] WHERE [物料编号] IN (N'AUXMON01',N'AUXMON02')");
+        c.Execute("DELETE FROM [报废单] WHERE [单号] IN (N'AUXMBF1')");
+        c.Execute("DELETE FROM [盘点明细单] WHERE [物料编号] IN (N'AUXMON01',N'AUXMON02')");
+        c.Execute("DELETE FROM [盘点单] WHERE [单号] IN (N'AUXMPD1')");
+        c.Execute("DELETE FROM [物料资料] WHERE [物料编号] IN (N'AUXMON01',N'AUXMON02')");
+    }
+
+    [SkippableFact]
+    public async Task Monthly_splits_auxiliary_opening_current_movement_and_stocktake()
+    {
+        Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
+        using var c = fx.Open();
+        CleanupAuxiliaryMonthly(c);
+
+        c.Execute(@"INSERT INTO [物料资料]([物料编号],[物料名称],[规格],[单位],[物料类别],[码换算])
+                    VALUES(N'AUXMON01',N'辅料月报胶纸',N'2.5*90Y',N'卷',N'辅料资料',N'366')");
+        c.Execute(@"INSERT INTO [物料资料]([物料编号],[物料名称],[规格],[单位],[物料类别])
+                    VALUES(N'AUXMON02',N'非辅料月报',N'规格B',N'个',N'面料')");
+
+        c.Execute("INSERT INTO [采购入仓单]([单号],[仓库],[日期],[审核]) VALUES(N'AUXMRK0',N'辅料仓库','2026-06-30','1')");
+        c.Execute(@"INSERT INTO [采购入仓明细单]([单号],[仓库],[日期],[物料编号],[物料名称],[规格],[单位],[数量])
+                    VALUES(N'AUXMRK0',N'辅料仓库','2026-06-30',N'AUXMON01',N'辅料月报胶纸',N'2.5*90Y',N'卷',10)");
+
+        c.Execute("INSERT INTO [采购入仓单]([单号],[仓库],[日期],[审核]) VALUES(N'AUXMRK1',N'辅料仓库','2026-07-02','1')");
+        c.Execute(@"INSERT INTO [采购入仓明细单]([单号],[仓库],[日期],[物料编号],[物料名称],[规格],[单位],[数量])
+                    VALUES(N'AUXMRK1',N'辅料仓库','2026-07-02',N'AUXMON01',N'辅料月报胶纸',N'2.5*90Y',N'卷',5)");
+
+        c.Execute("INSERT INTO [退料单]([单号],[仓库],[日期],[审核]) VALUES(N'AUXMTL1',N'辅料仓库','2026-07-03','1')");
+        c.Execute(@"INSERT INTO [退料明细单]([单号],[仓库],[日期],[物料编号],[物料名称],[规格],[单位],[数量])
+                    VALUES(N'AUXMTL1',N'辅料仓库','2026-07-03',N'AUXMON01',N'辅料月报胶纸',N'2.5*90Y',N'卷',2)");
+
+        c.Execute("INSERT INTO [领料单]([单号],[仓库],[日期],[审核]) VALUES(N'AUXMLL1',N'辅料仓库','2026-07-04','1')");
+        c.Execute(@"INSERT INTO [领料明细单]([单号],[仓库],[日期],[物料编号],[物料名称],[规格],[单位],[数量])
+                    VALUES(N'AUXMLL1',N'辅料仓库','2026-07-04',N'AUXMON01',N'辅料月报胶纸',N'2.5*90Y',N'卷',4)");
+
+        c.Execute("INSERT INTO [采购退仓单]([单号],[仓库],[日期],[审核]) VALUES(N'AUXMCT1',N'辅料仓库','2026-07-05','1')");
+        c.Execute(@"INSERT INTO [采购退仓明细单]([单号],[仓库],[日期],[物料编号],[物料名称],[规格],[单位],[数量])
+                    VALUES(N'AUXMCT1',N'辅料仓库','2026-07-05',N'AUXMON01',N'辅料月报胶纸',N'2.5*90Y',N'卷',1)");
+
+        c.Execute("INSERT INTO [报废单]([单号],[仓库],[日期],[审核]) VALUES(N'AUXMBF1',N'辅料仓库','2026-07-06','1')");
+        c.Execute(@"INSERT INTO [报废明细单]([单号],[仓库],[日期],[物料编号],[物料名称],[规格],[单位],[数量])
+                    VALUES(N'AUXMBF1',N'辅料仓库','2026-07-06',N'AUXMON01',N'辅料月报胶纸',N'2.5*90Y',N'卷',3)");
+
+        c.Execute("INSERT INTO [盘点单]([单号],[仓库],[日期],[审核]) VALUES(N'AUXMPD1',N'辅料仓库','2026-07-07','1')");
+        c.Execute(@"INSERT INTO [盘点明细单]([单号],[仓库],[日期],[物料编号],[物料名称],[规格],[单位],[系统数量],[盘点数量],[盈亏数量])
+                    VALUES(N'AUXMPD1',N'辅料仓库','2026-07-07',N'AUXMON01',N'辅料月报胶纸',N'2.5*90Y',N'卷',12,10,-2)");
+
+        c.Execute("INSERT INTO [采购入仓单]([单号],[仓库],[日期],[审核]) VALUES(N'AUXMIGN',N'物料仓','2026-07-02','1')");
+        c.Execute(@"INSERT INTO [采购入仓明细单]([单号],[仓库],[日期],[物料编号],[物料名称],[规格],[单位],[数量])
+                    VALUES(N'AUXMIGN',N'物料仓','2026-07-02',N'AUXMON02',N'非辅料月报',N'规格B',N'个',99)");
+
+        try
+        {
+            var rows = await Svc().MonthlyAsync(
+                new DateTime(2026, 7, 1),
+                new DateTime(2026, 7, 31),
+                仓库: "辅料仓库",
+                物料类别: "辅料资料",
+                keyword: "月报胶纸");
+
+            var row = Assert.Single(rows);
+            Assert.Equal("AUXMON01", row.物料编号);
+            Assert.Equal("辅料月报胶纸", row.物料名称);
+            Assert.Equal("2.5*90Y", row.规格);
+            Assert.Equal("366", row.每单位数值);
+            Assert.Equal(10m, row.期初库存);
+            Assert.Equal(7m, row.本期入库);
+            Assert.Equal(8m, row.本期出库);
+            Assert.Equal(-2m, row.盘点盈亏);
+            Assert.Equal(7m, row.期末库存);
+        }
+        finally
+        {
+            CleanupAuxiliaryMonthly(c);
+        }
+    }
 }

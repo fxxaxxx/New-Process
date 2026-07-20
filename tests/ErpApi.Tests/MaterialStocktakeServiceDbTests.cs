@@ -1,8 +1,12 @@
 using Dapper;
+using System.Security.Claims;
+using ErpApi.Engines.Authorization;
 using ErpApi.Engines.DocumentNumber;
 using ErpApi.Engines.Inventory;
 using ErpApi.Features.Materials.MaterialStocktake;
 using ErpApi.Infrastructure.Db;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Xunit;
 
@@ -16,6 +20,36 @@ public class MaterialStocktakeServiceDbTests(DbFixture fx)
         return new SqlConnectionFactory(cfg);
     }
     private MaterialStocktakeService Svc() => new(Factory(), new DocumentNumberGenerator(), new MaterialInventoryService(Factory()));
+
+    private sealed class AuxiliaryQueryPermissionService(bool allowOpen, bool allowUnitPrice) : IPermissionService
+    {
+        public Task<IReadOnlyDictionary<string, PermissionFlags>> GetByUserAsync(string userName) =>
+            Task.FromResult<IReadOnlyDictionary<string, PermissionFlags>>(new Dictionary<string, PermissionFlags>());
+
+        public Task<bool> HasAsync(string userName, string menu, PermissionAction action) =>
+            Task.FromResult(menu == "辅料盘点查询" && action switch
+            {
+                PermissionAction.打开 => allowOpen,
+                PermissionAction.单价 => allowUnitPrice,
+                _ => false,
+            });
+    }
+
+    private AuxiliaryStocktakeQueryController AuxiliaryController(
+        bool allowOpen = true,
+        bool allowUnitPrice = false) => new(
+        Svc(),
+        new AuxiliaryQueryPermissionService(allowOpen, allowUnitPrice))
+    {
+        ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(
+                    [new Claim(ClaimTypes.NameIdentifier, "tester")], "test"))
+            }
+        }
+    };
 
     private static void SeedStock(Microsoft.Data.SqlClient.SqlConnection c)
     {
@@ -83,6 +117,38 @@ public class MaterialStocktakeServiceDbTests(DbFixture fx)
     }
 
     [SkippableFact]
+    public async Task Create_uses_requested_date_for_header_and_detail()
+    {
+        Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
+        using var c = fx.Open();
+        SeedStock(c);
+        string? pd = null;
+        var requestedDate = new DateTime(2026, 7, 9);
+        try
+        {
+            pd = await Svc().CreateAsync(new MaterialStocktakeCreateDto
+            {
+                日期 = requestedDate,
+                仓库 = "物料仓",
+                明细 = [ new MaterialStocktakeLineDto {
+                    物料编号 = "PDM01", 物料名称 = "盘点料", 规格 = "规格A", 单位 = "米",
+                    系统数量 = 100, 盘点数量 = 80 } ]
+            }, "tester");
+
+            Assert.StartsWith("PD20260709", pd);
+            Assert.Equal(requestedDate.Date, c.ExecuteScalar<DateTime>(
+                "SELECT CAST([日期] AS date) FROM [盘点单] WHERE [单号]=@n", new { n = pd }).Date);
+            Assert.Equal(requestedDate.Date, c.ExecuteScalar<DateTime>(
+                "SELECT CAST([日期] AS date) FROM [盘点明细单] WHERE [单号]=@n", new { n = pd }).Date);
+        }
+        finally
+        {
+            if (pd != null) { c.Execute("DELETE FROM [盘点明细单] WHERE [单号]=@n", new { n = pd }); c.Execute("DELETE FROM [盘点单] WHERE [单号]=@n", new { n = pd }); }
+            Cleanup(c);
+        }
+    }
+
+    [SkippableFact]
     public async Task StocktakeQuery_detail_and_summary_carry_盈亏_and_金额()
     {
         Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
@@ -117,6 +183,167 @@ public class MaterialStocktakeServiceDbTests(DbFixture fx)
         finally
         {
             if (pd != null) { c.Execute("DELETE FROM [盘点明细单] WHERE [单号]=@n", new { n = pd }); c.Execute("DELETE FROM [盘点单] WHERE [单号]=@n", new { n = pd }); }
+            Cleanup(c);
+        }
+    }
+
+    [SkippableFact]
+    public async Task StocktakeQuery_filters_detail_and_summary_by_warehouse()
+    {
+        Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
+        using var c = fx.Open();
+        SeedStock(c);
+        string? auxiliaryNo = null;
+        string? otherNo = null;
+        try
+        {
+            var line = new MaterialStocktakeLineDto
+            {
+                物料编号 = "PDM01", 物料名称 = "盘点料", 规格 = "规格A", 单位 = "米",
+                系统数量 = 30, 盘点数量 = 25
+            };
+            auxiliaryNo = await Svc().CreateAsync(new MaterialStocktakeCreateDto
+            {
+                仓库 = "辅料仓库",
+                明细 = [line]
+            }, "tester");
+            otherNo = await Svc().CreateAsync(new MaterialStocktakeCreateDto
+            {
+                仓库 = "其他仓库",
+                明细 = [line]
+            }, "tester");
+
+            var detail = await Svc().StocktakeQueryDetailAsync(null, null, "PDM01", null, null, "辅料仓库");
+            Assert.NotEmpty(detail);
+            Assert.All(detail, row => Assert.Equal(auxiliaryNo, row.单号));
+
+            var summary = await Svc().StocktakeQuerySummaryAsync(null, null, "PDM01", null, null, "辅料仓库");
+            var row = Assert.Single(summary);
+            Assert.Equal(30m, row.系统数量);
+        }
+        finally
+        {
+            if (auxiliaryNo != null)
+            {
+                c.Execute("DELETE FROM [盘点明细单] WHERE [单号]=@n", new { n = auxiliaryNo });
+                c.Execute("DELETE FROM [盘点单] WHERE [单号]=@n", new { n = auxiliaryNo });
+            }
+            if (otherNo != null)
+            {
+                c.Execute("DELETE FROM [盘点明细单] WHERE [单号]=@n", new { n = otherNo });
+                c.Execute("DELETE FROM [盘点单] WHERE [单号]=@n", new { n = otherNo });
+            }
+            Cleanup(c);
+        }
+    }
+
+    [SkippableFact]
+    public async Task AuxiliaryStocktakeQuery_get_reads_auxiliary_document_but_not_other_warehouse()
+    {
+        Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
+        using var c = fx.Open();
+        SeedStock(c);
+        string? auxiliaryNo = null;
+        string? otherNo = null;
+        try
+        {
+            var line = new MaterialStocktakeLineDto
+            {
+                物料编号 = "PDM01", 物料名称 = "盘点料", 规格 = "规格A", 单位 = "米",
+                系统数量 = 30, 盘点数量 = 25
+            };
+            auxiliaryNo = await Svc().CreateAsync(new MaterialStocktakeCreateDto
+            {
+                仓库 = "辅料仓库",
+                明细 = [line]
+            }, "tester");
+            otherNo = await Svc().CreateAsync(new MaterialStocktakeCreateDto
+            {
+                仓库 = "其他仓库",
+                明细 = [line]
+            }, "tester");
+
+            var controller = AuxiliaryController();
+            var auxiliaryResult = Assert.IsType<OkObjectResult>(await controller.Get(auxiliaryNo));
+            var auxiliary = Assert.IsType<MaterialStocktakeDetailDto>(auxiliaryResult.Value);
+            Assert.Equal(auxiliaryNo, auxiliary.单头?.单号);
+            Assert.Equal("辅料仓库", auxiliary.单头?.仓库);
+            Assert.Single(auxiliary.明细);
+
+            Assert.IsType<NotFoundResult>(await controller.Get(otherNo));
+            Assert.IsType<NotFoundResult>(await controller.Get("missing-stocktake"));
+        }
+        finally
+        {
+            foreach (var number in new[] { auxiliaryNo, otherNo }.Where(number => number is not null))
+            {
+                c.Execute("DELETE FROM [盘点明细单] WHERE [单号]=@n", new { n = number });
+                c.Execute("DELETE FROM [盘点单] WHERE [单号]=@n", new { n = number });
+            }
+            Cleanup(c);
+        }
+    }
+
+    [Fact]
+    public async Task AuxiliaryStocktakeQuery_get_forbids_without_open_permission()
+    {
+        var controller = AuxiliaryController(allowOpen: false);
+
+        Assert.IsType<ForbidResult>(await controller.Get("PD001"));
+    }
+
+    [SkippableFact]
+    public async Task AuxiliaryStocktakeQuery_applies_unit_price_permission_to_summary_and_detail()
+    {
+        Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
+        using var c = fx.Open();
+        SeedStock(c);
+        string? stocktakeNo = null;
+        try
+        {
+            stocktakeNo = await Svc().CreateAsync(new MaterialStocktakeCreateDto
+            {
+                仓库 = "辅料仓库",
+                明细 = [new MaterialStocktakeLineDto
+                {
+                    物料编号 = "PDM01", 物料名称 = "盘点料", 规格 = "规格A", 单位 = "米",
+                    系统数量 = 30, 盘点数量 = 25
+                }]
+            }, "tester");
+            var controller = AuxiliaryController(allowUnitPrice: false);
+
+            var detailResult = Assert.IsType<OkObjectResult>(await controller.Detail(keyword: "PDM01"));
+            var detail = Assert.IsAssignableFrom<IReadOnlyList<MaterialStocktakeQueryDetailRow>>(detailResult.Value);
+            var detailRow = Assert.Single(detail);
+            Assert.Null(detailRow.单价);
+            Assert.Null(detailRow.金额);
+
+            var summaryResult = Assert.IsType<OkObjectResult>(await controller.Summary(keyword: "PDM01"));
+            var summary = Assert.IsAssignableFrom<IReadOnlyList<MaterialStocktakeSummaryRow>>(summaryResult.Value);
+            var summaryRow = Assert.Single(summary);
+            Assert.Null(summaryRow.单价);
+            Assert.Null(summaryRow.金额);
+
+            var priceController = AuxiliaryController(allowUnitPrice: true);
+            var pricedDetailResult = Assert.IsType<OkObjectResult>(await priceController.Detail(keyword: "PDM01"));
+            var pricedDetail = Assert.IsAssignableFrom<IReadOnlyList<MaterialStocktakeQueryDetailRow>>(pricedDetailResult.Value);
+            var pricedDetailRow = Assert.Single(pricedDetail);
+            Assert.Equal(10m, pricedDetailRow.单价);
+            Assert.Equal(-50m, pricedDetailRow.金额);
+
+            var pricedSummaryResult = Assert.IsType<OkObjectResult>(await priceController.Summary(keyword: "PDM01"));
+            var pricedSummary = Assert.IsAssignableFrom<IReadOnlyList<MaterialStocktakeSummaryRow>>(pricedSummaryResult.Value);
+            var pricedSummaryRow = Assert.Single(pricedSummary);
+            Assert.Equal(10m, pricedSummaryRow.单价);
+            Assert.Equal(-50m, pricedSummaryRow.金额);
+        }
+        finally
+        {
+            if (stocktakeNo != null)
+            {
+                c.Execute("DELETE FROM [盘点明细单] WHERE [单号]=@n", new { n = stocktakeNo });
+                c.Execute("DELETE FROM [盘点单] WHERE [单号]=@n", new { n = stocktakeNo });
+            }
             Cleanup(c);
         }
     }

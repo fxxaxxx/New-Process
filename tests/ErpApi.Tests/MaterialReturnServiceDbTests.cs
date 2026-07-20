@@ -75,6 +75,29 @@ public class MaterialReturnServiceDbTests(DbFixture fx)
     }
 
     [SkippableFact]
+    public async Task Create_uses_requested_date_for_header_and_detail()
+    {
+        Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
+        using var c = fx.Open();
+        P3TestData.Seed(c);
+        var dto = Dto();
+        dto.日期 = new DateTime(2026, 7, 9);
+        var 单号 = await Svc().CreateAsync(dto, "tester");
+        try
+        {
+            Assert.StartsWith("TL20260709", 单号);
+            Assert.Equal(new DateTime(2026, 7, 9), c.ExecuteScalar<DateTime>("SELECT CONVERT(date,[日期]) FROM [退料单] WHERE [单号]=@单号", new { 单号 }));
+            Assert.Equal(new DateTime(2026, 7, 9), c.ExecuteScalar<DateTime>("SELECT CONVERT(date,[日期]) FROM [退料明细单] WHERE [单号]=@单号", new { 单号 }));
+        }
+        finally
+        {
+            c.Execute("DELETE FROM [退料明细单] WHERE [单号]=@单号", new { 单号 });
+            c.Execute("DELETE FROM [退料单] WHERE [单号]=@单号", new { 单号 });
+            P3TestData.Cleanup(c);
+        }
+    }
+
+    [SkippableFact]
     public async Task Create_rejects_empty_lines()
     {
         Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");

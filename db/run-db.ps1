@@ -19,4 +19,8 @@ dotnet run --project (Join-Path $root "tools\DbDeploy") -- $ConnectionString `
   (Join-Path $dir "13_purchase_return.sql") `
   (Join-Path $dir "14_scrap_doc.sql") `
   (Join-Path $dir "migrate_semi_finished_common_materials.sql") `
-  (Join-Path $dir "seed_semi_finished_common_materials_perms.sql")
+  (Join-Path $dir "seed_semi_finished_common_materials_perms.sql") `
+  (Join-Path $dir "migrate_semi_finished_label_orders.sql") `
+  (Join-Path $dir "seed_semi_finished_label_order_perms.sql") `
+  (Join-Path $dir "migrate_semi_warehouse_returns.sql") `
+  (Join-Path $dir "seed_semi_warehouse_return_perms.sql")
