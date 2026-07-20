@@ -80,4 +80,72 @@ FROM [原料退库明细单] WHERE [单号]=@单号 ORDER BY [ID];", new { 单�
         tx.Commit();
         return true;
     }
+
+    private static string ApprovalFilter(string? 审核情况) => 审核情况 switch
+    {
+        "已审核" => " AND ISNULL(h.[审核],'0')='1'",
+        "未审核" => " AND ISNULL(h.[审核],'0')<>'1'",
+        _ => "",
+    };
+
+    public async Task<IReadOnlyList<PlasticRawMaterialStockReturnQuerySummaryRow>> StockReturnQuerySummaryAsync(
+        DateTime 起, DateTime 止, string? keyword, string? 审核情况, string? 物料类别)
+    {
+        var qi = 起.Date;
+        var qe = 止.Date.AddDays(1);
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        var cat = string.IsNullOrWhiteSpace(物料类别) || 物料类别 == "所有类别" ? null : 物料类别.Trim();
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<PlasticRawMaterialStockReturnQuerySummaryRow>($@"
+SELECT d.[啤机生产单号],
+       d.[原料编号],
+       MAX(d.[原料名称]) AS 原料名称,
+       MAX(d.[产地]) AS 产地,
+       MAX(d.[单位]) AS 单位,
+       SUM(ISNULL(d.[数量],0)) AS 退料数量
+FROM [原料退库明细单] d
+JOIN [原料退库表] h ON h.[单号] = d.[单号]
+LEFT JOIN [塑胶原料资料] m ON m.[物料编号] = d.[原料编号]
+WHERE h.[日期] >= @qi AND h.[日期] < @qe
+  AND (@cat IS NULL OR m.[物料类别] = @cat)
+  AND (@kw IS NULL OR d.[啤机生产单号] LIKE @kw OR d.[原料编号] LIKE @kw OR d.[原料名称] LIKE @kw
+       OR h.[单号] LIKE @kw OR h.[部门] LIKE @kw OR h.[退料人] LIKE @kw)
+{ApprovalFilter(审核情况)}
+GROUP BY d.[啤机生产单号], d.[原料编号]
+ORDER BY d.[啤机生产单号], d.[原料编号];", new { qi, qe, kw, cat });
+        return rows.AsList();
+    }
+
+    public async Task<IReadOnlyList<PlasticRawMaterialStockReturnQueryDetailRow>> StockReturnQueryDetailAsync(
+        DateTime 起, DateTime 止, string? keyword, string? 审核情况, string? 物料类别)
+    {
+        var qi = 起.Date;
+        var qe = 止.Date.AddDays(1);
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        var cat = string.IsNullOrWhiteSpace(物料类别) || 物料类别 == "所有类别" ? null : 物料类别.Trim();
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<PlasticRawMaterialStockReturnQueryDetailRow>($@"
+SELECT d.[啤机生产单号],
+       h.[日期],
+       d.[单号],
+       h.[部门] AS 退料部门,
+       h.[退料人],
+       d.[原料编号],
+       d.[原料名称],
+       d.[产地],
+       d.[单位],
+       d.[数量],
+       d.[备注],
+       h.[审核]
+FROM [原料退库明细单] d
+JOIN [原料退库表] h ON h.[单号] = d.[单号]
+LEFT JOIN [塑胶原料资料] m ON m.[物料编号] = d.[原料编号]
+WHERE h.[日期] >= @qi AND h.[日期] < @qe
+  AND (@cat IS NULL OR m.[物料类别] = @cat)
+  AND (@kw IS NULL OR d.[啤机生产单号] LIKE @kw OR d.[原料编号] LIKE @kw OR d.[原料名称] LIKE @kw
+       OR h.[单号] LIKE @kw OR h.[部门] LIKE @kw OR h.[退料人] LIKE @kw)
+{ApprovalFilter(审核情况)}
+ORDER BY h.[日期] DESC, d.[单号], d.[ID];", new { qi, qe, kw, cat });
+        return rows.AsList();
+    }
 }

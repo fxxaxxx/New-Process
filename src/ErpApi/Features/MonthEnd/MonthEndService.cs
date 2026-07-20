@@ -34,6 +34,9 @@ WITH 账本 AS (
       FROM [半成品入仓明细单] d JOIN [半成品入仓单] h ON h.单号=d.单号 WHERE d.仓库=@仓 AND ISNULL(h.审核,'0')='1'
     UNION ALL
     SELECT d.物料编号,d.物料名称,d.规格,d.颜色,d.[日期], ISNULL(d.数量,0)*-1
+      FROM [半成品退仓明细单] d JOIN [半成品退仓单] h ON h.单号=d.单号 WHERE d.仓库=@仓 AND ISNULL(h.审核,'0')='1'
+    UNION ALL
+    SELECT d.物料编号,d.物料名称,d.规格,d.颜色,d.[日期], ISNULL(d.数量,0)*-1
       FROM [半成品领料明细单] d JOIN [半成品领料单] h ON h.单号=d.单号 WHERE d.仓库=@仓 AND ISNULL(h.审核,'0')='1'
     UNION ALL
     SELECT d.物料编号,d.物料名称,d.规格,d.颜色,d.[日期], CAST(ISNULL(d.盈亏数量,0) AS decimal(18,4))
@@ -152,6 +155,7 @@ SELECT DISTINCT 仓库 FROM (
     private const string 半成品仓库Sql = @"
 SELECT DISTINCT 仓库 FROM (
     SELECT d.仓库 FROM [半成品入仓明细单] d JOIN [半成品入仓单] h ON h.单号=d.单号 WHERE ISNULL(h.审核,'0')='1' AND d.[日期] < @下月初
+    UNION SELECT d.仓库 FROM [半成品退仓明细单] d JOIN [半成品退仓单] h ON h.单号=d.单号 WHERE ISNULL(h.审核,'0')='1' AND d.[日期] < @下月初
     UNION SELECT d.仓库 FROM [半成品领料明细单] d JOIN [半成品领料单] h ON h.单号=d.单号 WHERE ISNULL(h.审核,'0')='1' AND d.[日期] < @下月初
     UNION SELECT d.仓库 FROM [半成品盘点明细单] d JOIN [半成品盘点单] h ON h.单号=d.单号 WHERE ISNULL(h.审核,'0')='1' AND d.[日期] < @下月初
 ) t WHERE 仓库 IS NOT NULL AND 仓库 <> N'';";

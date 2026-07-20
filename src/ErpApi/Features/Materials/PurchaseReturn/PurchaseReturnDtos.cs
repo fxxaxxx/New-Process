@@ -6,6 +6,7 @@ public sealed class PurchaseReturnCreateDto
     public string? 入仓单号 { get; set; }
     public string? 供应商编号 { get; set; }
     public string? 供应商名称 { get; set; }
+    public DateTime? 日期 { get; set; }
     public string? 仓库 { get; set; }
     public string? 备注 { get; set; }
     public List<MaterialDocLineDto> 明细 { get; set; } = [];

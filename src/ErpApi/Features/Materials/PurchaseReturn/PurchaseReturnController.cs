@@ -80,7 +80,7 @@ public sealed class PurchaseReturnController(
     public async Task<IActionResult> Create([FromBody] PurchaseReturnCreateDto dto)
     {
         if (!await AllowAsync(PermissionAction.保存)) return Forbid();
-        try { await periodLock.EnsureWarehouseOpenAsync(口径, dto.仓库, DateTime.Now); }
+        try { await periodLock.EnsureWarehouseOpenAsync(口径, dto.仓库, dto.日期 ?? DateTime.Now); }
         catch (PeriodLockedException ex) { return Conflict(new { 消息 = ex.Message }); }
         string 单号;
         try { 单号 = await svc.CreateAsync(dto, CurrentUser); }

@@ -62,3 +62,33 @@ public sealed class PlasticRawMaterialReceiptCreateDto
     public string? 备注 { get; set; }
     public List<PlasticRawMaterialReceiptCreateLineDto> 明细 { get; set; } = new();
 }
+
+public sealed class PlasticRawMaterialReceiptQueryDetailRow
+{
+    public DateTime? 日期 { get; set; }
+    public string? 单号 { get; set; }
+    public string? 入库单号 { get; set; }
+    public string? 订单单号 { get; set; }
+    public string? 供应商编号 { get; set; }
+    public string? 供应商名称 { get; set; }
+    public string? 原料编号 { get; set; }
+    public string? 原料名称 { get; set; }
+    public string? 产地 { get; set; }
+    public string? 单价类型 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 数量 { get; set; }
+    public decimal? 单价 { get; set; }
+    public decimal? 金额 { get; set; }
+    public string? 备注 { get; set; }
+    public string? 审核 { get; set; }
+}
+
+public sealed class PlasticRawMaterialReceiptQuerySummaryRow
+{
+    public string? 原料编号 { get; set; }
+    public string? 原料名称 { get; set; }
+    public string? 产地 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 入仓数量 { get; set; }
+    public decimal? 金额 { get; set; }
+}

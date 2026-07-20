@@ -117,4 +117,70 @@ WHERE d.[单号] = @单号 AND d.[原料编号] IS NOT NULL", new { 单号 }, tx
         tx.Commit();
         return true;
     }
+
+    private static string ApprovalFilter(string? 审核情况) => 审核情况 switch
+    {
+        "已审核" => " AND ISNULL(h.[审核],'0')='1'",
+        "未审核" => " AND ISNULL(h.[审核],'0')<>'1'",
+        _ => "",
+    };
+
+    public async Task<IReadOnlyList<PlasticRawMaterialStocktakeQuerySummaryRow>> StocktakeQuerySummaryAsync(
+        DateTime 起, DateTime 止, string? keyword, string? 审核情况, string? 物料类别)
+    {
+        var qi = 起.Date;
+        var qe = 止.Date.AddDays(1);
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        var cat = string.IsNullOrWhiteSpace(物料类别) || 物料类别 == "所有类别" ? null : 物料类别.Trim();
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<PlasticRawMaterialStocktakeQuerySummaryRow>($@"
+SELECT d.[原料编号],
+       MAX(d.[原料名称]) AS 原料名称,
+       MAX(d.[产地]) AS 产地,
+       MAX(d.[单位]) AS 单位,
+       SUM(ISNULL(d.[系统数量],0)) AS 系统数,
+       SUM(ISNULL(d.[盘点数量],0)) AS 盘点数,
+       SUM(ISNULL(d.[盈亏数量],0)) AS 盈亏数
+FROM [原料盘点明细单] d
+JOIN [原料盘点单] h ON h.[单号] = d.[单号]
+LEFT JOIN [塑胶原料资料] m ON m.[物料编号] = d.[原料编号]
+WHERE h.[日期] >= @qi AND h.[日期] < @qe
+  AND (@cat IS NULL OR m.[物料类别] = @cat)
+  AND (@kw IS NULL OR d.[原料编号] LIKE @kw OR d.[原料名称] LIKE @kw OR h.[单号] LIKE @kw OR h.[备注] LIKE @kw)
+{ApprovalFilter(审核情况)}
+GROUP BY d.[原料编号]
+ORDER BY d.[原料编号];", new { qi, qe, kw, cat });
+        return rows.AsList();
+    }
+
+    public async Task<IReadOnlyList<PlasticRawMaterialStocktakeQueryDetailRow>> StocktakeQueryDetailAsync(
+        DateTime 起, DateTime 止, string? keyword, string? 审核情况, string? 物料类别)
+    {
+        var qi = 起.Date;
+        var qe = 止.Date.AddDays(1);
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        var cat = string.IsNullOrWhiteSpace(物料类别) || 物料类别 == "所有类别" ? null : 物料类别.Trim();
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<PlasticRawMaterialStocktakeQueryDetailRow>($@"
+SELECT h.[日期],
+       d.[单号],
+       d.[原料编号],
+       d.[原料名称],
+       d.[产地],
+       d.[单位],
+       d.[系统数量],
+       d.[盘点数量],
+       d.[盈亏数量],
+       d.[备注],
+       h.[审核]
+FROM [原料盘点明细单] d
+JOIN [原料盘点单] h ON h.[单号] = d.[单号]
+LEFT JOIN [塑胶原料资料] m ON m.[物料编号] = d.[原料编号]
+WHERE h.[日期] >= @qi AND h.[日期] < @qe
+  AND (@cat IS NULL OR m.[物料类别] = @cat)
+  AND (@kw IS NULL OR d.[原料编号] LIKE @kw OR d.[原料名称] LIKE @kw OR h.[单号] LIKE @kw OR h.[备注] LIKE @kw)
+{ApprovalFilter(审核情况)}
+ORDER BY h.[日期] DESC, d.[单号], d.[ID];", new { qi, qe, kw, cat });
+        return rows.AsList();
+    }
 }

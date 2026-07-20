@@ -19,24 +19,25 @@ public sealed class PurchaseReturnService(ISqlConnectionFactory factory, IDocume
         var 数量合计 = dto.明细.Sum(l => l.数量);
         var 金额合计 = dto.明细.Sum(l => l.数量 * (l.单价 ?? 0));
         var now = DateTime.Now;
+        var docDate = dto.日期 ?? now;
 
         using var c = factory.Create();
         await c.OpenAsync();
         using var tx = c.BeginTransaction();
 
-        var 单号 = await docNo.NextAsync(DocType, Prefix, now, c, tx);
+        var 单号 = await docNo.NextAsync(DocType, Prefix, docDate, c, tx);
 
         await c.ExecuteAsync(@"
 INSERT INTO [采购退仓单]([单号],[入仓单号],[日期],[供应商编号],[供应商名称],[仓库],[数量],[金额],[操作员],[审核],[备注])
 VALUES(@单号,@入仓单号,@日期,@供应商编号,@供应商名称,@仓库,@数量,@金额,@操作员,'0',@备注)",
-            new { 单号, dto.入仓单号, 日期 = now, dto.供应商编号, dto.供应商名称, dto.仓库,
+            new { 单号, dto.入仓单号, 日期 = docDate, dto.供应商编号, dto.供应商名称, dto.仓库,
                   数量 = 数量合计, 金额 = 金额合计, 操作员 = user, dto.备注 }, tx);
 
         foreach (var l in dto.明细)
             await c.ExecuteAsync(@"
 INSERT INTO [采购退仓明细单]([单号],[入仓单号],[订单单号],[生产单号],[款号],[日期],[仓库],[物料类别],[物料编号],[物料名称],[规格],[颜色],[单位],[数量],[单价],[金额],[备注])
 VALUES(@单号,@入仓单号,@订单单号,@生产单号,@款号,@日期,@仓库,@物料类别,@物料编号,@物料名称,@规格,@颜色,@单位,@数量,@单价,@金额,@备注)",
-                new { 单号, dto.入仓单号, l.订单单号, l.生产单号, l.款号, 日期 = now, dto.仓库, l.物料类别, l.物料编号, l.物料名称, l.规格, l.颜色, l.单位,
+                new { 单号, dto.入仓单号, l.订单单号, l.生产单号, l.款号, 日期 = docDate, dto.仓库, l.物料类别, l.物料编号, l.物料名称, l.规格, l.颜色, l.单位,
                       l.数量, 单价 = l.单价 ?? 0, 金额 = l.数量 * (l.单价 ?? 0), l.备注 }, tx);
 
         tx.Commit();
@@ -68,7 +69,7 @@ ORDER BY [ID] DESC OFFSET (@page-1)*@size ROWS FETCH NEXT @size ROWS ONLY;",
         using var multi = await c.QueryMultipleAsync(@"
 SELECT [ID],[单号],[日期],[入仓单号],[供应商编号],[供应商名称],[仓库],[数量],[金额],[操作员],[审核],[审核人],[备注]
 FROM [采购退仓单] WHERE [单号]=@单号;
-SELECT [ID],[物料编号],[物料名称],[物料类别],[规格],[颜色],[单位],[数量],[单价],[金额],[备注]
+SELECT [ID],[订单单号],[生产单号],[款号],[物料编号],[物料名称],[物料类别],[规格],[颜色],[单位],[数量],[单价],[金额],[备注]
 FROM [采购退仓明细单] WHERE [单号]=@单号 ORDER BY [ID];",
             new { 单号 });
         var header = await multi.ReadFirstOrDefaultAsync<PurchaseReturnHeaderDto>();

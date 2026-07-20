@@ -102,9 +102,11 @@ public sealed class PurchaseOrderProgressRow
     public decimal? 订购数量 { get; set; }
     public decimal? 入仓数量 { get; set; }
     public decimal? 欠数 { get; set; }
+    public string? 供应商编号 { get; set; }
     public string? 供应商名称 { get; set; }
     public string? 操作员 { get; set; }
     public string? 审核 { get; set; }
+    public string? 备注 { get; set; }
 }
 
 // 进度明细行：一条订单明细 × 一次已审核入仓（未入仓则入仓列为 null）
@@ -161,4 +163,74 @@ public sealed class PurchaseOrderQuerySummaryRow
     public string? 颜色 { get; set; }
     public string? 单位 { get; set; }
     public decimal? 订购数量 { get; set; }
+}
+
+public sealed class AuxiliaryOrderReceiptStatRow
+{
+    public DateTime? 订购日期 { get; set; }
+    public DateTime? 交货日期 { get; set; }
+    public string? 订购单号 { get; set; }
+    public string? 供应商名称 { get; set; }
+    public string? 辅料编号 { get; set; }
+    public string? 辅料名称 { get; set; }
+    public string? 规格 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 采购单价 { get; set; }
+    public decimal? 单价HKD { get; set; }
+    public decimal? 其他成本单价HKD { get; set; }
+    public decimal 订货数量 { get; set; }
+    public decimal 订货金额HKD { get; set; }
+    public decimal 入库数量 { get; set; }
+    public decimal 入库订货金额HKD { get; set; }
+    public decimal 入库其他费用HKD { get; set; }
+    public decimal 入库金额合计HKD { get; set; }
+    public decimal 相关数量 { get; set; }
+    public decimal 相关金额HKD { get; set; }
+    public string? 操作员 { get; set; }
+}
+
+public sealed class AuxiliaryProgressDetailRow
+{
+    public DateTime? 订购日期 { get; set; }
+    public DateTime? 交货日期 { get; set; }
+    public string? 订购单号 { get; set; }
+    public string? 供应商名称 { get; set; }
+    public string? 辅料编号 { get; set; }
+    public string? 辅料名称 { get; set; }
+    public string? 规格 { get; set; }
+    public string? 单位 { get; set; }
+    public string? 单价类型 { get; set; }
+    public decimal? 订货数量 { get; set; }
+    public DateTime? 入仓日期 { get; set; }
+    public string? 入仓单号 { get; set; }
+    public decimal? 入仓数量 { get; set; }
+    public decimal? 总入仓数 { get; set; }
+    public decimal? 相差数量 { get; set; }
+}
+
+public sealed class AuxiliaryPurchaseOrderQuerySummaryRow
+{
+    public string? 供应商编号 { get; set; }
+    public string? 供应商名称 { get; set; }
+    public string? 辅料编号 { get; set; }
+    public string? 辅料名称 { get; set; }
+    public string? 规格 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 订货数量 { get; set; }
+}
+
+public sealed class AuxiliaryPurchaseOrderQueryDetailRow
+{
+    public DateTime? 日期 { get; set; }
+    public string? 单号 { get; set; }
+    public DateTime? 交货日期 { get; set; }
+    public string? 供应商编号 { get; set; }
+    public string? 供应商名称 { get; set; }
+    public string? 辅料编号 { get; set; }
+    public string? 辅料名称 { get; set; }
+    public string? 规格 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 数量 { get; set; }
+    public string? 备注 { get; set; }
+    public string? 审核 { get; set; }
 }

@@ -83,4 +83,184 @@ FROM [原料采购订单明细] WHERE [单号]=@单号 ORDER BY [ID];", new { �
         tx.Commit();
         return true;
     }
+
+    public async Task<IReadOnlyList<PlasticRawMaterialOrderReceiptStatRow>> OrderReceiptStatsAsync(
+        DateTime 起, DateTime 止, string? keyword)
+    {
+        var qi = 起.Date;
+        var qe = 止.Date.AddDays(1);
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<PlasticRawMaterialOrderReceiptStatRow>(@"
+WITH 入库 AS (
+    SELECT h.[订单单号],
+           d.[原料编号],
+           SUM(ISNULL(d.[数量],0)) AS 入库数量包,
+           SUM(ISNULL(d.[金额], ISNULL(d.[数量],0) * ISNULL(d.[单价],0))) AS 入库订货金额HKD
+    FROM [原料入仓明细单] d
+    JOIN [原料入仓单] h ON h.[单号] = d.[单号]
+    WHERE ISNULL(h.[审核],'0') = '1'
+    GROUP BY h.[订单单号], d.[原料编号]
+)
+SELECT o.[订购日期],
+       o.[交货日期],
+       o.[单号] AS 订购单号,
+       o.[供应商名称],
+       d.[原料编号],
+       d.[原料名称],
+       d.[单位],
+       d.[单价] AS 采购单价,
+       d.[单价] AS 单价HKDLb,
+       CAST(0 AS decimal(18,4)) AS 其他成本单价HKDLb,
+       ISNULL(d.[订货数量],0) AS 订货数量包,
+       ISNULL(d.[金额], ISNULL(d.[订货数量],0) * ISNULL(d.[单价],0)) AS 订货金额HKD,
+       ISNULL(r.[入库数量包],0) AS 入库数量包,
+       ISNULL(r.[入库订货金额HKD],0) AS 入库订货金额HKD,
+       CAST(0 AS decimal(18,4)) AS 入库其他费用HKD,
+       ISNULL(r.[入库订货金额HKD],0) AS 入库金额合计HKD,
+       ISNULL(d.[订货数量],0) - ISNULL(r.[入库数量包],0) AS 相关数量包,
+       ISNULL(d.[金额], ISNULL(d.[订货数量],0) * ISNULL(d.[单价],0)) - ISNULL(r.[入库订货金额HKD],0) AS 相关金额HKD
+FROM [原料采购订单明细] d
+JOIN [原料采购订单] o ON o.[单号] = d.[单号]
+LEFT JOIN 入库 r ON r.[订单单号] = o.[单号] AND r.[原料编号] = d.[原料编号]
+WHERE o.[订购日期] >= @qi AND o.[订购日期] < @qe
+  AND (@kw IS NULL OR o.[单号] LIKE @kw OR o.[供应商名称] LIKE @kw OR d.[原料编号] LIKE @kw OR d.[原料名称] LIKE @kw)
+ORDER BY o.[订购日期], o.[单号], d.[ID];", new { qi, qe, kw });
+        return rows.AsList();
+    }
+
+    public async Task<IReadOnlyList<PlasticRawMaterialProgressDetailRow>> ProgressDetailAsync(
+        DateTime? 起, DateTime? 止, string? keyword, string? 到货情况, string? 日期类型)
+    {
+        var qi = 起?.Date;
+        var qe = 止?.Date.AddDays(1);
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        var onlyReceived = 到货情况 == "已到" ? 1 : 0;
+        var onlyNotReceived = 到货情况 == "未到" ? 1 : 0;
+        var dateCol = 日期类型 switch
+        {
+            "订购日期" => "o.[订购日期]",
+            "交货日期" => "o.[交货日期]",
+            "入仓日期" => "rk.[入仓日期]",
+            _ => null
+        };
+        var dateWhere = dateCol is null ? "" : $"  AND (@qi IS NULL OR {dateCol} >= @qi)\n  AND (@qe IS NULL OR {dateCol} < @qe)\n";
+
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<PlasticRawMaterialProgressDetailRow>($@"
+WITH 入仓 AS (
+    SELECT h.[订单单号],
+           d.[原料编号],
+           d.[原料名称],
+           d.[产地],
+           d.[每包重量],
+           d.[单位],
+           d.[单价类型],
+           h.[日期] AS 入仓日期,
+           d.[单号] AS 入仓单号,
+           ISNULL(d.[数量],0) AS 入仓数量,
+           SUM(ISNULL(d.[数量],0)) OVER (PARTITION BY h.[订单单号], d.[原料编号]) AS 总入仓数
+    FROM [原料入仓明细单] d
+    JOIN [原料入仓单] h ON h.[单号] = d.[单号]
+    WHERE ISNULL(h.[审核],'0') = '1'
+)
+SELECT o.[订购日期],
+       o.[交货日期],
+       o.[单号] AS 订购单号,
+       o.[供应商名称],
+       d.[原料编号],
+       d.[原料名称],
+       rk.[产地],
+       rk.[每包重量],
+       COALESCE(rk.[单位], d.[单位]) AS 单位,
+       COALESCE(rk.[单价类型], d.[单价类型]) AS 单价类型,
+       ISNULL(d.[订货数量],0) AS 订货数量,
+       rk.[入仓日期],
+       rk.[入仓单号],
+       rk.[入仓数量],
+       ISNULL(rk.[总入仓数],0) AS 总入仓数,
+       ISNULL(d.[订货数量],0) - ISNULL(rk.[总入仓数],0) AS 相差数量,
+       o.[操作员],
+       o.[审核]
+FROM [原料采购订单明细] d
+JOIN [原料采购订单] o ON o.[单号] = d.[单号]
+LEFT JOIN 入仓 rk ON rk.[订单单号] = o.[单号] AND rk.[原料编号] = d.[原料编号]
+WHERE (@kw IS NULL OR o.[单号] LIKE @kw OR o.[供应商名称] LIKE @kw OR d.[原料编号] LIKE @kw OR d.[原料名称] LIKE @kw)
+{dateWhere}  AND (@onlyReceived = 0 OR rk.[入仓单号] IS NOT NULL)
+  AND (@onlyNotReceived = 0 OR rk.[入仓单号] IS NULL)
+ORDER BY o.[订购日期] DESC, o.[单号], d.[ID], rk.[入仓日期], rk.[入仓单号];",
+            new { qi, qe, kw, onlyReceived, onlyNotReceived });
+        return rows.AsList();
+    }
+
+    private static string OrderQueryDateCol(string? 日期类型) => 日期类型 == "交货日期" ? "交货日期" : "订购日期";
+
+    public async Task<IReadOnlyList<PlasticRawMaterialPurchaseOrderQueryDetailRow>> OrderQueryDetailAsync(
+        DateTime? 起, DateTime? 止, string? keyword, string? 物料类别, string? 日期类型)
+    {
+        var qi = 起?.Date;
+        var qe = 止?.Date.AddDays(1);
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        var cat = string.IsNullOrWhiteSpace(物料类别) || 物料类别 == "所有类别" ? null : 物料类别.Trim();
+        var dateCol = OrderQueryDateCol(日期类型);
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<PlasticRawMaterialPurchaseOrderQueryDetailRow>($@"
+SELECT o.[订购日期],
+       o.[交货日期],
+       o.[单号],
+       o.[供应商编号],
+       o.[供应商名称],
+       d.[原料编号],
+       d.[原料名称],
+       m.[产地],
+       d.[单位],
+       d.[单价类型],
+       d.[订货数量],
+       d.[单价],
+       d.[金额],
+       o.[审核],
+       d.[备注]
+FROM [原料采购订单明细] d
+JOIN [原料采购订单] o ON o.[单号] = d.[单号]
+LEFT JOIN [塑胶原料资料] m ON m.[物料编号] = d.[原料编号]
+WHERE (@qi IS NULL OR o.[{dateCol}] >= @qi)
+  AND (@qe IS NULL OR o.[{dateCol}] < @qe)
+  AND (@cat IS NULL OR m.[物料类别] = @cat)
+  AND (@kw IS NULL OR d.[原料编号] LIKE @kw OR d.[原料名称] LIKE @kw
+       OR o.[单号] LIKE @kw OR o.[供应商编号] LIKE @kw OR o.[供应商名称] LIKE @kw)
+ORDER BY o.[订购日期] DESC, o.[单号], d.[ID];", new { qi, qe, kw, cat });
+        return rows.AsList();
+    }
+
+    public async Task<IReadOnlyList<PlasticRawMaterialPurchaseOrderQuerySummaryRow>> OrderQuerySummaryAsync(
+        DateTime? 起, DateTime? 止, string? keyword, string? 物料类别, string? 日期类型, bool 按供应商)
+    {
+        var qi = 起?.Date;
+        var qe = 止?.Date.AddDays(1);
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        var cat = string.IsNullOrWhiteSpace(物料类别) || 物料类别 == "所有类别" ? null : 物料类别.Trim();
+        var dateCol = OrderQueryDateCol(日期类型);
+        var supplierSelect = 按供应商 ? "o.[供应商编号], o.[供应商名称]," : "CAST(NULL AS nvarchar(40)) AS 供应商编号, CAST(NULL AS nvarchar(80)) AS 供应商名称,";
+        var supplierGroup = 按供应商 ? "o.[供应商编号], o.[供应商名称]," : "";
+        var supplierOrder = 按供应商 ? "供应商编号, " : "";
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<PlasticRawMaterialPurchaseOrderQuerySummaryRow>($@"
+SELECT {supplierSelect}
+       d.[原料编号],
+       MAX(d.[原料名称]) AS 原料名称,
+       MAX(m.[产地]) AS 产地,
+       MAX(d.[单位]) AS 单位,
+       SUM(ISNULL(d.[订货数量],0)) AS 订货数量
+FROM [原料采购订单明细] d
+JOIN [原料采购订单] o ON o.[单号] = d.[单号]
+LEFT JOIN [塑胶原料资料] m ON m.[物料编号] = d.[原料编号]
+WHERE (@qi IS NULL OR o.[{dateCol}] >= @qi)
+  AND (@qe IS NULL OR o.[{dateCol}] < @qe)
+  AND (@cat IS NULL OR m.[物料类别] = @cat)
+  AND (@kw IS NULL OR d.[原料编号] LIKE @kw OR d.[原料名称] LIKE @kw
+       OR o.[单号] LIKE @kw OR o.[供应商编号] LIKE @kw OR o.[供应商名称] LIKE @kw)
+GROUP BY {supplierGroup} d.[原料编号]
+ORDER BY {supplierOrder} d.[原料编号];", new { qi, qe, kw, cat });
+        return rows.AsList();
+    }
 }

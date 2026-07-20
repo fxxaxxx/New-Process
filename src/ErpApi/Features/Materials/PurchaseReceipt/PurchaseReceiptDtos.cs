@@ -5,6 +5,7 @@ public sealed class PurchaseReceiptCreateDto
 {
     public string? 供应商编号 { get; set; }
     public string? 供应商名称 { get; set; }
+    public DateTime? 日期 { get; set; }
     public string? 付款方式 { get; set; }
     public string? 仓库 { get; set; }
     public string? 备注 { get; set; }
@@ -84,4 +85,33 @@ public sealed class MaterialLabelSummaryRow
     public string? 颜色 { get; set; }
     public string? 单位 { get; set; }
     public decimal? 数量 { get; set; }
+}
+
+public sealed class AuxiliaryReceiptQuerySummaryRow
+{
+    public string? 供应商编号 { get; set; }
+    public string? 供应商名称 { get; set; }
+    public string? 辅料编号 { get; set; }
+    public string? 辅料名称 { get; set; }
+    public string? 规格 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 入仓数量 { get; set; }
+}
+
+public sealed class AuxiliaryReceiptQueryDetailRow
+{
+    public DateTime? 日期 { get; set; }
+    public string? 单号 { get; set; }
+    public string? 入库单号 { get; set; }
+    public string? 订单单号 { get; set; }
+    public string? 供应商编号 { get; set; }
+    public string? 供应商名称 { get; set; }
+    public string? 辅料编号 { get; set; }
+    public string? 辅料名称 { get; set; }
+    public string? 规格 { get; set; }
+    public string? 单价类型 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 数量 { get; set; }
+    public string? 备注 { get; set; }
+    public string? 审核 { get; set; }
 }

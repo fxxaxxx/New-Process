@@ -5,6 +5,7 @@ public sealed class MaterialIssueCreateDto
 {
     public string? 领料部门 { get; set; }
     public string? 领料人 { get; set; }
+    public DateTime? 日期 { get; set; }
     public string? 仓库 { get; set; }
     public string? 备注 { get; set; }
     public List<MaterialDocLineDto> 明细 { get; set; } = [];
@@ -63,4 +64,54 @@ public sealed class MaterialIssueSummaryRow
     public string? 颜色 { get; set; }
     public string? 单位 { get; set; }
     public decimal? 领用数量 { get; set; }
+}
+
+public sealed class AuxiliaryIssueDetailRow
+{
+    public DateTime? 开单日期 { get; set; }
+    public string? 装配生产单号 { get; set; }
+    public string? 领料备注 { get; set; }
+    public string? 辅料编号 { get; set; }
+    public string? 辅料名称 { get; set; }
+    public string? 规格 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 需求数量 { get; set; }
+    public DateTime? 领料日期 { get; set; }
+    public string? 领料单号 { get; set; }
+    public decimal? 领料数量 { get; set; }
+    public decimal? 合计已领数量 { get; set; }
+    public decimal? 未领数量 { get; set; }
+}
+
+public sealed class AuxiliaryStockIssueQuerySummaryRow
+{
+    public string? 领料备注 { get; set; }
+    public DateTime? 开单日期 { get; set; }
+    public string? 装配生产单号 { get; set; }
+    public string? 辅料编号 { get; set; }
+    public string? 辅料名称 { get; set; }
+    public string? 规格 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 领料数量 { get; set; }
+    public string? 备注 { get; set; }
+}
+
+public sealed class AuxiliaryStockIssueQueryDetailRow
+{
+    public string? 领料备注 { get; set; }
+    public DateTime? 开单日期 { get; set; }
+    public string? 装配生产单号 { get; set; }
+    public DateTime? 日期 { get; set; }
+    public DateTime? 审核日期 { get; set; }
+    public string? 单号 { get; set; }
+    public string? 生产车间 { get; set; }
+    public string? 领料人 { get; set; }
+    public string? 辅料编号 { get; set; }
+    public string? 辅料名称 { get; set; }
+    public string? 规格 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 数量 { get; set; }
+    public string? 备注 { get; set; }
+    public string? 制单人 { get; set; }
+    public string? 审核 { get; set; }
 }

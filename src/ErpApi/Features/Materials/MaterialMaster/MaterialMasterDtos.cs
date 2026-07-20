@@ -25,4 +25,20 @@ public sealed class MaterialRow
     public string? 供应商编号 { get; set; }
     public string? 供应商名称 { get; set; }
     public string? 备注 { get; set; }
+    public string? 仓库位置 { get; set; }
+    public string? 码换算 { get; set; }
+}
+
+public sealed class AuxiliaryPurchaseAnalysisRow
+{
+    public string? 辅料编号 { get; set; }
+    public string? 辅料名称 { get; set; }
+    public string? 规格 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 库存数量 { get; set; }
+    public decimal? 在途数量 { get; set; }
+    public decimal? 需领数量 { get; set; }
+    public decimal? 可用库存 { get; set; }
+    public decimal? 订货数量 { get; set; }
+    public string? 供应商 { get; set; }
 }

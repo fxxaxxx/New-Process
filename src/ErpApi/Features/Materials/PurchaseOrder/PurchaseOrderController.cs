@@ -51,10 +51,11 @@ public sealed class PurchaseOrderController(
     [HttpGet("progress")]
     public async Task<IActionResult> Progress(
         string? 供应商 = null, DateTime? 起 = null, DateTime? 止 = null,
-        string? keyword = null, bool onlyOwed = false)
+        string? keyword = null, bool onlyOwed = false, string? 物料类别 = null,
+        string? 日期类型 = null)
     {
         if (!await AllowAsync(PermissionAction.打开)) return Forbid();
-        return Ok(await svc.ProgressAsync(供应商, 起, 止, keyword, onlyOwed));
+        return Ok(await svc.ProgressAsync(供应商, 起, 止, keyword, onlyOwed, 物料类别, 日期类型));
     }
 
     // 进度明细表：逐条入仓明细 + 未入仓订单行（只读查询）

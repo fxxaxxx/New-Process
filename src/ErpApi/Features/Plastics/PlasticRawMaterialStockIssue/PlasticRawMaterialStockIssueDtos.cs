@@ -60,3 +60,66 @@ public sealed class PlasticRawMaterialStockIssueCreateDto
     public string? 备注 { get; set; }
     public List<PlasticRawMaterialStockIssueCreateLineDto> 明细 { get; set; } = new();
 }
+
+public sealed class PlasticRawMaterialIssueProgressDetailRow
+{
+    public DateTime? 开单日期 { get; set; }
+    public string? 啤机生产单号 { get; set; }
+    public string? 领料备注 { get; set; }
+    public string? 原料编号 { get; set; }
+    public string? 原料名称 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 需求数量 { get; set; }
+    public string? 啤机外发单号 { get; set; }
+    public DateTime? 领料日期 { get; set; }
+    public string? 领料单号 { get; set; }
+    public decimal? 领料数量 { get; set; }
+    public decimal? 合计已领数量 { get; set; }
+    public decimal? 未领数量 { get; set; }
+    public string? 审核 { get; set; }
+}
+
+public sealed class PlasticRawMaterialOutsourceShortageRow
+{
+    public string? 供应商编号 { get; set; }
+    public string? 供应商名称 { get; set; }
+    public string? 供应商类别 { get; set; }
+    public string? 原料编号 { get; set; }
+    public string? 原料名称 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 发外欠数 { get; set; }
+}
+
+public sealed class PlasticRawMaterialStockIssueQuerySummaryRow
+{
+    public string? 领料备注 { get; set; }
+    public DateTime? 开单日期 { get; set; }
+    public string? 啤机生产单号 { get; set; }
+    public string? 啤机外发单号 { get; set; }
+    public string? 原料编号 { get; set; }
+    public string? 原料名称 { get; set; }
+    public string? 产地 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 领料数量包 { get; set; }
+    public string? 备注 { get; set; }
+}
+
+public sealed class PlasticRawMaterialStockIssueQueryDetailRow
+{
+    public string? 领料备注 { get; set; }
+    public DateTime? 开单日期 { get; set; }
+    public string? 啤机生产单号 { get; set; }
+    public DateTime? 日期 { get; set; }
+    public DateTime? 审核日期 { get; set; }
+    public string? 单号 { get; set; }
+    public string? 生产车间 { get; set; }
+    public string? 啤机外发单号 { get; set; }
+    public string? 原料编号 { get; set; }
+    public string? 原料名称 { get; set; }
+    public string? 产地 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 数量包 { get; set; }
+    public string? 备注 { get; set; }
+    public string? 制单人 { get; set; }
+    public string? 审核 { get; set; }
+}

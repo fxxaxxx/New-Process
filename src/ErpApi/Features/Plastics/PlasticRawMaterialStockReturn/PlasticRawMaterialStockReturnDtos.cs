@@ -56,3 +56,29 @@ public sealed class PlasticRawMaterialStockReturnCreateDto
     public string? 备注 { get; set; }
     public List<PlasticRawMaterialStockReturnCreateLineDto> 明细 { get; set; } = new();
 }
+
+public sealed class PlasticRawMaterialStockReturnQuerySummaryRow
+{
+    public string? 啤机生产单号 { get; set; }
+    public string? 原料编号 { get; set; }
+    public string? 原料名称 { get; set; }
+    public string? 产地 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 退料数量 { get; set; }
+}
+
+public sealed class PlasticRawMaterialStockReturnQueryDetailRow
+{
+    public string? 啤机生产单号 { get; set; }
+    public DateTime? 日期 { get; set; }
+    public string? 单号 { get; set; }
+    public string? 退料部门 { get; set; }
+    public string? 退料人 { get; set; }
+    public string? 原料编号 { get; set; }
+    public string? 原料名称 { get; set; }
+    public string? 产地 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 数量 { get; set; }
+    public string? 备注 { get; set; }
+    public string? 审核 { get; set; }
+}

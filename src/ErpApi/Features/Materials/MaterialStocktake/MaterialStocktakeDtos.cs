@@ -21,6 +21,7 @@ public sealed class MaterialStocktakeLineDto
 
 public sealed class MaterialStocktakeCreateDto
 {
+    public DateTime? 日期 { get; set; }
     public string 仓库 { get; set; } = "";
     public string? 备注 { get; set; }
     public List<MaterialStocktakeLineDto> 明细 { get; set; } = [];

@@ -25,19 +25,22 @@ FROM [生产BOM物料清单] WHERE [生产单号]=@生产单号 ORDER BY [ID]", 
     // 注意：入仓按 订单单号+物料编号+颜色 聚合(无明细行ID)。若同一采购订单出现 物料编号+颜色 完全相同的两行，
     //       聚合入仓会同时挂到两行(高估各自入仓/低估欠数)。当前入仓流程未写 订单单号 故暂不触发；待入仓带订单号时需按行ID细化。
     public async Task<IReadOnlyList<PurchaseOrderProgressRow>> ProgressAsync(
-        string? 供应商, DateTime? 起, DateTime? 止, string? keyword, bool onlyOwed)
+        string? 供应商, DateTime? 起, DateTime? 止, string? keyword, bool onlyOwed,
+        string? 物料类别 = null, string? 日期类型 = null)
     {
         var sup = string.IsNullOrWhiteSpace(供应商) ? null : $"%{供应商.Trim()}%";
         var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        var cat = string.IsNullOrWhiteSpace(物料类别) ? null : 物料类别.Trim();
         var 止Excl = 止?.Date.AddDays(1);   // 半开区间上界
+        var dc = DateCol(日期类型);
         using var c = factory.Create();
-        var rows = await c.QueryAsync<PurchaseOrderProgressRow>(@"
+        var rows = await c.QueryAsync<PurchaseOrderProgressRow>($@"
 SELECT d.[日期] AS 订购日期, d.[交货日期], d.[单号] AS 采购单号, d.[生产单号], d.[款号],
        d.[物料编号], d.[物料名称], d.[物料类别], d.[规格], d.[颜色], d.[单位],
        d.[数量] AS 订购数量,
        ISNULL(rk.[入仓数量], 0) AS 入仓数量,
        d.[数量] - ISNULL(rk.[入仓数量], 0) AS 欠数,
-       o.[供应商名称], o.[操作员], o.[审核]
+       o.[供应商编号], o.[供应商名称], o.[操作员], o.[审核], d.[备注]
 FROM [采购明细单] d
 JOIN [采购订单] o ON o.[单号] = d.[单号]
 LEFT JOIN (
@@ -48,12 +51,13 @@ LEFT JOIN (
     GROUP BY r.[订单单号], r.[物料编号], ISNULL(r.[颜色],'')
 ) rk ON rk.[订单单号] = d.[单号] AND rk.[物料编号] = d.[物料编号] AND rk.[颜色键] = ISNULL(d.[颜色],'')
 WHERE (@sup IS NULL OR o.[供应商编号] LIKE @sup OR o.[供应商名称] LIKE @sup)
-  AND (@起 IS NULL OR d.[日期] >= @起)
-  AND (@止 IS NULL OR d.[日期] < @止)
+  AND (@起 IS NULL OR d.[{dc}] >= @起)
+  AND (@止 IS NULL OR d.[{dc}] < @止)
   AND (@kw IS NULL OR d.[生产单号] LIKE @kw OR d.[款号] LIKE @kw OR d.[物料编号] LIKE @kw OR d.[物料名称] LIKE @kw)
+  AND (@cat IS NULL OR d.[物料类别] = @cat)
   AND (@onlyOwed = 0 OR (d.[数量] - ISNULL(rk.[入仓数量], 0)) > 0)
 ORDER BY d.[单号] DESC, d.[ID];",
-            new { sup, 起, 止 = 止Excl, kw, onlyOwed = onlyOwed ? 1 : 0 });
+            new { sup, 起, 止 = 止Excl, kw, cat, onlyOwed = onlyOwed ? 1 : 0 });
         return rows.AsList();
     }
 
@@ -100,6 +104,220 @@ ORDER BY d.[单号] DESC, d.[ID], rk.[入仓日期];",
 
     // 日期过滤列白名单：交货日期 / 否则订货日期(日期)。防注入(只允许这两个列名)。
     private static string DateCol(string? 日期类型) => 日期类型 == "交货日期" ? "交货日期" : "日期";
+
+    public async Task<IReadOnlyList<AuxiliaryOrderReceiptStatRow>> AuxiliaryOrderReceiptStatsAsync(
+        DateTime 起, DateTime 止, string? keyword, string? 日期类型 = null)
+    {
+        var qi = 起.Date;
+        var qe = 止.Date.AddDays(1);
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        var dc = DateCol(日期类型);
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<AuxiliaryOrderReceiptStatRow>($@"
+WITH 入库 AS (
+    SELECT r.[订单单号],
+           r.[物料编号],
+           ISNULL(r.[规格],'') AS 规格键,
+           ISNULL(r.[颜色],'') AS 颜色键,
+           SUM(ISNULL(r.[数量],0)) AS 入库数量,
+           SUM(ISNULL(r.[金额], ISNULL(r.[数量],0) * ISNULL(r.[单价],0))) AS 入库订货金额HKD
+    FROM [采购入仓明细单] r
+    JOIN [采购入仓单] h ON h.[单号] = r.[单号]
+    WHERE ISNULL(h.[审核],'0') = '1'
+      AND r.[仓库] = N'辅料仓库'
+      AND r.[物料类别] = N'辅料资料'
+    GROUP BY r.[订单单号], r.[物料编号], ISNULL(r.[规格],''), ISNULL(r.[颜色],'')
+)
+SELECT d.[日期] AS 订购日期,
+       COALESCE(d.[交货日期], o.[交货日期]) AS 交货日期,
+       d.[单号] AS 订购单号,
+       COALESCE(NULLIF(d.[供应商名称],N''), o.[供应商名称]) AS 供应商名称,
+       d.[物料编号] AS 辅料编号,
+       d.[物料名称] AS 辅料名称,
+       d.[规格],
+       d.[单位],
+       d.[单价] AS 采购单价,
+       d.[单价] AS 单价HKD,
+       CAST(0 AS decimal(18,4)) AS 其他成本单价HKD,
+       ISNULL(d.[数量],0) AS 订货数量,
+       ISNULL(d.[金额], ISNULL(d.[数量],0) * ISNULL(d.[单价],0)) AS 订货金额HKD,
+       ISNULL(r.[入库数量],0) AS 入库数量,
+       ISNULL(r.[入库订货金额HKD],0) AS 入库订货金额HKD,
+       CAST(0 AS decimal(18,4)) AS 入库其他费用HKD,
+       ISNULL(r.[入库订货金额HKD],0) AS 入库金额合计HKD,
+       ISNULL(d.[数量],0) - ISNULL(r.[入库数量],0) AS 相关数量,
+       ISNULL(d.[金额], ISNULL(d.[数量],0) * ISNULL(d.[单价],0)) - ISNULL(r.[入库订货金额HKD],0) AS 相关金额HKD,
+       o.[操作员]
+FROM [采购明细单] d
+JOIN [采购订单] o ON o.[单号] = d.[单号]
+LEFT JOIN 入库 r ON r.[订单单号] = d.[单号]
+    AND r.[物料编号] = d.[物料编号]
+    AND r.[规格键] = ISNULL(d.[规格],'')
+    AND r.[颜色键] = ISNULL(d.[颜色],'')
+WHERE d.[仓库] = N'辅料仓库'
+  AND d.[物料类别] = N'辅料资料'
+  AND d.[{dc}] >= @qi
+  AND d.[{dc}] < @qe
+  AND (@kw IS NULL OR d.[单号] LIKE @kw OR o.[供应商名称] LIKE @kw OR d.[供应商名称] LIKE @kw
+       OR d.[物料编号] LIKE @kw OR d.[物料名称] LIKE @kw OR d.[规格] LIKE @kw)
+ORDER BY d.[日期], d.[单号], d.[ID];",
+            new { qi, qe, kw });
+        return rows.AsList();
+    }
+
+    public async Task<IReadOnlyList<AuxiliaryProgressDetailRow>> AuxiliaryProgressDetailAsync(
+        string? 到货情况, DateTime? 起, DateTime? 止, string? keyword, string? 日期类型 = null)
+    {
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        var status = string.IsNullOrWhiteSpace(到货情况) ? "未到" : 到货情况.Trim();
+        var onlyOwed = status == "未到" ? 1 : 0;
+        var onlyComplete = status == "已到" ? 1 : 0;
+        var 止Excl = 止?.Date.AddDays(1);
+        var dc = DateCol(日期类型);
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<AuxiliaryProgressDetailRow>($@"
+WITH 入仓明细 AS (
+    SELECT r.[订单单号],
+           r.[物料编号],
+           ISNULL(r.[规格],'') AS 规格键,
+           ISNULL(r.[颜色],'') AS 颜色键,
+           r.[单号] AS 入仓单号,
+           COALESCE(r.[日期], h.[日期]) AS 入仓日期,
+           ISNULL(r.[数量],0) AS 入仓数量
+    FROM [采购入仓明细单] r
+    JOIN [采购入仓单] h ON h.[单号] = r.[单号]
+    WHERE ISNULL(h.[审核],'0') = '1'
+      AND r.[仓库] = N'辅料仓库'
+      AND r.[物料类别] = N'辅料资料'
+),
+入仓汇总 AS (
+    SELECT [订单单号], [物料编号], [规格键], [颜色键], SUM([入仓数量]) AS 总入仓数
+    FROM 入仓明细
+    GROUP BY [订单单号], [物料编号], [规格键], [颜色键]
+)
+SELECT d.[日期] AS 订购日期,
+       COALESCE(d.[交货日期], o.[交货日期]) AS 交货日期,
+       d.[单号] AS 订购单号,
+       COALESCE(NULLIF(d.[供应商名称],N''), o.[供应商名称]) AS 供应商名称,
+       d.[物料编号] AS 辅料编号,
+       d.[物料名称] AS 辅料名称,
+       d.[规格],
+       d.[单位],
+       CAST(N'人民币' AS nvarchar(20)) AS 单价类型,
+       ISNULL(d.[数量],0) AS 订货数量,
+       rm.[入仓日期],
+       rm.[入仓单号],
+       rm.[入仓数量],
+       ISNULL(rt.[总入仓数],0) AS 总入仓数,
+       ISNULL(d.[数量],0) - ISNULL(rt.[总入仓数],0) AS 相差数量
+FROM [采购明细单] d
+JOIN [采购订单] o ON o.[单号] = d.[单号]
+LEFT JOIN 入仓汇总 rt ON rt.[订单单号] = d.[单号]
+    AND rt.[物料编号] = d.[物料编号]
+    AND rt.[规格键] = ISNULL(d.[规格],'')
+    AND rt.[颜色键] = ISNULL(d.[颜色],'')
+LEFT JOIN 入仓明细 rm ON rm.[订单单号] = d.[单号]
+    AND rm.[物料编号] = d.[物料编号]
+    AND rm.[规格键] = ISNULL(d.[规格],'')
+    AND rm.[颜色键] = ISNULL(d.[颜色],'')
+WHERE d.[仓库] = N'辅料仓库'
+  AND d.[物料类别] = N'辅料资料'
+  AND (@起 IS NULL OR d.[{dc}] >= @起)
+  AND (@止 IS NULL OR d.[{dc}] < @止)
+  AND (@kw IS NULL OR d.[单号] LIKE @kw OR o.[供应商名称] LIKE @kw OR d.[供应商名称] LIKE @kw
+       OR d.[物料编号] LIKE @kw OR d.[物料名称] LIKE @kw OR d.[规格] LIKE @kw)
+  AND (@onlyOwed = 0 OR (ISNULL(d.[数量],0) - ISNULL(rt.[总入仓数],0)) > 0)
+  AND (@onlyComplete = 0 OR (ISNULL(d.[数量],0) - ISNULL(rt.[总入仓数],0)) <= 0)
+ORDER BY d.[日期], d.[单号], d.[ID], rm.[入仓日期], rm.[入仓单号];",
+            new { 起, 止 = 止Excl, kw, onlyOwed, onlyComplete });
+        return rows.AsList();
+    }
+
+    public async Task<IReadOnlyList<AuxiliaryPurchaseOrderQuerySummaryRow>> AuxiliaryPurchaseOrderQuerySummaryAsync(
+        DateTime? 起, DateTime? 止, string? keyword, string? 物料类别, string? 日期类型, bool 按供应商)
+    {
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        var cat = string.IsNullOrWhiteSpace(物料类别) || 物料类别 == "所有类别" || 物料类别 == "<所有类别>"
+            ? null
+            : 物料类别.Trim();
+        var 止Excl = 止?.Date.AddDays(1);
+        var dc = DateCol(日期类型);
+        var supplierSelect = 按供应商
+            ? "COALESCE(NULLIF(d.[供应商编号],N''), o.[供应商编号]) AS 供应商编号, COALESCE(NULLIF(d.[供应商名称],N''), o.[供应商名称]) AS 供应商名称,"
+            : "CAST(NULL AS nvarchar(40)) AS 供应商编号, CAST(NULL AS nvarchar(120)) AS 供应商名称,";
+        var supplierGroup = 按供应商
+            ? "COALESCE(NULLIF(d.[供应商编号],N''), o.[供应商编号]), COALESCE(NULLIF(d.[供应商名称],N''), o.[供应商名称]),"
+            : "";
+        var supplierOrder = 按供应商 ? "供应商编号, " : "";
+
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<AuxiliaryPurchaseOrderQuerySummaryRow>($@"
+SELECT {supplierSelect}
+       d.[物料编号] AS 辅料编号,
+       MAX(d.[物料名称]) AS 辅料名称,
+       d.[规格],
+       MAX(d.[单位]) AS 单位,
+       SUM(ISNULL(d.[数量],0)) AS 订货数量
+FROM [采购明细单] d
+JOIN [采购订单] o ON o.[单号] = d.[单号]
+WHERE d.[仓库] = N'辅料仓库'
+  AND d.[物料类别] = N'辅料资料'
+  AND (@起 IS NULL OR d.[{dc}] >= @起)
+  AND (@止 IS NULL OR d.[{dc}] < @止)
+  AND (@cat IS NULL OR d.[物料类别] = @cat)
+  AND (@kw IS NULL OR d.[单号] LIKE @kw
+       OR o.[供应商编号] LIKE @kw OR o.[供应商名称] LIKE @kw
+       OR d.[供应商编号] LIKE @kw OR d.[供应商名称] LIKE @kw
+       OR d.[物料编号] LIKE @kw OR d.[物料名称] LIKE @kw OR d.[规格] LIKE @kw)
+GROUP BY {supplierGroup} d.[物料编号], d.[规格]
+ORDER BY {supplierOrder} d.[物料编号], d.[规格];",
+            new { 起, 止 = 止Excl, kw, cat });
+        return rows.AsList();
+    }
+
+    public async Task<IReadOnlyList<AuxiliaryPurchaseOrderQueryDetailRow>> AuxiliaryPurchaseOrderQueryDetailAsync(
+        DateTime? 起, DateTime? 止, string? keyword, string? 物料类别, string? 日期类型, string? 审核情况)
+    {
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        var cat = string.IsNullOrWhiteSpace(物料类别) || 物料类别 == "所有类别" || 物料类别 == "<所有类别>"
+            ? null
+            : 物料类别.Trim();
+        var 止Excl = 止?.Date.AddDays(1);
+        var dc = DateCol(日期类型);
+        var onlyApproved = 审核情况 == "已审核" ? 1 : 0;
+        var onlyUnapproved = 审核情况 == "未审核" ? 1 : 0;
+
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<AuxiliaryPurchaseOrderQueryDetailRow>($@"
+SELECT COALESCE(d.[日期], o.[日期]) AS 日期,
+       d.[单号],
+       COALESCE(d.[交货日期], o.[交货日期]) AS 交货日期,
+       COALESCE(NULLIF(d.[供应商编号],N''), o.[供应商编号]) AS 供应商编号,
+       COALESCE(NULLIF(d.[供应商名称],N''), o.[供应商名称]) AS 供应商名称,
+       d.[物料编号] AS 辅料编号,
+       d.[物料名称] AS 辅料名称,
+       d.[规格],
+       d.[单位],
+       ISNULL(d.[数量],0) AS 数量,
+       d.[备注],
+       ISNULL(o.[审核],N'0') AS 审核
+FROM [采购明细单] d
+JOIN [采购订单] o ON o.[单号] = d.[单号]
+WHERE d.[仓库] = N'辅料仓库'
+  AND d.[物料类别] = N'辅料资料'
+  AND (@起 IS NULL OR d.[{dc}] >= @起)
+  AND (@止 IS NULL OR d.[{dc}] < @止)
+  AND (@cat IS NULL OR d.[物料类别] = @cat)
+  AND (@onlyApproved = 0 OR ISNULL(o.[审核],N'0') = N'1')
+  AND (@onlyUnapproved = 0 OR ISNULL(o.[审核],N'0') <> N'1')
+  AND (@kw IS NULL OR d.[单号] LIKE @kw
+       OR o.[供应商编号] LIKE @kw OR o.[供应商名称] LIKE @kw
+       OR d.[供应商编号] LIKE @kw OR d.[供应商名称] LIKE @kw
+       OR d.[物料编号] LIKE @kw OR d.[物料名称] LIKE @kw OR d.[规格] LIKE @kw)
+ORDER BY COALESCE(d.[日期], o.[日期]) DESC, d.[单号], d.[ID];",
+            new { 起, 止 = 止Excl, kw, cat, onlyApproved, onlyUnapproved });
+        return rows.AsList();
+    }
 
     // 订购单查询·明细：每行一条采购明细单(只读)。过滤 供应商/日期区间(订货或交货)/物料关键词/物料类别。
     public async Task<IReadOnlyList<PurchaseOrderQueryDetailRow>> OrderQueryDetailAsync(

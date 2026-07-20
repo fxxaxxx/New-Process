@@ -5,6 +5,7 @@ public sealed class MaterialReturnCreateDto
 {
     public string? 退料部门 { get; set; }
     public string? 退料人 { get; set; }
+    public DateTime? 日期 { get; set; }
     public string? 仓库 { get; set; }
     public string? 备注 { get; set; }
     public List<MaterialDocLineDto> 明细 { get; set; } = [];
@@ -64,4 +65,30 @@ public sealed class MaterialReturnSummaryRow
     public string? 颜色 { get; set; }
     public string? 单位 { get; set; }
     public decimal? 退料数量 { get; set; }
+}
+
+public sealed class AuxiliaryStockReturnQuerySummaryRow
+{
+    public string? 装配生产单号 { get; set; }
+    public string? 辅料编号 { get; set; }
+    public string? 辅料名称 { get; set; }
+    public string? 规格 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 退料数量 { get; set; }
+}
+
+public sealed class AuxiliaryStockReturnQueryDetailRow
+{
+    public string? 装配生产单号 { get; set; }
+    public DateTime? 日期 { get; set; }
+    public string? 单号 { get; set; }
+    public string? 退料部门 { get; set; }
+    public string? 退料人 { get; set; }
+    public string? 辅料编号 { get; set; }
+    public string? 辅料名称 { get; set; }
+    public string? 规格 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 数量 { get; set; }
+    public string? 备注 { get; set; }
+    public string? 审核 { get; set; }
 }

@@ -28,16 +28,17 @@ public sealed class MaterialStocktakeService(
         if (dto.明细.Count == 0) throw new ArgumentException("盘点单至少要有一行明细");
         if (string.IsNullOrWhiteSpace(dto.仓库)) throw new ArgumentException("仓库必填");
         var now = DateTime.Now;
+        var docDate = dto.日期 ?? now;
 
         using var c = factory.Create();
         await c.OpenAsync();
         using var tx = c.BeginTransaction();
-        var 单号 = await docNo.NextAsync(DocType, Prefix, now, c, tx);
+        var 单号 = await docNo.NextAsync(DocType, Prefix, docDate, c, tx);
 
         await c.ExecuteAsync(@"
 INSERT INTO [盘点单]([单号],[日期],[仓库],[操作员],[审核],[备注])
 VALUES(@单号,@日期,@仓库,@操作员,'0',@备注)",
-            new { 单号, 日期 = now, dto.仓库, 操作员 = user, dto.备注 }, tx);
+            new { 单号, 日期 = docDate, dto.仓库, 操作员 = user, dto.备注 }, tx);
 
         foreach (var l in dto.明细)
             await c.ExecuteAsync(@"
@@ -45,7 +46,7 @@ INSERT INTO [盘点明细单]([单号],[日期],[仓库],[物料编号],[物料�
 VALUES(@单号,@日期,@仓库,@物料编号,@物料名称,@规格,@单位,@系统数量,@盘点数量,@盈亏数量)",
                 new
                 {
-                    单号, 日期 = now, dto.仓库, l.物料编号, l.物料名称, l.规格, l.单位,
+                    单号, 日期 = docDate, dto.仓库, l.物料编号, l.物料名称, l.规格, l.单位,
                     l.系统数量, l.盘点数量, 盈亏数量 = l.盘点数量 - l.系统数量
                 }, tx);
 
@@ -84,13 +85,36 @@ FROM [盘点明细单] WHERE [单号]=@单号 ORDER BY [ID];",
         return new MaterialStocktakeDetailDto { 单头 = header, 明细 = lines };
     }
 
+    public async Task<MaterialStocktakeDetailDto?> GetByDocumentAndWarehouseAsync(string 单号, string 仓库)
+    {
+        using var c = factory.Create();
+        using var multi = await c.QueryMultipleAsync(@"
+SELECT [ID],[单号],[仓库],[日期],[操作员],[审核],[审核人],[备注]
+FROM [盘点单]
+WHERE [单号]=@单号 AND [仓库]=@仓库;
+SELECT d.[ID],d.[物料编号],d.[物料名称],d.[规格],d.[单位],
+       CAST(d.[系统数量] AS decimal(18,4)) AS 系统数量,
+       CAST(d.[盘点数量] AS decimal(18,4)) AS 盘点数量,
+       CAST(d.[盈亏数量] AS decimal(18,4)) AS 盈亏数量
+FROM [盘点明细单] d
+JOIN [盘点单] o ON o.[单号]=d.[单号] AND o.[仓库]=@仓库
+WHERE d.[单号]=@单号 AND d.[仓库]=@仓库
+ORDER BY d.[ID];",
+            new { 单号, 仓库 });
+        var header = await multi.ReadFirstOrDefaultAsync<MaterialStocktakeHeaderDto>();
+        if (header is null) return null;
+        var lines = (await multi.ReadAsync<MaterialStocktakeLineRowDto>()).AsList();
+        return new MaterialStocktakeDetailDto { 单头 = header, 明细 = lines };
+    }
+
     // 盘点单查询·明细：每行一条盘点明细(只读)。颜色/材料/单价来自物料资料 JOIN;金额=盈亏数×单价。
     // 过滤 日期区间/关键词/物料类别/审核情况。价格脱敏在 Controller 按"单价"权限处理。
     public async Task<IReadOnlyList<MaterialStocktakeQueryDetailRow>> StocktakeQueryDetailAsync(
-        DateTime? 起, DateTime? 止, string? keyword, string? 物料类别, string? 审核情况)
+        DateTime? 起, DateTime? 止, string? keyword, string? 物料类别, string? 审核情况, string? 仓库 = null)
     {
         var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
         var cat = string.IsNullOrWhiteSpace(物料类别) ? null : 物料类别.Trim();
+        var warehouse = string.IsNullOrWhiteSpace(仓库) ? null : 仓库.Trim();
         var 止Excl = 止?.Date.AddDays(1);
         using var c = factory.Create();
         var rows = await c.QueryAsync<MaterialStocktakeQueryDetailRow>($@"
@@ -109,17 +133,19 @@ WHERE (@起 IS NULL OR d.[日期] >= @起)
   AND (@止 IS NULL OR d.[日期] < @止)
   AND (@kw IS NULL OR d.[单号] LIKE @kw OR d.[物料编号] LIKE @kw OR d.[物料名称] LIKE @kw OR d.[规格] LIKE @kw)
   AND (@cat IS NULL OR m.[物料类别] = @cat){ApprovalFilter(审核情况)}
+  AND (@warehouse IS NULL OR d.[仓库] = @warehouse)
 ORDER BY d.[日期] DESC, d.[单号], d.[ID];",
-            new { 起, 止 = 止Excl, kw, cat });
+            new { 起, 止 = 止Excl, kw, cat, warehouse });
         return rows.AsList();
     }
 
     // 盘点单查询·汇总：按 物料编号+规格+颜色 合并，系统/盘点/盈亏数=SUM，金额=SUM(盈亏数)×单价。
     public async Task<IReadOnlyList<MaterialStocktakeSummaryRow>> StocktakeQuerySummaryAsync(
-        DateTime? 起, DateTime? 止, string? keyword, string? 物料类别, string? 审核情况)
+        DateTime? 起, DateTime? 止, string? keyword, string? 物料类别, string? 审核情况, string? 仓库 = null)
     {
         var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
         var cat = string.IsNullOrWhiteSpace(物料类别) ? null : 物料类别.Trim();
+        var warehouse = string.IsNullOrWhiteSpace(仓库) ? null : 仓库.Trim();
         var 止Excl = 止?.Date.AddDays(1);
         using var c = factory.Create();
         var rows = await c.QueryAsync<MaterialStocktakeSummaryRow>($@"
@@ -136,9 +162,10 @@ WHERE (@起 IS NULL OR d.[日期] >= @起)
   AND (@止 IS NULL OR d.[日期] < @止)
   AND (@kw IS NULL OR d.[单号] LIKE @kw OR d.[物料编号] LIKE @kw OR d.[物料名称] LIKE @kw OR d.[规格] LIKE @kw)
   AND (@cat IS NULL OR m.[物料类别] = @cat){ApprovalFilter(审核情况)}
+  AND (@warehouse IS NULL OR d.[仓库] = @warehouse)
 GROUP BY d.[物料编号], d.[规格], m.[物料类别], m.[颜色], m.[单价]
 ORDER BY d.[物料编号], d.[规格];",
-            new { 起, 止 = 止Excl, kw, cat });
+            new { 起, 止 = 止Excl, kw, cat, warehouse });
         return rows.AsList();
     }
 

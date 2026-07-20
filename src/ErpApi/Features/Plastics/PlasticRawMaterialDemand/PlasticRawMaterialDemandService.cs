@@ -68,6 +68,35 @@ FROM [原料生产需求明细单] WHERE [单号]=@单号 ORDER BY [ID];", new {
         return new PlasticRawMaterialDemandDetailDto { 单头 = header, 明细 = lines };
     }
 
+    public async Task<IReadOnlyList<PlasticRawMaterialDemandSummaryRow>> SummaryAsync(
+        DateTime 起, DateTime 止, string? keyword, string? 领料备注, string? 审核情况)
+    {
+        var qi = 起.Date;
+        var qe = 止.Date.AddDays(1);
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        var remark = string.IsNullOrWhiteSpace(领料备注) ? null : 领料备注.Trim();
+        var audit = 审核情况 switch
+        {
+            "已审核" => "1",
+            "未审核" => "0",
+            _ => null
+        };
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<PlasticRawMaterialDemandSummaryRow>(@"
+SELECT h.[单号], h.[开单日期], h.[生产车间], h.[领料备注], h.[啤机生产单号],
+       d.[原料编号], d.[原料名称], d.[每包重量], d.[单位], d.[需求数量KG], d.[需求数量包], d.[备注],
+       h.[制单人], h.[操作员], h.[审核]
+FROM [原料生产需求表] h
+JOIN [原料生产需求明细单] d ON d.[单号] = h.[单号]
+WHERE h.[开单日期] >= @qi AND h.[开单日期] < @qe
+  AND (@remark IS NULL OR h.[领料备注] = @remark)
+  AND (@audit IS NULL OR ISNULL(h.[审核],'0') = @audit)
+  AND (@kw IS NULL OR h.[单号] LIKE @kw OR h.[啤机生产单号] LIKE @kw OR h.[生产车间] LIKE @kw
+       OR d.[原料编号] LIKE @kw OR d.[原料名称] LIKE @kw OR h.[制单人] LIKE @kw)
+ORDER BY h.[开单日期] DESC, h.[单号] DESC, d.[ID];", new { qi, qe, kw, remark, audit });
+        return rows.AsList();
+    }
+
     public async Task<bool> DeleteAsync(string 单号)
     {
         using var c = factory.Create();

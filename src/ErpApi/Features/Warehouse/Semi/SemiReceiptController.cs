@@ -2,6 +2,7 @@ using System.Security.Claims;
 using ErpApi.Engines.Authorization;
 using ErpApi.Engines.Posting;
 using ErpApi.Features.MonthEnd;
+using ErpApi.Features.Warehouse.Semi.Labels;
 using ErpApi.Infrastructure.Db;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -15,11 +16,14 @@ namespace ErpApi.Features.Warehouse.Semi;
 [Route("api/semi-receipts")]
 public sealed class SemiReceiptController(
     SemiReceiptService svc, IPostingEngine posting, IPermissionService perms,
-    IAuditLogger audit, ISqlConnectionFactory factory, PeriodLockService periodLock) : ControllerBase
+    IAuditLogger audit, ISqlConnectionFactory factory, PeriodLockService periodLock,
+    ISemiFinishedLabelOrderService productService) : ControllerBase
 {
     private const string Menu = "半成品入仓";
     private const string Table = "半成品入仓单";
     private const string 口径 = "半成品";
+    private static readonly HashSet<string> ProductFields =
+        ["产品货号", "产品名称", "配件编号", "客户", "产品装配名称"];
     private string CurrentUser => User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub") ?? "";
     private Task<bool> AllowAsync(PermissionAction a) => perms.HasAsync(CurrentUser, Menu, a);
     private async Task AuditAsync(string behavior, string record)
@@ -33,6 +37,15 @@ public sealed class SemiReceiptController(
     {
         if (!await AllowAsync(PermissionAction.打开)) return Forbid();
         return Ok(await svc.ListAsync(page, size, keyword));
+    }
+
+    [HttpGet("products")]
+    public async Task<IActionResult> Products([FromQuery] SemiFinishedLabelProductQuery query)
+    {
+        if (!await AllowAsync(PermissionAction.打开)) return Forbid();
+        if (!string.IsNullOrWhiteSpace(query.Field) && !ProductFields.Contains(query.Field))
+            return BadRequest(new { 消息 = "查询字段无效。" });
+        return Ok(await productService.ProductsAsync(query, await AllowAsync(PermissionAction.单价)));
     }
 
     [HttpGet("{单号}")]
@@ -50,7 +63,7 @@ public sealed class SemiReceiptController(
     public async Task<IActionResult> Create([FromBody] SemiReceiptCreateDto dto)
     {
         if (!await AllowAsync(PermissionAction.保存)) return Forbid();
-        try { await periodLock.EnsureWarehouseOpenAsync(口径, dto.仓库, DateTime.Now); }
+        try { await periodLock.EnsureWarehouseOpenAsync(口径, dto.仓库, dto.日期 ?? DateTime.Now); }
         catch (PeriodLockedException ex) { return Conflict(new { 消息 = ex.Message }); }
         string 单号;
         try { 单号 = await svc.CreateAsync(dto, CurrentUser); }
@@ -58,6 +71,27 @@ public sealed class SemiReceiptController(
         catch (SqlException ex) when (ex.Number == 547) { return BadRequest(new { 消息 = "物料/生产单号/款号不存在。" }); }
         await AuditAsync("新增", $"单号={单号}");
         return CreatedAtAction(nameof(Get), new { 单号 }, new { 单号 });
+    }
+
+    [HttpPut("{单号}")]
+    public async Task<IActionResult> Update(string 单号, [FromBody] SemiReceiptCreateDto dto)
+    {
+        if (!await AllowAsync(PermissionAction.保存)) return Forbid();
+        try { await periodLock.EnsureWarehouseOpenAsync(口径, dto.仓库, dto.日期 ?? DateTime.Now); }
+        catch (PeriodLockedException ex) { return Conflict(new { 消息 = ex.Message }); }
+        try { if (!await svc.UpdateAsync(单号, dto, CurrentUser)) return NotFound(); }
+        catch (ArgumentException ex) { return BadRequest(new { 消息 = ex.Message }); }
+        catch (InvalidOperationException ex) { return Conflict(new { 消息 = ex.Message }); }
+        await AuditAsync("修改", $"单号={单号}");
+        return Ok(await svc.GetAsync(单号));
+    }
+
+    [HttpGet("{单号}/adjacent")]
+    public async Task<IActionResult> Adjacent(string 单号, string direction)
+    {
+        if (!await AllowAsync(PermissionAction.打开)) return Forbid();
+        var detail = await svc.GetAdjacentAsync(单号, direction);
+        return detail is null ? NoContent() : Ok(detail);
     }
 
     [HttpDelete("{单号}")]

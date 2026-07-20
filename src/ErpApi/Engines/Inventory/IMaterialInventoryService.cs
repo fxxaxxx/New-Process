@@ -6,4 +6,6 @@ public interface IMaterialInventoryService
     Task<decimal> StockOfAsync(string 物料编号, (SqlConnection conn, SqlTransaction tx)? scope);
     // 库存查询列表（按仓库/物料关键字过滤），物料编号×仓库 汇总，仅非零。
     Task<IReadOnlyList<MaterialStockRow>> ListAsync(string? 仓库, string? keyword, string? 物料类别 = null);
+    // 库存月报（按仓库/物料类别过滤），同库存口径拆分期初、本期入出、盘点盈亏。
+    Task<IReadOnlyList<MaterialMonthlyRow>> MonthlyAsync(DateTime 起, DateTime 止, string? 仓库, string? 物料类别 = null, string? keyword = null);
 }

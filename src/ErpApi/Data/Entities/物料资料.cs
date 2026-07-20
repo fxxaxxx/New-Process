@@ -16,4 +16,6 @@ public sealed class 物料资料 : MasterEntity
     [Column("款号")] public string? 款号 { get; set; }
     [Column("货币")] public string? 货币 { get; set; }
     [Column("备注")] public string? 备注 { get; set; }
+    [Column("仓库位置")] public string? 仓库位置 { get; set; }
+    [Column("码换算")] public string? 码换算 { get; set; }
 }
