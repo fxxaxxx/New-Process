@@ -84,3 +84,26 @@ export const semiWarehouseReturnApi = {
     api.get<SWRDetail | undefined>(`/semi-warehouse-returns/${enc(单号)}/adjacent`, { params: { next } })
       .then(r => r.status === 204 ? undefined : r.data),
 };
+
+// ---- 半成品退库单（无价 · 自由选产品版）----
+export interface SSRProductRow { 配件编号: string; 客户?: string | null; 产品货号?: string | null; 产品名称?: string | null; 产品装配名称?: string | null; 生产单号?: string | null; 加工单价?: number | null; 库存单价?: number | null }
+export interface SSRLineInput { 配件编号: string; 客户?: string | null; 产品货号?: string | null; 产品名称?: string | null; 产品装配名称?: string | null; 生产单号?: string | null; 数量: number; 备注?: string | null }
+export interface SSRLineRow { ID?: number; 配件编号?: string | null; 客户?: string | null; 产品货号?: string | null; 产品名称?: string | null; 产品装配名称?: string | null; 生产单号?: string | null; 规格?: string | null; 颜色?: string | null; 单位?: string | null; 数量?: number | null; 单价?: number | null; 金额?: number | null; 备注?: string | null }
+export interface SSRCreate { 日期?: string; 仓库: string; 部门?: string | null; 退料人?: string | null; 备注?: string | null; 明细: SSRLineInput[] }
+export interface SSRHeader { ID?: number; id?: number; 单号?: string; 仓库?: string; 部门?: string | null; 退料人?: string | null; 日期?: string; 审核日期?: string | null; 数量?: number | null; 金额?: number | null; 操作员?: string | null; 审核?: string; 审核人?: string | null; 备注?: string | null }
+export interface SSRDetail { 单头: SSRHeader | null; 明细: SSRLineRow[] }
+
+export const semiStockReturnApi = {
+  list: (page = 1, size = 20, keyword = "") => api.get<Paged<SSRHeader>>("/semi-stock-returns", { params: { page, size, keyword } }).then(r => r.data),
+  get: (单号: string) => api.get<SSRDetail>(`/semi-stock-returns/${enc(单号)}`).then(r => r.data),
+  create: (body: SSRCreate) => api.post<{ 单号: string }>("/semi-stock-returns", body).then(r => r.data),
+  update: (单号: string, body: SSRCreate) => api.put<SSRDetail>(`/semi-stock-returns/${enc(单号)}`, body).then(r => r.data),
+  remove: (单号: string) => api.delete(`/semi-stock-returns/${enc(单号)}`),
+  approve: (单号: string) => api.post(`/semi-stock-returns/${enc(单号)}/approve`),
+  unapprove: (单号: string) => api.post(`/semi-stock-returns/${enc(单号)}/unapprove`),
+  products: (params: { page?: number; size?: number; field?: string; keyword?: string; exact?: boolean } = {}) =>
+    api.get<Paged<SSRProductRow>>("/semi-stock-returns/products", { params }).then(r => r.data),
+  adjacent: (单号: string, next: boolean) =>
+    api.get<SSRDetail | undefined>(`/semi-stock-returns/${enc(单号)}/adjacent`, { params: { next } })
+      .then(r => r.status === 204 ? undefined : r.data),
+};
