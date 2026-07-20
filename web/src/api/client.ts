@@ -1,6 +1,8 @@
 import axios from "axios";
 
-export const api = axios.create({ baseURL: "http://localhost:5000/api" });
+const apiBaseURL = import.meta.env.VITE_API_BASE_URL || "/api";
+
+export const api = axios.create({ baseURL: apiBaseURL });
 
 api.interceptors.request.use((cfg) => {
   const t = localStorage.getItem("erp_token");

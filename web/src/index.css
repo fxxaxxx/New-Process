@@ -51,3 +51,14 @@ body[data-erp-theme="dark"] { background: #0b0e16; }
 .erp-sider .ant-menu { padding: 0 12px; }
 .erp-sider .ant-menu-item, .erp-sider .ant-menu-submenu-title { border-radius: 10px !important; }
 .erp-sider .ant-menu-submenu-title { font-weight: 600; }
+
+@media (max-width: 991px) {
+  .erp-header {
+    padding-inline: 16px !important;
+  }
+
+  .erp-content {
+    margin: 12px !important;
+    min-width: 0;
+  }
+}

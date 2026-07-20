@@ -12,11 +12,18 @@ export interface RMDHeader {
   数量KG?: number | null; 数量包?: number | null; 审核?: string; 审核人?: string; 备注?: string;
 }
 export interface RMDDetail { 单头?: RMDHeader; 明细: RMDLine[] }
+export interface RMDSummaryRow {
+  单号: string; 开单日期?: string; 生产车间?: string; 领料备注?: string; 啤机生产单号?: string;
+  原料编号?: string; 原料名称?: string; 每包重量?: number | null; 单位?: string;
+  需求数量KG: number; 需求数量包: number; 备注?: string; 制单人?: string; 操作员?: string; 审核?: string;
+}
 
 const enc = encodeURIComponent;
 const base = "/plastic-raw-material-demand";
 export const plasticRawMaterialDemandApi = {
   list: (page = 1, size = 10, keyword = "") => api.get<Paged<RMDHeader>>(base, { params: { page, size, keyword } }).then(r => r.data),
+  summary: (params: { 起: string; 止: string; keyword?: string; 领料备注?: string; 审核情况?: string }) =>
+    api.get<RMDSummaryRow[]>(`${base}/summary`, { params }).then(r => r.data),
   get: (单号: string) => api.get<RMDDetail>(`${base}/${enc(单号)}`).then(r => r.data),
   create: (body: Record<string, unknown>) => api.post<{ 单号: string }>(base, body).then(r => r.data),
   remove: (单号: string) => api.delete(`${base}/${enc(单号)}`),

@@ -8,6 +8,16 @@ import Dashboard from "./pages/Dashboard";
 import StyleDetailPage from "./pages/styles/StyleDetailPage";
 import BomSetupPage from "./pages/styles/BomSetupPage";
 import SemiFinishedCommonMaterialsPage from "./pages/semi/SemiFinishedCommonMaterialsPage";
+import SemiFinishedLabelOrderPage from "./pages/semi/SemiFinishedLabelOrderPage";
+import SemiFinishedShortageAnalysisPage from "./pages/semi/SemiFinishedShortageAnalysisPage";
+import AssemblyFactoryInventoryPage from "./pages/assembly/AssemblyFactoryInventoryPage";
+import AssemblyFactoryCategoryMonthlyPage from "./pages/assembly/AssemblyFactoryCategoryMonthlyPage";
+import AssemblyMaterialSummaryPage from "./pages/assembly/AssemblyMaterialSummaryPage";
+import AssemblyMaterialTrackingPage from "./pages/assembly/AssemblyMaterialTrackingPage";
+import AssemblyPurchaseOrderPage from "./pages/assembly/AssemblyPurchaseOrderPage";
+import AssemblyPurchaseProgressPage from "./pages/assembly/AssemblyPurchaseProgressPage";
+import AssemblyPurchaseQueryPage from "./pages/assembly/AssemblyPurchaseQueryPage";
+import AssemblyRequiredMaterialDetailPage from "./pages/assembly/AssemblyRequiredMaterialDetailPage";
 import OrdersPage from "./pages/orders/OrdersPage";
 import ProductionNoticePage from "./pages/production/ProductionNoticePage";
 import ProductionQueryPage from "./pages/production/ProductionQueryPage";
@@ -27,6 +37,26 @@ import OrderProgressPage from "./pages/production/OrderProgressPage";
 import ProgressDetailPage from "./pages/production/ProgressDetailPage";
 import MaterialDocRouter from "./pages/materials/MaterialDocRouter";
 import MaterialMasterPage from "./pages/materials/MaterialMasterPage";
+import AuxiliaryMaterialMasterPage from "./pages/auxiliary/AuxiliaryMaterialMasterPage";
+import AuxiliaryPurchaseAnalysisPage from "./pages/auxiliary/AuxiliaryPurchaseAnalysisPage";
+import AuxiliaryPurchaseOrderPage from "./pages/auxiliary/AuxiliaryPurchaseOrderPage";
+import AuxiliaryPurchaseProgressPage from "./pages/auxiliary/AuxiliaryPurchaseProgressPage";
+import AuxiliaryIssueProgressPage from "./pages/auxiliary/AuxiliaryIssueProgressPage";
+import AuxiliaryInventoryPage from "./pages/auxiliary/AuxiliaryInventoryPage";
+import AuxiliaryMonthlyPage from "./pages/auxiliary/AuxiliaryMonthlyPage";
+import AuxiliaryOrderReceiptStatsPage from "./pages/auxiliary/AuxiliaryOrderReceiptStatsPage";
+import AuxiliaryProgressDetailPage from "./pages/auxiliary/AuxiliaryProgressDetailPage";
+import AuxiliaryIssueDetailPage from "./pages/auxiliary/AuxiliaryIssueDetailPage";
+import AuxiliaryPurchaseOrderQueryPage from "./pages/auxiliary/AuxiliaryPurchaseOrderQueryPage";
+import AuxiliaryReceiptQueryPage from "./pages/auxiliary/AuxiliaryReceiptQueryPage";
+import AuxiliaryStockIssueQueryPage from "./pages/auxiliary/AuxiliaryStockIssueQueryPage";
+import AuxiliaryStockReturnQueryPage from "./pages/auxiliary/AuxiliaryStockReturnQueryPage";
+import AuxiliaryStocktakeQueryPage from "./pages/auxiliary/AuxiliaryStocktakeQueryPage";
+import AuxiliaryReceiptPage from "./pages/auxiliary/AuxiliaryReceiptPage";
+import AuxiliaryPurchaseReturnPage from "./pages/auxiliary/AuxiliaryPurchaseReturnPage";
+import AuxiliaryIssuePage from "./pages/auxiliary/AuxiliaryIssuePage";
+import AuxiliaryReturnPage from "./pages/auxiliary/AuxiliaryReturnPage";
+import AuxiliaryStocktakePage from "./pages/auxiliary/AuxiliaryStocktakePage";
 import PlasticMaterialMasterPage from "./pages/plastics/PlasticMaterialMasterPage";
 import PlasticRawMaterialMasterPage from "./pages/plastics/PlasticRawMaterialMasterPage";
 import PlasticCommonMaterialPage from "./pages/plastics/PlasticCommonMaterialPage";
@@ -37,7 +67,19 @@ import PlasticAnalysisDetailPage from "./pages/plastics/PlasticAnalysisDetailPag
 import PlasticOrderMakePage from "./pages/plastics/PlasticOrderMakePage";
 import PlasticProcessOrderMakePage from "./pages/plastics/PlasticProcessOrderMakePage";
 import PlasticCustomerTypeStatsPage from "./pages/plastics/PlasticCustomerTypeStatsPage";
+import PlasticRawMaterialInventoryPage from "./pages/plastics/PlasticRawMaterialInventoryPage";
+import PlasticRawMaterialMonthlyPage from "./pages/plastics/PlasticRawMaterialMonthlyPage";
 import PlasticRawMaterialSummaryPage from "./pages/plastics/PlasticRawMaterialSummaryPage";
+import PlasticRawMaterialOrderReceiptStatsPage from "./pages/plastics/PlasticRawMaterialOrderReceiptStatsPage";
+import PlasticRawMaterialProgressDetailPage from "./pages/plastics/PlasticRawMaterialProgressDetailPage";
+import PlasticRawMaterialIssueProgressDetailPage from "./pages/plastics/PlasticRawMaterialIssueProgressDetailPage";
+import PlasticRawMaterialOutsourceShortagePage from "./pages/plastics/PlasticRawMaterialOutsourceShortagePage";
+import PlasticRawMaterialPurchaseOrderQueryPage from "./pages/plastics/PlasticRawMaterialPurchaseOrderQueryPage";
+import PlasticRawMaterialReceiptQueryPage from "./pages/plastics/PlasticRawMaterialReceiptQueryPage";
+import PlasticRawMaterialReturnQueryPage from "./pages/plastics/PlasticRawMaterialReturnQueryPage";
+import PlasticRawMaterialStockIssueQueryPage from "./pages/plastics/PlasticRawMaterialStockIssueQueryPage";
+import PlasticRawMaterialStockReturnQueryPage from "./pages/plastics/PlasticRawMaterialStockReturnQueryPage";
+import PlasticRawMaterialStocktakeQueryPage from "./pages/plastics/PlasticRawMaterialStocktakeQueryPage";
 import PlasticOrderQueryPage from "./pages/plastics/PlasticOrderQueryPage";
 import PlasticIssueQueryPage from "./pages/plastics/PlasticIssueQueryPage";
 import PlasticReturnQueryPage from "./pages/plastics/PlasticReturnQueryPage";
@@ -60,6 +102,7 @@ import PlasticProcessIssueProgressPage from "./pages/plastics/PlasticProcessIssu
 import PlasticProcessShortagePage from "./pages/plastics/PlasticProcessShortagePage";
 import PlasticWhitePartIssuePage from "./pages/plastics/PlasticWhitePartIssuePage";
 import PlasticRawMaterialDemandPage from "./pages/plastics/PlasticRawMaterialDemandPage";
+import PlasticRawMaterialDemandSummaryPage from "./pages/plastics/PlasticRawMaterialDemandSummaryPage";
 import PlasticRawMaterialPurchaseAnalysisPage from "./pages/plastics/PlasticRawMaterialPurchaseAnalysisPage";
 import PlasticRawMaterialPurchaseOrderPage from "./pages/plastics/PlasticRawMaterialPurchaseOrderPage";
 import PlasticRawMaterialReceiptPage from "./pages/plastics/PlasticRawMaterialReceiptPage";
@@ -91,6 +134,7 @@ import FinishedTransferPage from "./pages/warehouse/FinishedTransferPage";
 import FinishedSalesReturnPage from "./pages/warehouse/FinishedSalesReturnPage";
 import FinishedVendorReturnPage from "./pages/warehouse/FinishedVendorReturnPage";
 import SemiReceiptPage from "./pages/warehouse/SemiReceiptPage";
+import SemiWarehouseReturnPage from "./pages/warehouse/SemiWarehouseReturnPage";
 import SemiIssuePage from "./pages/warehouse/SemiIssuePage";
 import SemiStockReturnPage from "./pages/warehouse/SemiStockReturnPage";
 import SemiStocktakePage from "./pages/warehouse/SemiStocktakePage";
@@ -126,7 +170,18 @@ export default function App() {
           <Route path="master/:menu" element={<MasterRouter />} />
           <Route path="styles/:styleNo" element={<StyleDetailPage />} />
           <Route path="bom-setup" element={<BomSetupPage />} />
+          <Route path="assembly-factory-inventory" element={<AssemblyFactoryInventoryPage />} />
+          <Route path="assembly-factory-category-monthly" element={<AssemblyFactoryCategoryMonthlyPage />} />
+          <Route path="assembly-material-setup" element={<BomSetupPage />} />
           <Route path="semi-finished-common-materials" element={<SemiFinishedCommonMaterialsPage />} />
+          <Route path="semi-finished-label-orders" element={<SemiFinishedLabelOrderPage />} />
+          <Route path="semi-finished-shortage-analysis" element={<SemiFinishedShortageAnalysisPage />} />
+          <Route path="assembly-material-summary" element={<AssemblyMaterialSummaryPage />} />
+          <Route path="assembly-material-tracking" element={<AssemblyMaterialTrackingPage />} />
+          <Route path="assembly-purchase-orders" element={<AssemblyPurchaseOrderPage />} />
+          <Route path="assembly-purchase-progress" element={<AssemblyPurchaseProgressPage />} />
+          <Route path="assembly-purchase-query" element={<AssemblyPurchaseQueryPage />} />
+          <Route path="assembly-required-material-detail" element={<AssemblyRequiredMaterialDetailPage />} />
           <Route path="orders" element={<OrdersPage />} />
           <Route path="production" element={<ProductionNoticePage />} />
           <Route path="production-query" element={<ProductionQueryPage />} />
@@ -146,6 +201,26 @@ export default function App() {
           <Route path="order-progress-detail" element={<ProgressDetailPage />} />
           <Route path="materials/:doc" element={<MaterialDocRouter />} />
           <Route path="material-master" element={<MaterialMasterPage />} />
+          <Route path="auxiliary-material-master" element={<AuxiliaryMaterialMasterPage />} />
+          <Route path="auxiliary-purchase-analysis" element={<AuxiliaryPurchaseAnalysisPage />} />
+          <Route path="auxiliary-purchase-order" element={<AuxiliaryPurchaseOrderPage />} />
+          <Route path="auxiliary-purchase-progress" element={<AuxiliaryPurchaseProgressPage />} />
+          <Route path="auxiliary-issue-progress" element={<AuxiliaryIssueProgressPage />} />
+          <Route path="auxiliary-inventory" element={<AuxiliaryInventoryPage />} />
+          <Route path="auxiliary-monthly" element={<AuxiliaryMonthlyPage />} />
+          <Route path="auxiliary-order-receipt-stats" element={<AuxiliaryOrderReceiptStatsPage />} />
+          <Route path="auxiliary-progress-detail" element={<AuxiliaryProgressDetailPage />} />
+          <Route path="auxiliary-issue-detail" element={<AuxiliaryIssueDetailPage />} />
+          <Route path="auxiliary-purchase-order-query" element={<AuxiliaryPurchaseOrderQueryPage />} />
+          <Route path="auxiliary-receipt-query" element={<AuxiliaryReceiptQueryPage />} />
+          <Route path="auxiliary-stock-issue-query" element={<AuxiliaryStockIssueQueryPage />} />
+          <Route path="auxiliary-stock-return-query" element={<AuxiliaryStockReturnQueryPage />} />
+          <Route path="auxiliary-stocktake-query" element={<AuxiliaryStocktakeQueryPage />} />
+          <Route path="auxiliary-receipts" element={<AuxiliaryReceiptPage />} />
+          <Route path="auxiliary-purchase-returns" element={<AuxiliaryPurchaseReturnPage />} />
+          <Route path="auxiliary-issues" element={<AuxiliaryIssuePage />} />
+          <Route path="auxiliary-returns" element={<AuxiliaryReturnPage />} />
+          <Route path="auxiliary-stocktakes" element={<AuxiliaryStocktakePage />} />
           <Route path="plastic-material-master" element={<PlasticMaterialMasterPage />} />
           <Route path="plastic-raw-material-master" element={<PlasticRawMaterialMasterPage />} />
           <Route path="plastic-common-materials" element={<PlasticCommonMaterialPage />} />
@@ -170,6 +245,7 @@ export default function App() {
           <Route path="plastic-process-shortage" element={<PlasticProcessShortagePage />} />
           <Route path="plastic-white-part-issue" element={<PlasticWhitePartIssuePage />} />
           <Route path="plastic-raw-material-demand" element={<PlasticRawMaterialDemandPage />} />
+          <Route path="plastic-raw-material-demand-summary" element={<PlasticRawMaterialDemandSummaryPage />} />
           <Route path="plastic-raw-material-purchase-analysis" element={<PlasticRawMaterialPurchaseAnalysisPage />} />
           <Route path="plastic-raw-material-purchase-order" element={<PlasticRawMaterialPurchaseOrderPage />} />
           <Route path="plastic-raw-material-receipt" element={<PlasticRawMaterialReceiptPage />} />
@@ -179,6 +255,18 @@ export default function App() {
           <Route path="plastic-raw-material-stocktake" element={<PlasticRawMaterialStocktakePage />} />
           <Route path="plastic-purchase-progress" element={<PlasticPurchaseProgressPage />} />
           <Route path="plastic-customer-type-stats" element={<PlasticCustomerTypeStatsPage />} />
+          <Route path="plastic-raw-material-inventory" element={<PlasticRawMaterialInventoryPage />} />
+          <Route path="plastic-raw-material-monthly" element={<PlasticRawMaterialMonthlyPage />} />
+          <Route path="plastic-raw-material-order-receipt-stats" element={<PlasticRawMaterialOrderReceiptStatsPage />} />
+          <Route path="plastic-raw-material-progress-detail" element={<PlasticRawMaterialProgressDetailPage />} />
+          <Route path="plastic-raw-material-issue-progress-detail" element={<PlasticRawMaterialIssueProgressDetailPage />} />
+          <Route path="plastic-raw-material-outsource-shortage" element={<PlasticRawMaterialOutsourceShortagePage />} />
+          <Route path="plastic-raw-material-purchase-order-query" element={<PlasticRawMaterialPurchaseOrderQueryPage />} />
+          <Route path="plastic-raw-material-receipt-query" element={<PlasticRawMaterialReceiptQueryPage />} />
+          <Route path="plastic-raw-material-return-query" element={<PlasticRawMaterialReturnQueryPage />} />
+          <Route path="plastic-raw-material-stock-issue-query" element={<PlasticRawMaterialStockIssueQueryPage />} />
+          <Route path="plastic-raw-material-stock-return-query" element={<PlasticRawMaterialStockReturnQueryPage />} />
+          <Route path="plastic-raw-material-stocktake-query" element={<PlasticRawMaterialStocktakeQueryPage />} />
           <Route path="plastic-raw-material-summary" element={<PlasticRawMaterialSummaryPage />} />
           <Route path="plastic-order-query" element={<PlasticOrderQueryPage />} />
           <Route path="plastic-issue-query" element={<PlasticIssueQueryPage />} />
@@ -210,6 +298,7 @@ export default function App() {
           <Route path="finished-sales-returns" element={<FinishedSalesReturnPage />} />
           <Route path="finished-vendor-returns" element={<FinishedVendorReturnPage />} />
           <Route path="semi-receipts" element={<SemiReceiptPage />} />
+          <Route path="semi-warehouse-returns" element={<SemiWarehouseReturnPage />} />
           <Route path="semi-issues" element={<SemiIssuePage />} />
           <Route path="semi-stock-returns" element={<SemiStockReturnPage />} />
           <Route path="semi-stocktakes" element={<SemiStocktakePage />} />

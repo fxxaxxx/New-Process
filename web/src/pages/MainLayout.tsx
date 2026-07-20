@@ -55,6 +55,8 @@ export default function MainLayout() {
     <Layout style={{ minHeight: "100vh" }}>
       <Sider
         width={232}
+        breakpoint="lg"
+        collapsedWidth={0}
         theme={theme.siderTheme}
         className="erp-sider"
         style={{
@@ -87,6 +89,7 @@ export default function MainLayout() {
 
       <Layout>
         <Header
+          className="erp-header"
           style={{
             background: theme.headerBg, padding: "0 24px", height: 60, lineHeight: "60px",
             display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -105,7 +108,7 @@ export default function MainLayout() {
           </span>
         </Header>
 
-        <Content style={{ margin: 24 }}>
+        <Content className="erp-content" style={{ margin: 24 }}>
           <Outlet />
         </Content>
       </Layout>

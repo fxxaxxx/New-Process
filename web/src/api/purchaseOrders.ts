@@ -69,9 +69,11 @@ export interface PurchaseOrderProgressRow {
   订购数量?: number | null;
   入仓数量?: number | null;
   欠数?: number | null;
+  供应商编号?: string;
   供应商名称?: string;
   操作员?: string;
   审核?: string;
+  备注?: string;
 }
 
 export interface ProgressQuery {
@@ -79,6 +81,8 @@ export interface ProgressQuery {
   起?: string;
   止?: string;
   keyword?: string;
+  物料类别?: string;
+  日期类型?: string;
   onlyOwed?: boolean;
 }
 

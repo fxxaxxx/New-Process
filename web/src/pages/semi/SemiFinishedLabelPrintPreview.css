@@ -1,0 +1,71 @@
+.semi-label-print-root {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  max-height: 64vh;
+  overflow: auto;
+  padding: 2px;
+}
+
+.semi-label-print-card {
+  min-height: 240px;
+  border: 1px solid #1f2937;
+  padding: 16px;
+  background: #fff;
+  break-inside: avoid;
+}
+
+.semi-label-print-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 2px solid #1f2937;
+  padding-bottom: 10px;
+  font-size: 18px;
+}
+
+.semi-label-print-card dl {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0 0;
+}
+
+.semi-label-print-card dl > div {
+  display: grid;
+  grid-template-columns: 108px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.semi-label-print-card dt {
+  color: #5f6b7a;
+}
+
+.semi-label-print-card dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 720px) {
+  .semi-label-print-root { grid-template-columns: 1fr; }
+}
+
+@media print {
+  body * { visibility: hidden !important; }
+  .semi-label-print-root,
+  .semi-label-print-root * { visibility: visible !important; }
+  .semi-label-print-root {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    grid-template-columns: repeat(2, 90mm);
+    gap: 5mm;
+    max-height: none;
+    overflow: visible;
+    padding: 0;
+  }
+  .semi-label-print-card {
+    box-sizing: border-box;
+    min-height: 55mm;
+  }
+}

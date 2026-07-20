@@ -129,35 +129,35 @@ export const MENU_TREE: MenuGroup[] = [
   ]},
   // ⑫ 原料报表
   { key: "g-raw-rpt", label: "原料报表", children: [
-    M("原料库存统计表"), M("原料库存月报表"), M("原料生产需求汇总"), M("原料订货入库统计"),
-    M("原料进度明细表"), M("出库进度明细表"), M("原料欠数统计表"), M("原料采购订单查询"),
-    M("原料入仓查询"), M("原料退仓查询"), M("原料出库查询"), M("原料退库查询"), M("原料盘点查询"),
+    M("原料库存统计表", "/plastic-raw-material-inventory", "原料库存统计表"), M("原料库存月报表", "/plastic-raw-material-monthly", "原料库存月报表"), M("原料生产需求汇总", "/plastic-raw-material-demand-summary", "原料生产需求汇总"), M("原料订货入库统计", "/plastic-raw-material-order-receipt-stats"),
+    M("原料进度明细表", "/plastic-raw-material-progress-detail"), M("出库进度明细表", "/plastic-raw-material-issue-progress-detail"), M("原料发外欠数表", "/plastic-raw-material-outsource-shortage"), M("原料采购订单查询", "/plastic-raw-material-purchase-order-query"),
+    M("原料入仓查询", "/plastic-raw-material-receipt-query"), M("原料退仓查询", "/plastic-raw-material-return-query"), M("原料出库查询", "/plastic-raw-material-stock-issue-query"), M("原料退库查询", "/plastic-raw-material-stock-return-query"), M("原料盘点查询", "/plastic-raw-material-stocktake-query"),
   ]},
   // ⑬ 外发装配
   { key: "g-assembly", label: "外发装配", children: [
-    M("装配物料设置"), M("装配物料汇总表"), M("装配加工采购单"), M("装配采购查询"),
-    M("装配采购进度表"), M("装配物料跟踪表"), M("加工厂库存汇总表"), M("装配需领料明细表"),
-    M("加工厂分类月报表"), M("加工厂分类明细表"),
+    M("装配物料设置", "/assembly-material-setup", "款号资料"), M("装配物料汇总表", "/assembly-material-summary", "款号资料"), M("装配加工采购单", "/assembly-purchase-orders", "款号资料"), M("装配采购查询", "/assembly-purchase-query", "款号资料"),
+    M("装配采购进度表", "/assembly-purchase-progress", "款号资料"), M("装配物料跟踪表", "/assembly-material-tracking", "款号资料"), M("加工厂库存汇总表", "/assembly-factory-inventory", "款号资料"), M("装配需领明细表", "/assembly-required-material-detail", "款号资料"),
+    M("加工厂分类月报表", "/assembly-factory-category-monthly", "款号资料"), M("加工厂分类明细表"),
   ]},
   // ⑭ 辅料仓库
   { key: "g-aux", label: "辅料仓库", children: [
-    M("辅料资料"), M("辅料采购分析表"), M("辅料采购订单"), M("辅料采购进度表"),
-    M("辅料出库进度表"), M("辅料入仓单"), M("辅料退仓单"), M("辅料出库单"),
-    M("辅料退库单"), M("辅料盘点单"),
+    M("辅料资料", "/auxiliary-material-master", "物料资料"), M("辅料采购分析表", "/auxiliary-purchase-analysis", "物料资料"), M("辅料采购订单", "/auxiliary-purchase-order"), M("辅料采购进度表", "/auxiliary-purchase-progress"),
+    M("辅料出库进度表", "/auxiliary-issue-progress"), M("辅料入仓单", "/auxiliary-receipts", "采购入仓单"), M("辅料退仓单", "/auxiliary-purchase-returns", "采购退仓单"), M("辅料出库单", "/auxiliary-issues", "领料单"),
+    M("辅料退库单", "/auxiliary-returns", "退料单"), M("辅料盘点单", "/auxiliary-stocktakes", "盘点单"),
   ]},
   // ⑮ 辅料报表
   { key: "g-aux-rpt", label: "辅料报表", children: [
-    M("辅料库存统计表"), M("辅料库存月报表"), M("辅料订货入库统计"), M("辅料进度明细表"),
-    M("辅料出库明细表"), M("辅料采购订单查询"), M("辅料入仓查询"), M("辅料退仓查询"),
-    M("辅料出库查询"), M("辅料盘点查询"),
+    M("辅料库存统计表", "/auxiliary-inventory", "辅料库存统计表"), M("辅料库存月报表", "/auxiliary-monthly", "辅料库存月报表"), M("辅料订货入库统计", "/auxiliary-order-receipt-stats", "辅料订货入库统计"), M("辅料进度明细表", "/auxiliary-progress-detail", "辅料进度明细表"),
+    M("辅料出库明细表", "/auxiliary-issue-detail", "辅料出库明细表"), M("辅料采购订单查询", "/auxiliary-purchase-order-query", "辅料采购订单查询"), M("辅料入仓查询", "/auxiliary-receipt-query", "辅料入仓查询"), M("辅料退仓查询", "/auxiliary-stock-return-query", "辅料退仓查询"),
+    M("辅料出库查询", "/auxiliary-stock-issue-query", "辅料出库查询"), M("辅料盘点查询", "/auxiliary-stocktake-query", "辅料盘点查询"),
   ]},
   // ⑯ 半成品仓库
   { key: "g-semi", label: "半成品仓库", children: [
     M("半成品共用物料表", "/semi-finished-common-materials", "半成品共用物料表"),
-    M("半成品标签单"),
-    M("半成品欠料分析表"),
+    M("半成品标签单", "/semi-finished-label-orders", "半成品标签单"),
+    M("半成品欠料分析表", "/semi-finished-shortage-analysis", "半成品欠料分析表"),
     M("半成品入仓单", "/semi-receipts", "半成品入仓"),
-    M("半成品退仓单"),
+    M("半成品退仓单", "/semi-warehouse-returns", "半成品退仓"),
     M("半成品出库单", "/semi-issues", "半成品领料"),
     M("半成品退库单", "/semi-stock-returns", "半成品退库"),
     M("半成品报废单"),

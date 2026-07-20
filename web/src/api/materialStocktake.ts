@@ -3,7 +3,7 @@ import type { Paged } from "./master";
 
 export interface MSBasisRow { 物料编号?: string; 物料名称?: string; 规格?: string; 单位?: string; 系统数量: number }
 export interface MSLine { 物料编号?: string; 物料名称?: string; 规格?: string; 单位?: string; 系统数量: number; 盘点数量: number }
-export interface MSCreate { 仓库: string; 备注?: string; 明细: MSLine[] }
+export interface MSCreate { 日期?: string; 仓库: string; 备注?: string; 明细: MSLine[] }
 export interface MSHeader { id: number; 单号?: string; 仓库?: string; 日期?: string; 操作员?: string; 审核?: string; 审核人?: string; 备注?: string }
 export interface MSLineRow {
   id: number; 物料编号?: string; 物料名称?: string; 规格?: string; 单位?: string;

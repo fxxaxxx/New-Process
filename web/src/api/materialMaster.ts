@@ -19,6 +19,8 @@ export interface MaterialRow {
   供应商编号?: string;
   供应商名称?: string;
   备注?: string;
+  仓库位置?: string;
+  码换算?: string;
 }
 
 export const materialMasterApi = {
