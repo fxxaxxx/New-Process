@@ -139,8 +139,8 @@ public class P5cApiIntegrationTests(DbFixture fx)
             rk = (await cr.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("单号").GetString()!;
             await client.PostAsync($"/api/semi-receipts/{rk}/approve", null);
             var ci = await client.PostAsJsonAsync("/api/semi-issues", new {
-                仓库 = P5cTestData.仓库, 生产单号 = P5cTestData.生产单号, 款号 = P5cTestData.款号, 部门 = "车间一", 领料人 = "张三",
-                明细 = new[] { new { 物料编号 = P5cTestData.物料编号, 物料名称 = "P5c半成品料", 规格 = "规格A", 颜色 = "黑色", 单位 = "件", 数量 = 30, 单价 = 10 } } });
+                仓库 = P5cTestData.仓库, 部门 = "车间一", 领料人 = "张三",
+                明细 = new[] { new { 配件编号 = P5cTestData.物料编号, 数量 = 30 } } });
             Assert.Equal(HttpStatusCode.Created, ci.StatusCode);
             ll = (await ci.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("单号").GetString()!;
             Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/api/semi-issues/{ll}/approve", null)).StatusCode);
@@ -177,8 +177,8 @@ public class P5cApiIntegrationTests(DbFixture fx)
             Assert.Equal(100m, await Inv());
 
             var ci = await client.PostAsJsonAsync("/api/semi-issues", new {
-                仓库 = P5cTestData.仓库, 生产单号 = P5cTestData.生产单号, 款号 = P5cTestData.款号, 部门 = "车间一", 领料人 = "张三",
-                明细 = new[] { new { 物料编号 = P5cTestData.物料编号, 物料名称 = "P5c半成品料", 规格 = "规格A", 颜色 = "黑色", 单位 = "件", 数量 = 30, 单价 = 10 } } });
+                仓库 = P5cTestData.仓库, 部门 = "车间一", 领料人 = "张三",
+                明细 = new[] { new { 配件编号 = P5cTestData.物料编号, 数量 = 30 } } });
             ll = (await ci.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("单号").GetString()!;
             await client.PostAsync($"/api/semi-issues/{ll}/approve", null);
             Assert.Equal(70m, await Inv());
