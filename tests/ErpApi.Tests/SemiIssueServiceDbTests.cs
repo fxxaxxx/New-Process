@@ -1,5 +1,6 @@
 using Dapper;
 using ErpApi.Engines.DocumentNumber;
+using ErpApi.Engines.Inventory;
 using ErpApi.Features.Warehouse.Semi;
 using ErpApi.Infrastructure.Db;
 using Microsoft.Extensions.Configuration;
@@ -14,33 +15,65 @@ public class SemiIssueServiceDbTests(DbFixture fx)
             new Dictionary<string, string?> { ["Erp:ConnectionStringEnvVar"] = "ERP_TEST_DB" }).Build();
         return new SqlConnectionFactory(cfg);
     }
+    private SemiReceiptService ReceiptSvc() => new(Factory(), new DocumentNumberGenerator());
     private SemiIssueService Svc() => new(Factory(), new DocumentNumberGenerator());
-    private static SemiIssueCreateDto Dto() => new()
-    {
-        仓库 = P5cTestData.仓库, 生产单号 = P5cTestData.生产单号, 款号 = P5cTestData.款号, 部门 = "车间一", 领料人 = "张三",
-        明细 = [ new SemiIssueLineDto { 物料编号 = P5cTestData.物料编号, 物料名称 = "P5c半成品料", 规格 = "规格A", 颜色 = "黑色", 单位 = "件", 数量 = 30, 单价 = 10 } ]
-    };
+    private async Task<decimal> Inv() =>
+        (await new InventorySummaryService(Factory()).SemiFinishedAsync(P5cTestData.仓库))
+            .Where(x => x.物料编号 == P5cTestData.物料编号).Sum(x => x.库存);
 
     [SkippableFact]
-    public async Task Create_then_delete_lifecycle()
+    public async Task Approve_reduces_semi_inventory_by_issued_quantity_then_unapprove_restores()
     {
         using var c = fx.Open();
         P5cTestData.Seed(c);
-        var 单号 = await Svc().CreateAsync(Dto(), "tester");
+        string? 入仓单号 = null;
+        string? 出库单号 = null;
         try
         {
-            Assert.StartsWith("BL", 单号);
-            Assert.Equal(30m, c.ExecuteScalar<decimal>("SELECT [数量] FROM [半成品领料单] WHERE [单号]=@n", new { n = 单号 }));
-            Assert.Equal(300m, c.ExecuteScalar<decimal>("SELECT [金额] FROM [半成品领料明细单] WHERE [单号]=@n", new { n = 单号 }));
-            Assert.Equal(1, (await Svc().ListAsync(1, 20, 单号)).Total);
-            Assert.Equal(1, (await Svc().GetAsync(单号))!.明细.Count);
-            Assert.True(await Svc().DeleteAsync(单号));
-            Assert.False(await Svc().DeleteAsync("BL不存在"));
+            入仓单号 = await ReceiptSvc().CreateAsync(new SemiReceiptCreateDto
+            {
+                仓库 = P5cTestData.仓库, 生产单号 = P5cTestData.生产单号, 款号 = P5cTestData.款号,
+                供应商编号 = "", 供应商名称 = "测试加工厂",
+                明细 =
+                [
+                    new SemiReceiptLineDto
+                    {
+                        配件编号 = P5cTestData.物料编号, 客户 = "ZURU", 产品货号 = P5cTestData.款号,
+                        产品名称 = "P5c产品", 产品装配名称 = "P5c半成品料A", 生产单号 = P5cTestData.生产单号,
+                        单位 = "件", 数量 = 100, 单价 = 2
+                    }
+                ]
+            }, "tester");
+            c.Execute("UPDATE [半成品入仓单] SET [审核]='1' WHERE [单号]=@n", new { n = 入仓单号 });
+            Assert.Equal(100m, await Inv());
+
+            // 自由选产品出库 30
+            出库单号 = await Svc().CreateAsync(new SemiIssueCreateDto
+            {
+                仓库 = P5cTestData.仓库, 部门 = "车间一", 领料人 = "张三",
+                明细 = [ new SemiIssueLineInput { 配件编号 = P5cTestData.物料编号, 数量 = 30 } ]
+            }, "tester");
+
+            // 审核（翻单头审核位，union 减库存）
+            c.Execute("UPDATE [半成品领料单] SET [审核]='1' WHERE [单号]=@n", new { n = 出库单号 });
+            Assert.Equal(70m, await Inv());
+
+            // 反审核恢复
+            c.Execute("UPDATE [半成品领料单] SET [审核]='0' WHERE [单号]=@n", new { n = 出库单号 });
+            Assert.Equal(100m, await Inv());
         }
         finally
         {
-            c.Execute("DELETE FROM [半成品领料明细单] WHERE [单号]=@n", new { n = 单号 });
-            c.Execute("DELETE FROM [半成品领料单] WHERE [单号]=@n", new { n = 单号 });
+            if (出库单号 != null)
+            {
+                c.Execute("DELETE FROM [半成品领料明细单] WHERE [单号]=@n", new { n = 出库单号 });
+                c.Execute("DELETE FROM [半成品领料单] WHERE [单号]=@n", new { n = 出库单号 });
+            }
+            if (入仓单号 != null)
+            {
+                c.Execute("DELETE FROM [半成品入仓明细单] WHERE [单号]=@n", new { n = 入仓单号 });
+                c.Execute("DELETE FROM [半成品入仓单] WHERE [单号]=@n", new { n = 入仓单号 });
+            }
             P5cTestData.Cleanup(c);
         }
     }
