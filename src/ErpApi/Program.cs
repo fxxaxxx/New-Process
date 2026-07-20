@@ -35,6 +35,8 @@ builder.Services.AddSingleton<IAuditLogger, AuditLogger>();
 // 业务
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<ErpApi.Features.Styles.StyleService>();
+builder.Services.AddScoped<ErpApi.Features.Assembly.AssemblyMaterialSummaryService>();
+builder.Services.AddScoped<ErpApi.Features.Assembly.AssemblyPurchaseQueryService>();
 builder.Services.AddScoped<ErpApi.Features.Orders.OrderService>();
 builder.Services.AddScoped<ErpApi.Features.Production.ProductionService>();
 builder.Services.AddScoped<ErpApi.Features.Production.ProductionReportService>();
@@ -80,9 +82,15 @@ builder.Services.AddScoped<ErpApi.Features.Warehouse.Finished.FinishedTransferSe
 builder.Services.AddScoped<ErpApi.Features.Warehouse.Finished.FinishedSalesReturnService>();
 builder.Services.AddScoped<ErpApi.Features.Warehouse.Finished.FinishedVendorReturnService>();
 builder.Services.AddScoped<ErpApi.Features.Warehouse.Semi.SemiReceiptService>();
+builder.Services.AddScoped<ErpApi.Features.Warehouse.Semi.SemiWarehouseReturnService>();
 builder.Services.AddScoped<ErpApi.Features.Warehouse.Semi.SemiIssueService>();
+builder.Services.AddScoped<ErpApi.Features.Warehouse.Semi.SemiStockReturnService>();
 builder.Services.AddScoped<ErpApi.Features.Warehouse.Semi.SemiStocktakeService>();
 builder.Services.AddScoped<ErpApi.Features.Warehouse.Semi.CommonMaterials.SemiFinishedCommonMaterialService>();
+builder.Services.AddScoped<ErpApi.Features.Warehouse.Semi.Labels.ISemiFinishedLabelOrderService,
+    ErpApi.Features.Warehouse.Semi.Labels.SemiFinishedLabelOrderService>();
+builder.Services.AddScoped<ErpApi.Features.Warehouse.Semi.ShortageAnalysis.ISemiFinishedShortageService,
+    ErpApi.Features.Warehouse.Semi.ShortageAnalysis.SemiFinishedShortageService>();
 builder.Services.AddScoped<ErpApi.Features.MonthEnd.MonthEndService>();
 builder.Services.AddScoped<ErpApi.Features.MonthEnd.PeriodLockService>();
 builder.Services.AddScoped<ErpApi.Features.Sales.SalesShipmentService>();
@@ -129,9 +137,12 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
 var app = builder.Build();
 if (app.Environment.IsDevelopment()) { app.UseSwagger(); app.UseSwaggerUI(); }
 app.UseCors();
+app.UseDefaultFiles();
+app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapFallbackToFile("index.html");
 app.Run();
 
 public partial class Program { } // 供集成测试引用
