@@ -80,6 +80,7 @@ builder.Services.AddScoped<ErpApi.Features.Warehouse.Finished.FinishedTransferSe
 builder.Services.AddScoped<ErpApi.Features.Warehouse.Finished.FinishedSalesReturnService>();
 builder.Services.AddScoped<ErpApi.Features.Warehouse.Finished.FinishedVendorReturnService>();
 builder.Services.AddScoped<ErpApi.Features.Warehouse.Semi.SemiReceiptService>();
+builder.Services.AddScoped<ErpApi.Features.Warehouse.Semi.SemiWarehouseReturnService>();
 builder.Services.AddScoped<ErpApi.Features.Warehouse.Semi.SemiIssueService>();
 builder.Services.AddScoped<ErpApi.Features.Warehouse.Semi.SemiStockReturnService>();
 builder.Services.AddScoped<ErpApi.Features.Warehouse.Semi.SemiStocktakeService>();
