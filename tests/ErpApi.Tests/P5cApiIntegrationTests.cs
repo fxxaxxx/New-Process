@@ -188,7 +188,7 @@ public class P5cApiIntegrationTests(DbFixture fx)
             Assert.Equal(70m, basisSum);
             var cp = await client.PostAsJsonAsync("/api/semi-stocktakes", new {
                 仓库 = P5cTestData.仓库,
-                明细 = new[] { new { 物料编号 = P5cTestData.物料编号, 物料名称 = "P5c半成品料", 规格 = "规格A", 颜色 = "黑色", 系统数量 = 70, 盘点数量 = 68 } } });
+                明细 = new[] { new { 配件编号 = P5cTestData.物料编号, 产品装配名称 = "P5c半成品料", 系统数量 = 70, 盘点数量 = 68 } } });
             pd = (await cp.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("单号").GetString()!;
             await client.PostAsync($"/api/semi-stocktakes/{pd}/approve", null);
             Assert.Equal(68m, await Inv());  // 70 + (-2)
