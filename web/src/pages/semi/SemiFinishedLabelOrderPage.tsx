@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Button,
   Card,
@@ -31,7 +31,7 @@ import {
   UndoOutlined,
 } from "@ant-design/icons";
 import dayjs, { type Dayjs } from "dayjs";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { can } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
 import { semiFinishedLabelOrdersApi } from "../../api/semiFinishedLabelOrders";
@@ -185,6 +185,18 @@ export default function SemiFinishedLabelOrderPage() {
       }
     }
   }, [applyOrder, cancelAuditOperation, invalidateMutation]);
+
+  // 从查询报表双击跳入：URL ?open=<电脑单号> 自动打开对应单据（仅首次）
+  const [searchParams, setSearchParams] = useSearchParams();
+  const autoOpenedRef = useRef(false);
+  useEffect(() => {
+    const no = searchParams.get("open");
+    if (no && !autoOpenedRef.current) {
+      autoOpenedRef.current = true;
+      void openOrder(no);
+      setSearchParams(prev => { const n = new URLSearchParams(prev); n.delete("open"); return n; }, { replace: true });
+    }
+  }, [searchParams, openOrder, setSearchParams]);
 
   const buildPayload = useCallback(async () => {
     const values = await form.validateFields();

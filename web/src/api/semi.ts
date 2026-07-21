@@ -80,6 +80,13 @@ export interface SemiInvReportRow { 配件编号?: string | null; 客户?: strin
 export interface SemiInvReportQuery { 仓库?: string; field?: string; keyword?: string; exact?: boolean; includeZero?: boolean; showAll?: boolean }
 export interface SemiMonthlyRow { 配件编号?: string | null; 客户?: string | null; 产品货号?: string | null; 产品名称?: string | null; 产品装配名称?: string | null; 期初库存: number; 本期入库: number; 本期出库: number; 本期报废: number; 盘点盈亏: number; 期末库存: number }
 export interface SemiMonthlyQuery { 起日期?: string; 止日期?: string; 仓库?: string; field?: string; keyword?: string; exact?: boolean }
+export interface SemiLabelSummaryRow { 配件编号?: string | null; 客户?: string | null; 产品货号?: string | null; 产品名称?: string | null; 产品装配名称?: string | null; 数量: number; 每箱数量?: number | null; 预计标签数: number; 实需标签数: number }
+export interface SemiLabelDetailRow { 日期: string; 单号?: string | null; 配件编号?: string | null; 客户?: string | null; 产品货号?: string | null; 产品名称?: string | null; 产品装配名称?: string | null; 数量: number; 每箱数量?: number | null; 预计标签数: number; 实需标签数: number; 备注?: string | null; 审核?: string | null }
+export interface SemiLabelQueryParams { 起日期?: string; 止日期?: string; field?: string; keyword?: string; exact?: boolean; 审核?: string; materialOnly?: boolean }
+export const semiLabelQueryApi = {
+  summary: (params: SemiLabelQueryParams = {}) => api.get<SemiLabelSummaryRow[]>("/semi-label-query/summary", { params }).then(r => r.data),
+  detail: (params: SemiLabelQueryParams = {}) => api.get<SemiLabelDetailRow[]>("/semi-label-query/detail", { params }).then(r => r.data),
+};
 export const semiInventoryApi = {
   list: (仓库: string) => api.get<SemiStockRow[]>("/semi-inventory", { params: { 仓库 } }).then(r => r.data),
   report: (params: SemiInvReportQuery = {}) => api.get<SemiInvReportRow[]>("/semi-inventory/report", { params }).then(r => r.data),
