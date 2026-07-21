@@ -1,9 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, Card, Checkbox, Col, DatePicker, Form, Input, InputNumber, Popconfirm, Row, Select, Space, Statistic, Table, Tag, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { CheckOutlined, CloseOutlined, CopyOutlined, DeleteOutlined, FileAddOutlined, FolderOpenOutlined, LeftOutlined, PrinterOutlined, ReloadOutlined, RightOutlined, SaveOutlined, SearchOutlined, TableOutlined, UndoOutlined } from "@ant-design/icons";
 import dayjs, { type Dayjs } from "dayjs";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { semiReceiptApi, type SRCreate, type SRDetail } from "../../api/semi";
 import { can } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
@@ -57,6 +57,18 @@ export default function SemiReceiptPage() {
     catch (error) { message.error(errorText(error, "打开半成品入仓单失败")); }
     finally { setBusy(false); }
   };
+
+  // 从入仓查询双击跳入：URL ?open=<单号> 自动打开单据（仅首次）
+  const [searchParams, setSearchParams] = useSearchParams();
+  const autoOpenedRef = useRef(false);
+  useEffect(() => {
+    const no = searchParams.get("open");
+    if (no && !autoOpenedRef.current) {
+      autoOpenedRef.current = true;
+      void openDocument(no);
+      setSearchParams(prev => { const n = new URLSearchParams(prev); n.delete("open"); return n; }, { replace: true });
+    }
+  }, [searchParams, setSearchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const payload = (): SRCreate | null => {
     const values = form.getFieldsValue();

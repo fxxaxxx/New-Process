@@ -168,7 +168,7 @@ export const MENU_TREE: MenuGroup[] = [
     M("半成品库存统计表", "/semi-inventory", "半成品库存"),
     M("半成品库存月报表", "/semi-inventory-monthly", "半成品库存"),
     M("半成品标签查询", "/semi-label-query", "半成品标签单"),
-    M("半成品入仓查询"),
+    M("半成品入仓查询", "/semi-receipt-query", "半成品入仓"),
     M("半成品退仓查询"),
     M("半成品出库查询"),
     M("半成品退库查询"),

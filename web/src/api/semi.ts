@@ -87,6 +87,13 @@ export const semiLabelQueryApi = {
   summary: (params: SemiLabelQueryParams = {}) => api.get<SemiLabelSummaryRow[]>("/semi-label-query/summary", { params }).then(r => r.data),
   detail: (params: SemiLabelQueryParams = {}) => api.get<SemiLabelDetailRow[]>("/semi-label-query/detail", { params }).then(r => r.data),
 };
+export interface SemiReceiptSummaryRow { 配件编号?: string | null; 产品货号?: string | null; 产品名称?: string | null; 产品装配名称?: string | null; 供应商编号?: string | null; 供应商名称?: string | null; 入仓数量: number }
+export interface SemiReceiptDetailRow { 日期?: string | null; 单号?: string | null; 入库单号?: string | null; 订单单号?: string | null; 供应商编号?: string | null; 供应商名称?: string | null; 生产单号?: string | null; 配件编号?: string | null; 产品货号?: string | null; 产品名称?: string | null; 产品装配名称?: string | null; 数量: number; 备注?: string | null; 审核?: string | null }
+export interface SemiReceiptQueryParams { 起日期?: string; 止日期?: string; field?: string; keyword?: string; exact?: boolean; 审核?: string; materialOnly?: boolean; bySupplier?: boolean }
+export const semiReceiptQueryApi = {
+  summary: (params: SemiReceiptQueryParams = {}) => api.get<SemiReceiptSummaryRow[]>("/semi-receipt-query/summary", { params }).then(r => r.data),
+  detail: (params: SemiReceiptQueryParams = {}) => api.get<SemiReceiptDetailRow[]>("/semi-receipt-query/detail", { params }).then(r => r.data),
+};
 export const semiInventoryApi = {
   list: (仓库: string) => api.get<SemiStockRow[]>("/semi-inventory", { params: { 仓库 } }).then(r => r.data),
   report: (params: SemiInvReportQuery = {}) => api.get<SemiInvReportRow[]>("/semi-inventory/report", { params }).then(r => r.data),
