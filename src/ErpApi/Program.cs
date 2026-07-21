@@ -91,6 +91,7 @@ builder.Services.AddScoped<ErpApi.Features.Warehouse.Semi.SemiMonthlyReportServi
 builder.Services.AddScoped<ErpApi.Features.Warehouse.Semi.Labels.SemiLabelQueryService>();
 builder.Services.AddScoped<ErpApi.Features.Warehouse.Semi.SemiReceiptQueryService>();
 builder.Services.AddScoped<ErpApi.Features.Warehouse.Semi.SemiWhReturnQueryService>();
+builder.Services.AddScoped<ErpApi.Features.Warehouse.Semi.SemiIssueQueryService>();
 builder.Services.AddScoped<ErpApi.Features.Warehouse.Semi.SemiStocktakeService>();
 builder.Services.AddScoped<ErpApi.Features.Warehouse.Semi.CommonMaterials.SemiFinishedCommonMaterialService>();
 builder.Services.AddScoped<ErpApi.Features.Warehouse.Semi.Labels.ISemiFinishedLabelOrderService,

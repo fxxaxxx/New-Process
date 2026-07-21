@@ -145,6 +145,7 @@ import SemiMonthlyReportPage from "./pages/warehouse/SemiMonthlyReportPage";
 import SemiLabelQueryPage from "./pages/warehouse/SemiLabelQueryPage";
 import SemiReceiptQueryPage from "./pages/warehouse/SemiReceiptQueryPage";
 import SemiWhReturnQueryPage from "./pages/warehouse/SemiWhReturnQueryPage";
+import SemiIssueQueryPage from "./pages/warehouse/SemiIssueQueryPage";
 import MonthEnd from "./pages/warehouse/MonthEnd";
 import SalesShipmentPage from "./pages/sales/SalesShipmentPage";
 import SalesReturnPage from "./pages/sales/SalesReturnPage";
@@ -314,6 +315,7 @@ export default function App() {
           <Route path="semi-label-query" element={<SemiLabelQueryPage />} />
           <Route path="semi-receipt-query" element={<SemiReceiptQueryPage />} />
           <Route path="semi-warehouse-return-query" element={<SemiWhReturnQueryPage />} />
+          <Route path="semi-issue-query" element={<SemiIssueQueryPage />} />
           <Route path="month-end" element={<MonthEnd />} />
           <Route path="sales-shipments" element={<SalesShipmentPage />} />
           <Route path="sales-returns" element={<SalesReturnPage />} />

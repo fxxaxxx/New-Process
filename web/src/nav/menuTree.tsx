@@ -170,7 +170,7 @@ export const MENU_TREE: MenuGroup[] = [
     M("半成品标签查询", "/semi-label-query", "半成品标签单"),
     M("半成品入仓查询", "/semi-receipt-query", "半成品入仓"),
     M("半成品退仓查询", "/semi-warehouse-return-query", "半成品退仓"),
-    M("半成品出库查询"),
+    M("半成品出库查询", "/semi-issue-query", "半成品领料"),
     M("半成品退库查询"),
     M("半成品报废查询"),
     M("半成品盘点查询"),

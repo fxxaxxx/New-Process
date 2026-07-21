@@ -100,6 +100,13 @@ export const semiWhReturnQueryApi = {
   summary: (params: SemiReceiptQueryParams = {}) => api.get<SemiWhReturnSummaryRow[]>("/semi-warehouse-return-query/summary", { params }).then(r => r.data),
   detail: (params: SemiReceiptQueryParams = {}) => api.get<SemiWhReturnDetailRow[]>("/semi-warehouse-return-query/detail", { params }).then(r => r.data),
 };
+export interface SemiIssueSummaryRow { 领料备注?: string | null; 装配采购?: string | null; 配件编号?: string | null; 产品货号?: string | null; 产品名称?: string | null; 产品装配名称?: string | null; 领料数量: number; 备注?: string | null }
+export interface SemiIssueDetailRow { 领料备注?: string | null; 装配采购?: string | null; 日期?: string | null; 单号?: string | null; 领料人?: string | null; 生产单号?: string | null; 配件编号?: string | null; 产品货号?: string | null; 产品名称?: string | null; 产品装配名称?: string | null; 数量: number; 备注?: string | null; 制单人?: string | null; 审核?: string | null }
+export interface SemiIssueQueryParams { 起日期?: string; 止日期?: string; field?: string; keyword?: string; exact?: boolean; 审核?: string; 领料备注?: string; 制单人?: string; materialOnly?: boolean; byIssueRemark?: boolean }
+export const semiIssueQueryApi = {
+  summary: (params: SemiIssueQueryParams = {}) => api.get<SemiIssueSummaryRow[]>("/semi-issue-query/summary", { params }).then(r => r.data),
+  detail: (params: SemiIssueQueryParams = {}) => api.get<SemiIssueDetailRow[]>("/semi-issue-query/detail", { params }).then(r => r.data),
+};
 export const semiInventoryApi = {
   list: (仓库: string) => api.get<SemiStockRow[]>("/semi-inventory", { params: { 仓库 } }).then(r => r.data),
   report: (params: SemiInvReportQuery = {}) => api.get<SemiInvReportRow[]>("/semi-inventory/report", { params }).then(r => r.data),
