@@ -79,16 +79,32 @@ VALUES(@单号,@date,@wh,@sysTot,@cntTot,@diffTot,@user,'0',@备注)",
                 new { 单号, date, wh = warehouse, sysTot, cntTot, diffTot, user, dto.备注 }, tx);
 
         foreach (var l in dto.明细)
+        {
+            var mat = l.配件编号!.Trim();
+            // 规格/颜色 取自该物料最近一张已审核入仓明细，保证盈亏落到正确颜色桶（明细网格不显示颜色，与桌面版一致）。
+            var f = await c.QuerySingleOrDefaultAsync<ReceiptFacts>(@"
+SELECT TOP (1) d.[规格],d.[颜色],d.[单位]
+FROM [半成品入仓明细单] d JOIN [半成品入仓单] h ON h.[单号]=d.[单号]
+WHERE d.[物料编号]=@mat AND d.[仓库]=@wh AND ISNULL(h.[审核],'0')='1'
+ORDER BY d.[ID] DESC;", new { mat, wh = warehouse }, tx) ?? new ReceiptFacts();
             await c.ExecuteAsync(@"INSERT INTO [半成品盘点明细单]
-([单号],[日期],[仓库],[客户],[货号],[名称],[物料编号],[物料名称],[系统数量],[盘点数量],[盈亏数量],[备注])
-VALUES(@单号,@date,@wh,@客户,@货号,@名称,@物料编号,@物料名称,@系统数量,@盘点数量,@盈亏数量,@备注)",
+([单号],[日期],[仓库],[客户],[货号],[名称],[物料编号],[物料名称],[规格],[颜色],[单位],[系统数量],[盘点数量],[盈亏数量],[备注])
+VALUES(@单号,@date,@wh,@客户,@货号,@名称,@物料编号,@物料名称,@规格,@颜色,@单位,@系统数量,@盘点数量,@盈亏数量,@备注)",
                 new
                 {
                     单号, date, wh = warehouse,
                     客户 = l.客户, 货号 = l.产品货号, 名称 = l.产品名称,
-                    物料编号 = l.配件编号!.Trim(), 物料名称 = l.产品装配名称,
+                    物料编号 = mat, 物料名称 = l.产品装配名称, f.规格, f.颜色, f.单位,
                     系统数量 = l.系统数量, 盘点数量 = l.盘点数量, 盈亏数量 = l.盘点数量 - l.系统数量, 备注 = l.备注
                 }, tx);
+        }
+    }
+
+    private sealed class ReceiptFacts
+    {
+        public string? 规格 { get; set; }
+        public string? 颜色 { get; set; }
+        public string? 单位 { get; set; }
     }
 
     public async Task<PagedResult<SemiStocktakeHeaderDto>> ListAsync(int page, int size, string? keyword)

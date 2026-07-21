@@ -36,8 +36,8 @@ public class SemiStocktakeServiceDbTests(DbFixture fx)
             pd = await Svc().CreateAsync(new SemiStocktakeCreateDto
             {
                 仓库 = P5cTestData.仓库,
-                明细 = [ new SemiStocktakeLineDto {
-                    物料编号 = "P5cM1", 物料名称 = "P5c半成品料", 规格 = "规格A", 颜色 = "黑色",
+                明细 = [ new SemiStocktakeLineInput {
+                    配件编号 = "P5cM1", 产品装配名称 = "P5c半成品料",
                     系统数量 = 70, 盘点数量 = 68 } ]
             }, "tester");
             Assert.StartsWith("BP", pd);
