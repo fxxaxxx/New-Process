@@ -259,3 +259,28 @@ public sealed class SemiInventoryReportRow
     public decimal 库存数量 { get; set; }
     public string? 仓库位置 { get; set; }
 }
+
+// ---- 库存月报表（收发存）----
+public sealed class SemiMonthlyReportQuery
+{
+    public DateTime? 起日期 { get; set; }
+    public DateTime? 止日期 { get; set; }
+    public string? 仓库 { get; set; }
+    public string? Field { get; set; }
+    public string? Keyword { get; set; }
+    public bool Exact { get; set; }
+}
+public sealed class SemiMonthlyReportRow
+{
+    public string? 配件编号 { get; set; }
+    public string? 客户 { get; set; }
+    public string? 产品货号 { get; set; }
+    public string? 产品名称 { get; set; }
+    public string? 产品装配名称 { get; set; }
+    public decimal 期初库存 { get; set; }
+    public decimal 本期入库 { get; set; }
+    public decimal 本期出库 { get; set; }
+    public decimal 本期报废 { get; set; }
+    public decimal 盘点盈亏 { get; set; }
+    public decimal 期末库存 { get; set; }
+}

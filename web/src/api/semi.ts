@@ -78,9 +78,12 @@ export const semiStocktakeApi = {
 };
 export interface SemiInvReportRow { 配件编号?: string | null; 客户?: string | null; 产品货号?: string | null; 产品名称?: string | null; 产品装配名称?: string | null; 库存数量: number; 仓库位置?: string | null }
 export interface SemiInvReportQuery { 仓库?: string; field?: string; keyword?: string; exact?: boolean; includeZero?: boolean; showAll?: boolean }
+export interface SemiMonthlyRow { 配件编号?: string | null; 客户?: string | null; 产品货号?: string | null; 产品名称?: string | null; 产品装配名称?: string | null; 期初库存: number; 本期入库: number; 本期出库: number; 本期报废: number; 盘点盈亏: number; 期末库存: number }
+export interface SemiMonthlyQuery { 起日期?: string; 止日期?: string; 仓库?: string; field?: string; keyword?: string; exact?: boolean }
 export const semiInventoryApi = {
   list: (仓库: string) => api.get<SemiStockRow[]>("/semi-inventory", { params: { 仓库 } }).then(r => r.data),
   report: (params: SemiInvReportQuery = {}) => api.get<SemiInvReportRow[]>("/semi-inventory/report", { params }).then(r => r.data),
+  monthly: (params: SemiMonthlyQuery = {}) => api.get<SemiMonthlyRow[]>("/semi-inventory/monthly", { params }).then(r => r.data),
 };
 export const semiWarehouseReturnApi = {
   list: (page = 1, size = 100, keyword = "") => api.get<Paged<SWRHeader>>("/semi-warehouse-returns", { params: { page, size, keyword } }).then(r => r.data),

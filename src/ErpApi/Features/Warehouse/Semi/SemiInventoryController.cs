@@ -10,7 +10,8 @@ namespace ErpApi.Features.Warehouse.Semi;
 [Authorize]
 [Route("api/semi-inventory")]
 public sealed class SemiInventoryController(
-    IInventorySummaryService inventory, SemiInventoryReportService report, IPermissionService perms) : ControllerBase
+    IInventorySummaryService inventory, SemiInventoryReportService report,
+    SemiMonthlyReportService monthly, IPermissionService perms) : ControllerBase
 {
     private const string Menu = "半成品库存";
     private string CurrentUser =>
@@ -30,5 +31,13 @@ public sealed class SemiInventoryController(
     {
         if (!await perms.HasAsync(CurrentUser, Menu, PermissionAction.打开)) return Forbid();
         return Ok(await report.ReportAsync(query));
+    }
+
+    // 库存月报表（收发存：期初/入库/出库/报废/盈亏/期末），复用 半成品库存 权限
+    [HttpGet("monthly")]
+    public async Task<IActionResult> Monthly([FromQuery] SemiMonthlyReportQuery query)
+    {
+        if (!await perms.HasAsync(CurrentUser, Menu, PermissionAction.打开)) return Forbid();
+        return Ok(await monthly.ReportAsync(query));
     }
 }
