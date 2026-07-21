@@ -58,6 +58,10 @@ FROM (
     SELECT d.物料编号,d.物料名称,d.规格,d.颜色, d.数量        AS 库存
       FROM [半成品退库明细单] d JOIN [半成品退库单] h ON h.单号=d.单号
       WHERE d.仓库=@仓 AND ISNULL(h.审核,'0')='1'
+    UNION ALL
+    SELECT d.物料编号,d.物料名称,d.规格,d.颜色, d.数量*-1     AS 库存
+      FROM [半成品报废明细单] d JOIN [半成品报废单] h ON h.单号=d.单号
+      WHERE d.仓库=@仓 AND ISNULL(h.审核,'0')='1'
 ) t
 GROUP BY 物料编号, 颜色
 HAVING SUM(库存) <> 0;";

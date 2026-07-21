@@ -160,7 +160,7 @@ export const MENU_TREE: MenuGroup[] = [
     M("半成品退仓单", "/semi-warehouse-returns", "半成品退仓"),
     M("半成品出库单", "/semi-issues", "半成品领料"),
     M("半成品退库单", "/semi-stock-returns", "半成品退库"),
-    M("半成品报废单"),
+    M("半成品报废单", "/semi-scraps", "半成品报废"),
     M("半成品盘点单", "/semi-stocktakes", "半成品盘点"),
   ]},
   // ⑰ 半成品报表

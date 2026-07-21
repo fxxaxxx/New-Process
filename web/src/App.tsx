@@ -137,6 +137,7 @@ import SemiReceiptPage from "./pages/warehouse/SemiReceiptPage";
 import SemiWarehouseReturnPage from "./pages/warehouse/SemiWarehouseReturnPage";
 import SemiIssuePage from "./pages/warehouse/SemiIssuePage";
 import SemiStockReturnPage from "./pages/warehouse/SemiStockReturnPage";
+import SemiScrapPage from "./pages/warehouse/SemiScrapPage";
 import SemiStocktakePage from "./pages/warehouse/SemiStocktakePage";
 import MaterialStocktakePage from "./pages/materials/MaterialStocktakePage";
 import SemiInventoryPage from "./pages/warehouse/SemiInventoryPage";
@@ -301,6 +302,7 @@ export default function App() {
           <Route path="semi-warehouse-returns" element={<SemiWarehouseReturnPage />} />
           <Route path="semi-issues" element={<SemiIssuePage />} />
           <Route path="semi-stock-returns" element={<SemiStockReturnPage />} />
+          <Route path="semi-scraps" element={<SemiScrapPage />} />
           <Route path="semi-stocktakes" element={<SemiStocktakePage />} />
           <Route path="materials/material-stocktake" element={<MaterialStocktakePage />} />
           <Route path="semi-inventory" element={<SemiInventoryPage />} />
