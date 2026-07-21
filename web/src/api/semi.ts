@@ -94,6 +94,12 @@ export const semiReceiptQueryApi = {
   summary: (params: SemiReceiptQueryParams = {}) => api.get<SemiReceiptSummaryRow[]>("/semi-receipt-query/summary", { params }).then(r => r.data),
   detail: (params: SemiReceiptQueryParams = {}) => api.get<SemiReceiptDetailRow[]>("/semi-receipt-query/detail", { params }).then(r => r.data),
 };
+export interface SemiWhReturnSummaryRow { 配件编号?: string | null; 产品货号?: string | null; 产品名称?: string | null; 产品装配名称?: string | null; 供应商编号?: string | null; 供应商名称?: string | null; 退仓数量: number }
+export interface SemiWhReturnDetailRow { 日期?: string | null; 单号?: string | null; 供应商编号?: string | null; 供应商名称?: string | null; 入仓单号?: string | null; 生产单号?: string | null; 配件编号?: string | null; 产品货号?: string | null; 产品名称?: string | null; 产品装配名称?: string | null; 数量: number; 备注?: string | null; 审核?: string | null }
+export const semiWhReturnQueryApi = {
+  summary: (params: SemiReceiptQueryParams = {}) => api.get<SemiWhReturnSummaryRow[]>("/semi-warehouse-return-query/summary", { params }).then(r => r.data),
+  detail: (params: SemiReceiptQueryParams = {}) => api.get<SemiWhReturnDetailRow[]>("/semi-warehouse-return-query/detail", { params }).then(r => r.data),
+};
 export const semiInventoryApi = {
   list: (仓库: string) => api.get<SemiStockRow[]>("/semi-inventory", { params: { 仓库 } }).then(r => r.data),
   report: (params: SemiInvReportQuery = {}) => api.get<SemiInvReportRow[]>("/semi-inventory/report", { params }).then(r => r.data),

@@ -1,9 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, Card, Col, DatePicker, Form, Input, InputNumber, Modal, Popconfirm, Row, Space, Statistic, Table, Tag, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { CheckOutlined, CloseOutlined, CopyOutlined, DeleteOutlined, FileAddOutlined, FolderOpenOutlined, LeftOutlined, PrinterOutlined, ProfileOutlined, ReloadOutlined, RightOutlined, SaveOutlined, SearchOutlined, TableOutlined, UndoOutlined } from "@ant-design/icons";
 import dayjs, { type Dayjs } from "dayjs";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { semiWarehouseReturnApi, type SRHeader, type SWRDetail } from "../../api/semi";
 import { can } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
@@ -52,6 +52,16 @@ export default function SemiWarehouseReturnPage() {
     setOpened(d);
   };
   const openDoc = async (no: string) => { setBusy(true); try { apply(await semiWarehouseReturnApi.get(no)); } catch (e) { message.error(err(e, "打开退仓单失败")); } finally { setBusy(false); } };
+  const [searchParams, setSearchParams] = useSearchParams();
+  const autoOpenedRef = useRef(false);
+  useEffect(() => {
+    const no = searchParams.get("open");
+    if (no && !autoOpenedRef.current) {
+      autoOpenedRef.current = true;
+      void openDoc(no);
+      setSearchParams(prev => { const n = new URLSearchParams(prev); n.delete("open"); return n; }, { replace: true });
+    }
+  }, [searchParams, setSearchParams]); // eslint-disable-line react-hooks/exhaustive-deps
   const selectReceipt = (r: SRHeader) => { form.setFieldsValue({ 入仓单号: r.单号, 供应商编号: r.供应商编号, 供应商名称: r.供应商名称, 仓库: r.仓库 }); setReceiptOpen(false); };
   const pickProducts = (rows: SemiFinishedLabelProduct[]) => setLines(cur => mergeSemiWarehouseReturnLines(cur, rows.map(p => ({ 配件编号: p.配件编号, 客户: p.客户, 产品货号: p.产品货号, 产品名称: p.产品名称, 产品装配名称: p.产品装配名称, 生产单号: (p as { 生产单号?: string | null }).生产单号, 库存单价: p.库存单价 }))));
   const updateLine = (key: number, patch: Partial<SWRDraftLine>) => setLines(v => v.map(x => x.key === key ? { ...x, ...patch } : x));
