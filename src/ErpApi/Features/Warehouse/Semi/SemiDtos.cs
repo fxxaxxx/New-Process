@@ -238,3 +238,24 @@ public sealed class SemiStocktakeProductRow
     public decimal? 加工单价 { get; set; }
     public decimal? 库存单价 { get; set; }
 }
+
+// ---- 库存统计表（富化报表）----
+public sealed class SemiInventoryReportQuery
+{
+    public string? 仓库 { get; set; }
+    public string? Field { get; set; }
+    public string? Keyword { get; set; }
+    public bool Exact { get; set; }
+    public bool IncludeZero { get; set; }  // 零库存：含零(true)/只显示有库存(false)
+    public bool ShowAll { get; set; }      // 显示：全部记录(true)/有发生的记录(false)
+}
+public sealed class SemiInventoryReportRow
+{
+    public string? 配件编号 { get; set; }
+    public string? 客户 { get; set; }
+    public string? 产品货号 { get; set; }
+    public string? 产品名称 { get; set; }
+    public string? 产品装配名称 { get; set; }
+    public decimal 库存数量 { get; set; }
+    public string? 仓库位置 { get; set; }
+}

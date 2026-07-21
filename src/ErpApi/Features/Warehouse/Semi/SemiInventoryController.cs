@@ -10,7 +10,7 @@ namespace ErpApi.Features.Warehouse.Semi;
 [Authorize]
 [Route("api/semi-inventory")]
 public sealed class SemiInventoryController(
-    IInventorySummaryService inventory, IPermissionService perms) : ControllerBase
+    IInventorySummaryService inventory, SemiInventoryReportService report, IPermissionService perms) : ControllerBase
 {
     private const string Menu = "半成品库存";
     private string CurrentUser =>
@@ -22,5 +22,13 @@ public sealed class SemiInventoryController(
         if (!await perms.HasAsync(CurrentUser, Menu, PermissionAction.打开)) return Forbid();
         var rows = await inventory.SemiFinishedAsync(仓库 ?? "");
         return Ok(rows);
+    }
+
+    // 库存统计表（富化：客户/产品货号/产品名称/产品装配名称/仓库位置 + 显示/零库存筛选 + 字段查询）
+    [HttpGet("report")]
+    public async Task<IActionResult> Report([FromQuery] SemiInventoryReportQuery query)
+    {
+        if (!await perms.HasAsync(CurrentUser, Menu, PermissionAction.打开)) return Forbid();
+        return Ok(await report.ReportAsync(query));
     }
 }
