@@ -41,12 +41,14 @@ const defaultProductLoader = (query: ProductQuery) =>
 
 const productKey = (row: SemiFinishedLabelProduct): Key => row.ID ?? `${row.配件编号}-${row.产品货号}`;
 
-export default function SemiFinishedLabelProductPicker({ open, onPick, onClose, loadProducts = defaultProductLoader, permissionMenu = MENU }: {
+export default function SemiFinishedLabelProductPicker({ open, onPick, onClose, loadProducts = defaultProductLoader, permissionMenu = MENU, goodsTitle = "产品货号", nameTitle = "产品名称" }: {
   open: boolean;
   onPick: (rows: SemiFinishedLabelProduct[]) => void;
   onClose: () => void;
   loadProducts?: (query: ProductQuery) => Promise<ProductListResult>;
   permissionMenu?: string;
+  goodsTitle?: string;
+  nameTitle?: string;
 }) {
   const perms = usePerms();
   const canSeePrice = can(perms, permissionMenu, "单价");
@@ -139,8 +141,8 @@ export default function SemiFinishedLabelProductPicker({ open, onPick, onClose, 
     { title: "配件编号", dataIndex: "配件编号", width: 135 },
     { title: "产品装配名称", dataIndex: "产品装配名称", width: 180 },
     { title: "客户", dataIndex: "客户", width: 135 },
-    { title: "产品货号", dataIndex: "产品货号", width: 145 },
-    { title: "产品名称", dataIndex: "产品名称", width: 180 },
+    { title: goodsTitle, dataIndex: "产品货号", width: 145 },
+    { title: nameTitle, dataIndex: "产品名称", width: 180 },
     { title: "加工单价", dataIndex: "加工单价", width: 110, align: "right", render: value => canSeePrice ? value ?? "" : "***" },
     { title: "库存单价", dataIndex: "库存单价", width: 110, align: "right", render: value => canSeePrice ? value ?? "" : "***" },
   ];

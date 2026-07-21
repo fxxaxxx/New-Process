@@ -162,7 +162,8 @@ public sealed class SemiIssueProductRow
     public decimal? 库存单价 { get; set; }
 }
 
-// ---- 盘点 ----
+// ---- 盘点（自由选产品版）----
+// 配件编号=物料编号；产品装配名称=物料名称；产品货号=货号；产品名称=名称。库存/盈亏按 配件编号 汇总（不分颜色，与桌面版一致）。
 public sealed class SemiStocktakeBasisRow
 {
     public string? 物料编号 { get; set; }
@@ -171,20 +172,23 @@ public sealed class SemiStocktakeBasisRow
     public string? 颜色 { get; set; }
     public decimal 系统数量 { get; set; }
 }
-public sealed class SemiStocktakeLineDto
+public sealed class SemiStocktakeLineInput
 {
-    public string? 物料编号 { get; set; }
-    public string? 物料名称 { get; set; }
-    public string? 规格 { get; set; }
-    public string? 颜色 { get; set; }
+    public string 配件编号 { get; set; } = "";
+    public string? 客户 { get; set; }
+    public string? 产品货号 { get; set; }
+    public string? 产品名称 { get; set; }
+    public string? 产品装配名称 { get; set; }
     public decimal 系统数量 { get; set; }
     public decimal 盘点数量 { get; set; }
+    public string? 备注 { get; set; }
 }
 public sealed class SemiStocktakeCreateDto
 {
+    public DateTime? 日期 { get; set; }
     public string 仓库 { get; set; } = "";
     public string? 备注 { get; set; }
-    public List<SemiStocktakeLineDto> 明细 { get; set; } = [];
+    public List<SemiStocktakeLineInput> 明细 { get; set; } = [];
 }
 public sealed class SemiStocktakeHeaderDto
 {
@@ -192,6 +196,9 @@ public sealed class SemiStocktakeHeaderDto
     public string? 单号 { get; set; }
     public string? 仓库 { get; set; }
     public DateTime? 日期 { get; set; }
+    public decimal? 系统数量 { get; set; }
+    public decimal? 盘点数量 { get; set; }
+    public decimal? 盈亏数量 { get; set; }
     public string? 操作员 { get; set; }
     public string? 审核 { get; set; }
     public string? 审核人 { get; set; }
@@ -200,13 +207,34 @@ public sealed class SemiStocktakeHeaderDto
 public sealed class SemiStocktakeLineRowDto
 {
     public long ID { get; set; }
-    public string? 物料编号 { get; set; }
-    public string? 物料名称 { get; set; }
-    public string? 规格 { get; set; }
-    public string? 颜色 { get; set; }
+    public string? 配件编号 { get; set; }
+    public string? 客户 { get; set; }
+    public string? 产品货号 { get; set; }
+    public string? 产品名称 { get; set; }
+    public string? 产品装配名称 { get; set; }
     public decimal? 系统数量 { get; set; }
     public decimal? 盘点数量 { get; set; }
     public decimal? 盈亏数量 { get; set; }
+    public string? 备注 { get; set; }
 }
 public sealed class SemiStocktakeDetailDto
 { public SemiStocktakeHeaderDto? 单头 { get; set; } public List<SemiStocktakeLineRowDto> 明细 { get; set; } = []; }
+public sealed class SemiStocktakeProductQuery
+{
+    public int Page { get; set; } = 1;
+    public int Size { get; set; } = 50;
+    public string? Field { get; set; }
+    public string? Keyword { get; set; }
+    public bool Exact { get; set; }
+}
+public sealed class SemiStocktakeProductRow
+{
+    public string 配件编号 { get; set; } = "";
+    public string? 客户 { get; set; }
+    public string? 产品货号 { get; set; }
+    public string? 产品名称 { get; set; }
+    public string? 产品装配名称 { get; set; }
+    public string? 生产单号 { get; set; }
+    public decimal? 加工单价 { get; set; }
+    public decimal? 库存单价 { get; set; }
+}

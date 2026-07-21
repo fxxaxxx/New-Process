@@ -51,11 +51,24 @@ public sealed class SemiStocktakeController(
         return Ok(d);
     }
 
+    [HttpGet("products")]
+    public async Task<IActionResult> Products([FromQuery] SemiStocktakeProductQuery query)
+        => !await AllowAsync(PermissionAction.打开) ? Forbid() : Ok(await svc.ProductsAsync(query));
+
+    [HttpGet("{单号}/adjacent")]
+    public async Task<IActionResult> Adjacent(string 单号, bool next = false)
+    {
+        if (!await AllowAsync(PermissionAction.打开)) return Forbid();
+        if (await svc.GetAsync(单号) is null) return NotFound();
+        var adj = await svc.GetAdjacentAsync(单号, next);
+        return adj is null ? NoContent() : Ok(adj);
+    }
+
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] SemiStocktakeCreateDto dto)
     {
         if (!await AllowAsync(PermissionAction.保存)) return Forbid();
-        try { await periodLock.EnsureWarehouseOpenAsync(口径, dto.仓库, DateTime.Now); }
+        try { await periodLock.EnsureWarehouseOpenAsync(口径, string.IsNullOrWhiteSpace(dto.仓库) ? "半成品仓" : dto.仓库, DateTime.Now); }
         catch (PeriodLockedException ex) { return Conflict(new { 消息 = ex.Message }); }
         string 单号;
         try { 单号 = await svc.CreateAsync(dto, CurrentUser); }
@@ -63,6 +76,22 @@ public sealed class SemiStocktakeController(
         catch (SqlException ex) when (ex.Number == 547) { return BadRequest(new { 消息 = "物料不存在。" }); }
         await AuditAsync("新增", $"单号={单号}");
         return CreatedAtAction(nameof(Get), new { 单号 }, new { 单号 });
+    }
+
+    [HttpPut("{单号}")]
+    public async Task<IActionResult> Update(string 单号, [FromBody] SemiStocktakeCreateDto dto)
+    {
+        if (!await AllowAsync(PermissionAction.保存)) return Forbid();
+        try { await periodLock.EnsureWarehouseOpenAsync(口径, string.IsNullOrWhiteSpace(dto.仓库) ? "半成品仓" : dto.仓库, DateTime.Now); }
+        catch (PeriodLockedException ex) { return Conflict(new { 消息 = ex.Message }); }
+        try
+        {
+            if (!await svc.UpdateAsync(单号, dto, CurrentUser)) return NotFound();
+        }
+        catch (ArgumentException ex) { return BadRequest(new { 消息 = ex.Message }); }
+        catch (InvalidOperationException ex) { return Conflict(new { 消息 = ex.Message }); }
+        await AuditAsync("修改", $"单号={单号}");
+        return Ok(await svc.GetAsync(单号));
     }
 
     [HttpDelete("{单号}")]

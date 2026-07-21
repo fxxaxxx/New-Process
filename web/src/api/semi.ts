@@ -16,11 +16,14 @@ export interface SICreate { 日期?: string; 仓库: string; 部门?: string | n
 export interface SIHeader { ID?: number; id?: number; 单号?: string; 仓库?: string; 部门?: string | null; 领料人?: string | null; 拉长?: string | null; 收件人?: string | null; 领料备注?: string | null; 件数?: number | null; 卡板数?: number | null; 制单人?: string | null; 日期?: string; 审核日期?: string | null; 数量?: number | null; 金额?: number | null; 操作员?: string | null; 审核?: string; 审核人?: string | null; 备注?: string | null }
 export interface SIDetail { 单头: SIHeader | null; 明细: SILineRow[] }
 
-// ---- 盘点 ----
-export interface SSBasisRow { 物料编号?: string; 物料名称?: string; 规格?: string; 颜色?: string; 系统数量: number }
-export interface SSLine { 物料编号?: string; 物料名称?: string; 规格?: string; 颜色?: string; 系统数量: number; 盘点数量: number }
-export interface SSCreate { 仓库: string; 备注?: string; 明细: SSLine[] }
-export interface SSHeader { id: number; 单号?: string; 仓库?: string; 日期?: string; 审核?: string; 备注?: string }
+// ---- 盘点（自由选产品版）----
+export interface STKBasisRow { 物料编号?: string; 物料名称?: string; 规格?: string; 颜色?: string | null; 系统数量: number }
+export interface STKProductRow { 配件编号: string; 客户?: string | null; 产品货号?: string | null; 产品名称?: string | null; 产品装配名称?: string | null; 生产单号?: string | null; 加工单价?: number | null; 库存单价?: number | null }
+export interface STKLineInput { 配件编号: string; 客户?: string | null; 产品货号?: string | null; 产品名称?: string | null; 产品装配名称?: string | null; 系统数量: number; 盘点数量: number; 备注?: string | null }
+export interface STKLineRow { ID?: number; 配件编号?: string | null; 客户?: string | null; 产品货号?: string | null; 产品名称?: string | null; 产品装配名称?: string | null; 系统数量?: number | null; 盘点数量?: number | null; 盈亏数量?: number | null; 备注?: string | null }
+export interface STKCreate { 日期?: string; 仓库: string; 备注?: string | null; 明细: STKLineInput[] }
+export interface STKHeader { ID?: number; id?: number; 单号?: string; 仓库?: string; 日期?: string; 系统数量?: number | null; 盘点数量?: number | null; 盈亏数量?: number | null; 操作员?: string | null; 审核?: string; 审核人?: string | null; 备注?: string | null }
+export interface STKDetail { 单头: STKHeader | null; 明细: STKLineRow[] }
 
 // ---- 库存 ----
 export interface SemiStockRow { 物料编号: string; 物料名称?: string; 规格?: string; 颜色?: string; 库存: number }
@@ -59,12 +62,19 @@ export const semiIssueApi = {
       .then(r => r.status === 204 ? undefined : r.data),
 };
 export const semiStocktakeApi = {
-  basis: (仓库: string) => api.get<SSBasisRow[]>("/semi-stocktakes/basis", { params: { 仓库 } }).then(r => r.data),
-  list: (page = 1, size = 20, keyword = "") => api.get<Paged<SSHeader>>("/semi-stocktakes", { params: { page, size, keyword } }).then(r => r.data),
-  create: (body: SSCreate) => api.post<{ 单号: string }>("/semi-stocktakes", body).then(r => r.data),
+  basis: (仓库: string) => api.get<STKBasisRow[]>("/semi-stocktakes/basis", { params: { 仓库 } }).then(r => r.data),
+  list: (page = 1, size = 20, keyword = "") => api.get<Paged<STKHeader>>("/semi-stocktakes", { params: { page, size, keyword } }).then(r => r.data),
+  get: (单号: string) => api.get<STKDetail>(`/semi-stocktakes/${enc(单号)}`).then(r => r.data),
+  create: (body: STKCreate) => api.post<{ 单号: string }>("/semi-stocktakes", body).then(r => r.data),
+  update: (单号: string, body: STKCreate) => api.put<STKDetail>(`/semi-stocktakes/${enc(单号)}`, body).then(r => r.data),
   remove: (单号: string) => api.delete(`/semi-stocktakes/${enc(单号)}`),
   approve: (单号: string) => api.post(`/semi-stocktakes/${enc(单号)}/approve`),
   unapprove: (单号: string) => api.post(`/semi-stocktakes/${enc(单号)}/unapprove`),
+  products: (params: { page?: number; size?: number; field?: string; keyword?: string; exact?: boolean } = {}) =>
+    api.get<Paged<STKProductRow>>("/semi-stocktakes/products", { params }).then(r => r.data),
+  adjacent: (单号: string, next: boolean) =>
+    api.get<STKDetail | undefined>(`/semi-stocktakes/${enc(单号)}/adjacent`, { params: { next } })
+      .then(r => r.status === 204 ? undefined : r.data),
 };
 export const semiInventoryApi = {
   list: (仓库: string) => api.get<SemiStockRow[]>("/semi-inventory", { params: { 仓库 } }).then(r => r.data),
