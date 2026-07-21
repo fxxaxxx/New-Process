@@ -107,6 +107,13 @@ export const semiIssueQueryApi = {
   summary: (params: SemiIssueQueryParams = {}) => api.get<SemiIssueSummaryRow[]>("/semi-issue-query/summary", { params }).then(r => r.data),
   detail: (params: SemiIssueQueryParams = {}) => api.get<SemiIssueDetailRow[]>("/semi-issue-query/detail", { params }).then(r => r.data),
 };
+export interface SemiStkReturnSummaryRow { 配件编号?: string | null; 产品货号?: string | null; 产品名称?: string | null; 产品装配名称?: string | null; 退料数量: number }
+export interface SemiStkReturnDetailRow { 日期?: string | null; 单号?: string | null; 仓库?: string | null; 退料部门?: string | null; 退料人?: string | null; 配件编号?: string | null; 产品货号?: string | null; 产品名称?: string | null; 产品装配名称?: string | null; 数量: number; 备注?: string | null; 审核?: string | null }
+export interface SemiStkReturnQueryParams { 起日期?: string; 止日期?: string; field?: string; keyword?: string; exact?: boolean; 审核?: string; materialOnly?: boolean; byOrderNo?: boolean }
+export const semiStockReturnQueryApi = {
+  summary: (params: SemiStkReturnQueryParams = {}) => api.get<SemiStkReturnSummaryRow[]>("/semi-stock-return-query/summary", { params }).then(r => r.data),
+  detail: (params: SemiStkReturnQueryParams = {}) => api.get<SemiStkReturnDetailRow[]>("/semi-stock-return-query/detail", { params }).then(r => r.data),
+};
 export const semiInventoryApi = {
   list: (仓库: string) => api.get<SemiStockRow[]>("/semi-inventory", { params: { 仓库 } }).then(r => r.data),
   report: (params: SemiInvReportQuery = {}) => api.get<SemiInvReportRow[]>("/semi-inventory/report", { params }).then(r => r.data),
