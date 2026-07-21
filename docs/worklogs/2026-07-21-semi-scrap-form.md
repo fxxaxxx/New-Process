@@ -34,11 +34,48 @@
 - `src/ErpApi/Features/Admin/MenuCatalog.cs` — `("半成品仓库","半成品报废")`
 - `db/run-db.ps1` — 注册两个新脚本
 
-## 部署（重要）
-生产/测试库都要跑迁移+种子：`db/migrate_semi_scraps.sql`、`db/seed_semi_scrap_perms.sql`。
+## 验证 & 部署清单（Windows / PowerShell）
+
+### 1. 后端编译
+```powershell
+dotnet build WebpageERP.sln
+```
+关注新文件 SemiScrap{Controller,Service,Dtos}.cs + 4 处接线（Program.cs / PostableDocuments / InventorySummaryService / MenuCatalog）。
+
+### 2. 后端测试
+```powershell
+dotnet test tests\ErpApi.Tests\ErpApi.Tests.csproj
+```
+`PostableDocumentsTests` 应仍全绿（不枚举白名单，加 半成品报废单 不影响）。
+
+### 3. 前端编译 + 测试
+```powershell
+cd web
+npm ci
+npm run build     # tsc -b && vite build，全量类型检查
+npm run test      # vitest run，含 semiScrap.test.ts
+```
+
+### 4. 数据库部署（**erp 与 erp_test 两库都要跑**）
+```powershell
+# 生产库
+dotnet run --project tools\DbDeploy -- "<erp 连接串>" `
+  db\migrate_semi_scraps.sql db\seed_semi_scrap_perms.sql
+# 测试库
+dotnet run --project tools\DbDeploy -- "<erp_test 连接串>" `
+  db\migrate_semi_scraps.sql db\seed_semi_scrap_perms.sql
+```
 > 教训沿用：迁移必须同时部署到 **erp 与 erp_test**，否则一库 create 515 / 另一库缺表。
 
+### 5. 应用内冒烟（账号需有「半成品报废」权限）
+- [ ] 菜单「半成品仓库 → 半成品报废单」进入，路由 `/semi-scraps`
+- [ ] 「资料」弹原料资料查询，勾选产品带入明细行
+- [ ] 填数量 → 保存 → 单号 `BBF+日期+序号`
+- [ ] 审核 / 反审核正常；已审核不能改删
+- [ ] 前单/后单、复制单、删除正常
+- [ ] **审核后**「半成品库存统计表」对应物料库存**减少**报废数量（方向正确性核心验证：union 分支为 `数量*-1`）
+
 ## 待办
-- 本机无 dotnet/node，未本地编译/跑测试；Windows 上 `dotnet build` + `npm run build` + `vitest` 验证。
+- 本机无 dotnet/node，未本地编译/跑测试；以上清单在 Windows 执行。
 - 工具栏「装配采购清单」按钮暂 disabled（与退库单一致，后续实现）。
 - 半成品报表组的「半成品报废查询」仍为占位，后续补。
