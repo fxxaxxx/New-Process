@@ -1,11 +1,13 @@
 import { api } from "./client";
 import type { Paged } from "./master";
 
-// ---- 入仓 ----
-export interface FRLine { 色号?: string; 颜色?: string; 尺码?: string; 数量: number; 单价?: number }
-export interface FRCreate { 仓库: string; 生产单号?: string; 款号?: string; 款式?: string; 床号?: string; 供应商编号?: string; 供应商名称?: string; 备注?: string; 明细: FRLine[] }
-export interface FRHeader { id: number; 单号?: string; 仓库?: string; 日期?: string; 数量?: number; 金额?: number | null; 审核?: string; 备注?: string }
-export interface FRDetail { 单头: FRHeader | null; 明细: { id: number; 生产单号?: string; 款号?: string; 色号?: string; 颜色?: string; 尺码?: string; 数量?: number; 单价?: number | null; 金额?: number | null }[] }
+// ---- 入仓（玩具模型·自由选产品版）----
+export interface FRLine { 订单单号?: string | null; 配件编号: string; 客户?: string | null; 产品货号?: string | null; 产品名称?: string | null; 产品装配名称?: string | null; 生产单号?: string | null; 箱数?: number | null; 数量: number; 单价?: number | null; 备注?: string | null }
+export interface FRCreate { 日期?: string; 订单单号?: string; 入库单号?: string; 仓库: string; 供应商编号?: string; 供应商名称?: string; 备注?: string; 明细: FRLine[] }
+export interface FRHeader { ID?: number; id?: number; 单号?: string; 订单单号?: string | null; 入库单号?: string | null; 供应商编号?: string | null; 供应商名称?: string | null; 仓库?: string; 日期?: string; 数量?: number; 金额?: number | null; 操作员?: string | null; 审核?: string; 审核人?: string | null; 备注?: string }
+export interface FRLineRow { ID?: number; 订单单号?: string | null; 配件编号?: string | null; 客户?: string | null; 产品货号?: string | null; 产品名称?: string | null; 产品装配名称?: string | null; 生产单号?: string | null; 箱数?: number | null; 数量?: number | null; 单价?: number | null; 金额?: number | null; 备注?: string | null }
+export interface FRDetail { 单头: FRHeader | null; 明细: FRLineRow[] }
+export interface FRProductRow { 配件编号: string; 客户?: string | null; 产品货号?: string | null; 产品名称?: string | null; 产品装配名称?: string | null; 加工单价?: number | null; 库存单价?: number | null }
 
 // ---- 出仓 ----
 export interface FILine { 色号?: string; 颜色?: string; 尺码?: string; 数量: number; 单价?: number }
@@ -28,9 +30,15 @@ export const finishedReceiptApi = {
   list: (page = 1, size = 20, keyword = "") => api.get<Paged<FRHeader>>("/finished-receipts", { params: { page, size, keyword } }).then(r => r.data),
   get: (单号: string) => api.get<FRDetail>(`/finished-receipts/${enc(单号)}`).then(r => r.data),
   create: (body: FRCreate) => api.post<{ 单号: string }>("/finished-receipts", body).then(r => r.data),
+  update: (单号: string, body: FRCreate) => api.put<FRDetail>(`/finished-receipts/${enc(单号)}`, body).then(r => r.data),
   remove: (单号: string) => api.delete(`/finished-receipts/${enc(单号)}`),
   approve: (单号: string) => api.post(`/finished-receipts/${enc(单号)}/approve`),
   unapprove: (单号: string) => api.post(`/finished-receipts/${enc(单号)}/unapprove`),
+  products: (params: { page?: number; size?: number; field?: string; keyword?: string; exact?: boolean } = {}) =>
+    api.get<Paged<FRProductRow>>("/finished-receipts/products", { params }).then(r => r.data),
+  adjacent: (单号: string, direction: "previous" | "next") =>
+    api.get<FRDetail | undefined>(`/finished-receipts/${enc(单号)}/adjacent`, { params: { next: direction === "next" } })
+      .then(r => r.status === 204 ? undefined : r.data),
 };
 export const finishedIssueApi = {
   list: (page = 1, size = 20, keyword = "") => api.get<Paged<FIHeader>>("/finished-issues", { params: { page, size, keyword } }).then(r => r.data),

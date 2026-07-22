@@ -65,6 +65,36 @@ public sealed class FinishedReceiptController(
         return CreatedAtAction(nameof(Get), new { 单号 }, new { 单号 });
     }
 
+    [HttpGet("products")]
+    public async Task<IActionResult> Products([FromQuery] FinishedReceiptProductQuery query)
+        => !await AllowAsync(PermissionAction.打开) ? Forbid() : Ok(await svc.ProductsAsync(query));
+
+    [HttpGet("{单号}/adjacent")]
+    public async Task<IActionResult> Adjacent(string 单号, bool next = false)
+    {
+        if (!await AllowAsync(PermissionAction.打开)) return Forbid();
+        if (await svc.GetAsync(单号) is null) return NotFound();
+        var adj = await svc.GetAdjacentAsync(单号, next);
+        if (adj is null) return NoContent();
+        if (!await AllowAsync(PermissionAction.单价)) foreach (var l in adj.明细) { l.单价 = null; l.金额 = null; }
+        return Ok(adj);
+    }
+
+    [HttpPut("{单号}")]
+    public async Task<IActionResult> Update(string 单号, [FromBody] FinishedReceiptCreateDto dto)
+    {
+        if (!await AllowAsync(PermissionAction.保存)) return Forbid();
+        try { await periodLock.EnsureWarehouseOpenAsync(口径, string.IsNullOrWhiteSpace(dto.仓库) ? "成品仓" : dto.仓库, DateTime.Now); }
+        catch (PeriodLockedException ex) { return Conflict(new { 消息 = ex.Message }); }
+        try { if (!await svc.UpdateAsync(单号, dto, CurrentUser)) return NotFound(); }
+        catch (ArgumentException ex) { return BadRequest(new { 消息 = ex.Message }); }
+        catch (InvalidOperationException ex) { return Conflict(new { 消息 = ex.Message }); }
+        await AuditAsync("修改", $"单号={单号}");
+        var d = await svc.GetAsync(单号);
+        if (d is not null && !await AllowAsync(PermissionAction.单价)) foreach (var l in d.明细) { l.单价 = null; l.金额 = null; }
+        return Ok(d);
+    }
+
     [HttpDelete("{单号}")]
     public async Task<IActionResult> Delete(string 单号)
     {

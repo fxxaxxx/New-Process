@@ -1,21 +1,27 @@
 namespace ErpApi.Features.Warehouse.Finished;
 
 // ---- 入仓 ----
+// 成品入仓（玩具模型·自由选产品版）：配件编号/订单单号/客户/产品货号/产品名称/产品装配名称/生产单号/箱数/数量。
 public sealed class FinishedReceiptLineDto
 {
-    public string? 色号 { get; set; }
-    public string? 颜色 { get; set; }
-    public string? 尺码 { get; set; }
+    public string? 订单单号 { get; set; }
+    public string 配件编号 { get; set; } = "";
+    public string? 客户 { get; set; }
+    public string? 产品货号 { get; set; }
+    public string? 产品名称 { get; set; }
+    public string? 产品装配名称 { get; set; }
+    public string? 生产单号 { get; set; }
+    public decimal? 箱数 { get; set; }
     public decimal 数量 { get; set; }
     public decimal? 单价 { get; set; }
+    public string? 备注 { get; set; }
 }
 public sealed class FinishedReceiptCreateDto
 {
+    public DateTime? 日期 { get; set; }
+    public string? 订单单号 { get; set; }
+    public string? 入库单号 { get; set; }
     public string 仓库 { get; set; } = "";
-    public string? 生产单号 { get; set; }
-    public string? 款号 { get; set; }
-    public string? 款式 { get; set; }
-    public string? 床号 { get; set; }
     public string? 供应商编号 { get; set; }
     public string? 供应商名称 { get; set; }
     public string? 备注 { get; set; }
@@ -25,6 +31,10 @@ public sealed class FinishedReceiptHeaderDto
 {
     public long ID { get; set; }
     public string? 单号 { get; set; }
+    public string? 订单单号 { get; set; }
+    public string? 入库单号 { get; set; }
+    public string? 供应商编号 { get; set; }
+    public string? 供应商名称 { get; set; }
     public string? 仓库 { get; set; }
     public DateTime? 日期 { get; set; }
     public decimal? 数量 { get; set; }
@@ -37,14 +47,36 @@ public sealed class FinishedReceiptHeaderDto
 public sealed class FinishedReceiptLineRowDto
 {
     public long ID { get; set; }
+    public string? 订单单号 { get; set; }
+    public string? 配件编号 { get; set; }
+    public string? 客户 { get; set; }
+    public string? 产品货号 { get; set; }
+    public string? 产品名称 { get; set; }
+    public string? 产品装配名称 { get; set; }
     public string? 生产单号 { get; set; }
-    public string? 款号 { get; set; }
-    public string? 色号 { get; set; }
-    public string? 颜色 { get; set; }
-    public string? 尺码 { get; set; }
+    public decimal? 箱数 { get; set; }
     public decimal? 数量 { get; set; }
     public decimal? 单价 { get; set; }
     public decimal? 金额 { get; set; }
+    public string? 备注 { get; set; }
+}
+public sealed class FinishedReceiptProductQuery
+{
+    public int Page { get; set; } = 1;
+    public int Size { get; set; } = 50;
+    public string? Field { get; set; }
+    public string? Keyword { get; set; }
+    public bool Exact { get; set; }
+}
+public sealed class FinishedReceiptProductRow
+{
+    public string 配件编号 { get; set; } = "";
+    public string? 客户 { get; set; }
+    public string? 产品货号 { get; set; }
+    public string? 产品名称 { get; set; }
+    public string? 产品装配名称 { get; set; }
+    public decimal? 加工单价 { get; set; }
+    public decimal? 库存单价 { get; set; }
 }
 public sealed class FinishedReceiptDetailDto
 {

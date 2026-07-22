@@ -25,4 +25,5 @@ dotnet run --project (Join-Path $root "tools\DbDeploy") -- $ConnectionString `
   (Join-Path $dir "migrate_semi_warehouse_returns.sql") `
   (Join-Path $dir "seed_semi_warehouse_return_perms.sql") `
   (Join-Path $dir "migrate_semi_scraps.sql") `
-  (Join-Path $dir "seed_semi_scrap_perms.sql")
+  (Join-Path $dir "seed_semi_scrap_perms.sql") `
+  (Join-Path $dir "migrate_finished_receipt_freeselect.sql")

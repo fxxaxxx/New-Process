@@ -4,8 +4,8 @@ using ErpApi.Features.MasterData;
 using ErpApi.Infrastructure.Db;
 namespace ErpApi.Features.Warehouse.Finished;
 
-// 成品入仓（把生产完成的成品入成品仓）。两层：成品入仓单 + 成品入仓明细单(单号 主从 FK)。
-// 单价手工录入，金额=数量×单价(服务端算)；不做加权成本。
+// 成品入仓（玩具模型·自由选产品版）。两层：成品入仓单 + 成品入仓明细单(单号 主从)。
+// 明细带 审核 列（成品库存按明细审核过滤，审核/反审核由控制器 SyncLineApprovalAsync 同步）。
 public sealed class FinishedReceiptService(ISqlConnectionFactory factory, IDocumentNumberGenerator docNo)
 {
     public const string DocType = "成品入仓单";
@@ -13,34 +13,54 @@ public sealed class FinishedReceiptService(ISqlConnectionFactory factory, IDocum
 
     public async Task<string> CreateAsync(FinishedReceiptCreateDto dto, string user)
     {
-        if (dto.明细.Count == 0) throw new ArgumentException("成品入仓至少要有一行明细");
-        if (string.IsNullOrWhiteSpace(dto.仓库)) throw new ArgumentException("仓库必填");
-        var now = DateTime.Now;
+        using var c = factory.Create(); await c.OpenAsync(); using var tx = c.BeginTransaction();
+        var now = dto.日期?.Date ?? DateTime.Today;
+        var 单号 = await docNo.NextAsync(DocType, Prefix, now, c, tx);
+        await SaveCoreAsync(c, tx, 单号, dto, user, now, false);
+        tx.Commit();
+        return 单号;
+    }
+
+    public async Task<bool> UpdateAsync(string 单号, FinishedReceiptCreateDto dto, string user)
+    {
+        using var c = factory.Create(); await c.OpenAsync(); using var tx = c.BeginTransaction();
+        var audit = await c.ExecuteScalarAsync<string?>("SELECT ISNULL([审核],'0') FROM [成品入仓单] WITH (UPDLOCK,HOLDLOCK) WHERE [单号]=@单号", new { 单号 }, tx);
+        if (audit is null) return false;
+        if (audit == "1") throw new InvalidOperationException("已审核的成品入仓单不能修改，请先反审核。");
+        var date = await c.ExecuteScalarAsync<DateTime?>("SELECT [日期] FROM [成品入仓单] WHERE [单号]=@单号", new { 单号 }, tx) ?? DateTime.Today;
+        await c.ExecuteAsync("DELETE FROM [成品入仓明细单] WHERE [单号]=@单号", new { 单号 }, tx);
+        await SaveCoreAsync(c, tx, 单号, dto, user, dto.日期?.Date ?? date, true);
+        tx.Commit();
+        return true;
+    }
+
+    private static async Task SaveCoreAsync(System.Data.IDbConnection c, System.Data.IDbTransaction tx, string 单号, FinishedReceiptCreateDto dto, string user, DateTime date, bool update)
+    {
+        if (dto.明细.Count == 0) throw new ArgumentException("成品入仓至少要有一行明细。");
+        if (dto.明细.Any(x => string.IsNullOrWhiteSpace(x.配件编号))) throw new ArgumentException("配件编号必填。");
+        if (dto.明细.Any(x => x.数量 <= 0)) throw new ArgumentException("入仓数量必须大于 0。");
+        var supplierCode = string.IsNullOrWhiteSpace(dto.供应商编号) ? null : dto.供应商编号.Trim();
+        var warehouse = string.IsNullOrWhiteSpace(dto.仓库) ? "成品仓" : dto.仓库.Trim();
         var 数量 = dto.明细.Sum(l => l.数量);
         var 金额 = dto.明细.Sum(l => l.数量 * (l.单价 ?? 0m));
 
-        using var c = factory.Create();
-        await c.OpenAsync();
-        using var tx = c.BeginTransaction();
-        var 单号 = await docNo.NextAsync(DocType, Prefix, now, c, tx);
-
-        await c.ExecuteAsync(@"
-INSERT INTO [成品入仓单]([单号],[日期],[供应商编号],[供应商名称],[仓库],[数量],[金额],[操作员],[审核],[备注])
-VALUES(@单号,@日期,@供应商编号,@供应商名称,@仓库,@数量,@金额,@操作员,'0',@备注)",
-            new { 单号, 日期 = now, dto.供应商编号, dto.供应商名称, dto.仓库, 数量, 金额, 操作员 = user, dto.备注 }, tx);
+        var p = new { 单号, dto.订单单号, dto.入库单号, 日期 = date, 供应商编号 = supplierCode, dto.供应商名称, 仓库 = warehouse, 数量, 金额, 操作员 = user, dto.备注 };
+        if (update)
+            await c.ExecuteAsync(@"UPDATE [成品入仓单] SET [订单单号]=@订单单号,[入库单号]=@入库单号,[日期]=@日期,[供应商编号]=@供应商编号,[供应商名称]=@供应商名称,[仓库]=@仓库,[数量]=@数量,[金额]=@金额,[操作员]=@操作员,[备注]=@备注 WHERE [单号]=@单号", p, tx);
+        else
+            await c.ExecuteAsync(@"INSERT INTO [成品入仓单]([单号],[订单单号],[入库单号],[日期],[供应商编号],[供应商名称],[仓库],[数量],[金额],[操作员],[审核],[备注])
+VALUES(@单号,@订单单号,@入库单号,@日期,@供应商编号,@供应商名称,@仓库,@数量,@金额,@操作员,'0',@备注)", p, tx);
 
         foreach (var l in dto.明细)
-            await c.ExecuteAsync(@"
-INSERT INTO [成品入仓明细单]([单号],[日期],[仓库],[生产单号],[款号],[款式],[床号],[色号],[颜色],[尺码],[数量],[单价],[金额],[审核])
-VALUES(@单号,@日期,@仓库,@生产单号,@款号,@款式,@床号,@色号,@颜色,@尺码,@数量,@单价,@金额,'0')",
+            await c.ExecuteAsync(@"INSERT INTO [成品入仓明细单]
+([单号],[订单单号],[日期],[供应商编号],[供应商名称],[仓库],[生产单号],[款号],[配件编号],[客户],[货号],[名称],[产品装配名称],[箱数],[数量],[单价],[金额],[审核],[备注])
+VALUES(@单号,@订单单号,@日期,@供应商编号,@供应商名称,@仓库,@生产单号,@款号,@配件编号,@客户,@货号,@名称,@产品装配名称,@箱数,@数量,@单价,@金额,'0',@备注)",
                 new
                 {
-                    单号, 日期 = now, dto.仓库, dto.生产单号, dto.款号, dto.款式, dto.床号,
-                    l.色号, l.颜色, l.尺码, l.数量, 单价 = l.单价 ?? 0m, 金额 = l.数量 * (l.单价 ?? 0m)
+                    单号, 订单单号 = l.订单单号 ?? dto.订单单号, 日期 = date, 供应商编号 = supplierCode, dto.供应商名称, 仓库 = warehouse,
+                    l.生产单号, 款号 = l.产品货号, 配件编号 = l.配件编号!.Trim(), l.客户, 货号 = l.产品货号, 名称 = l.产品名称,
+                    l.产品装配名称, l.箱数, l.数量, 单价 = l.单价 ?? 0m, 金额 = l.数量 * (l.单价 ?? 0m), l.备注
                 }, tx);
-
-        tx.Commit();
-        return 单号;
     }
 
     public async Task<PagedResult<FinishedReceiptHeaderDto>> ListAsync(int page, int size, string? keyword)
@@ -50,9 +70,9 @@ VALUES(@单号,@日期,@仓库,@生产单号,@款号,@款式,@床号,@色号,@�
         var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
         using var c = factory.Create();
         using var multi = await c.QueryMultipleAsync(@"
-SELECT COUNT(*) FROM [成品入仓单] WHERE @kw IS NULL OR [单号] LIKE @kw OR [仓库] LIKE @kw;
-SELECT [ID],[单号],[仓库],[日期],[数量],[金额],[操作员],[审核],[审核人],[备注]
-FROM [成品入仓单] WHERE @kw IS NULL OR [单号] LIKE @kw OR [仓库] LIKE @kw
+SELECT COUNT(*) FROM [成品入仓单] WHERE @kw IS NULL OR [单号] LIKE @kw OR [订单单号] LIKE @kw OR [供应商名称] LIKE @kw OR [仓库] LIKE @kw;
+SELECT [ID],[单号],[订单单号],[入库单号],[供应商编号],[供应商名称],[仓库],[日期],[数量],[金额],[操作员],[审核],[备注]
+FROM [成品入仓单] WHERE @kw IS NULL OR [单号] LIKE @kw OR [订单单号] LIKE @kw OR [供应商名称] LIKE @kw OR [仓库] LIKE @kw
 ORDER BY [ID] DESC OFFSET (@page-1)*@size ROWS FETCH NEXT @size ROWS ONLY;", new { kw, page, size });
         var total = await multi.ReadFirstAsync<int>();
         var items = (await multi.ReadAsync<FinishedReceiptHeaderDto>()).AsList();
@@ -63,27 +83,75 @@ ORDER BY [ID] DESC OFFSET (@page-1)*@size ROWS FETCH NEXT @size ROWS ONLY;", new
     {
         using var c = factory.Create();
         using var multi = await c.QueryMultipleAsync(@"
-SELECT [ID],[单号],[仓库],[日期],[数量],[金额],[操作员],[审核],[审核人],[备注] FROM [成品入仓单] WHERE [单号]=@单号;
-SELECT [ID],[生产单号],[款号],[色号],[颜色],[尺码],[数量],[单价],[金额] FROM [成品入仓明细单] WHERE [单号]=@单号 ORDER BY [ID];",
-            new { 单号 });
+SELECT [ID],[单号],[订单单号],[入库单号],[供应商编号],[供应商名称],[仓库],[日期],[数量],[金额],[操作员],[审核],[备注] FROM [成品入仓单] WHERE [单号]=@单号;
+SELECT [ID],[订单单号],[配件编号],[客户],COALESCE([货号],[款号]) AS [产品货号],[名称] AS [产品名称],[产品装配名称],[生产单号],[箱数],[数量],[单价],[金额],[备注]
+FROM [成品入仓明细单] WHERE [单号]=@单号 ORDER BY [ID];", new { 单号 });
         var header = await multi.ReadFirstOrDefaultAsync<FinishedReceiptHeaderDto>();
         if (header is null) return null;
         var lines = (await multi.ReadAsync<FinishedReceiptLineRowDto>()).AsList();
         return new FinishedReceiptDetailDto { 单头 = header, 明细 = lines };
     }
 
-    public async Task<bool> DeleteAsync(string 单号)
+    public async Task<FinishedReceiptDetailDto?> GetAdjacentAsync(string 单号, bool next)
     {
         using var c = factory.Create();
-        await c.OpenAsync();
-        using var tx = c.BeginTransaction();
-        var 审核 = await c.ExecuteScalarAsync<string?>(
-            "SELECT ISNULL([审核],'0') FROM [成品入仓单] WITH (UPDLOCK, HOLDLOCK) WHERE [单号]=@单号", new { 单号 }, tx);
+        var adjacent = await c.ExecuteScalarAsync<string?>(next
+            ? "SELECT TOP (1) [单号] FROM [成品入仓单] WHERE [ID] > (SELECT [ID] FROM [成品入仓单] WHERE [单号]=@单号) ORDER BY [ID]"
+            : "SELECT TOP (1) [单号] FROM [成品入仓单] WHERE [ID] < (SELECT [ID] FROM [成品入仓单] WHERE [单号]=@单号) ORDER BY [ID] DESC", new { 单号 });
+        return adjacent is null ? null : await GetAsync(adjacent);
+    }
+
+    public async Task<bool> DeleteAsync(string 单号)
+    {
+        using var c = factory.Create(); await c.OpenAsync(); using var tx = c.BeginTransaction();
+        var 审核 = await c.ExecuteScalarAsync<string?>("SELECT ISNULL([审核],'0') FROM [成品入仓单] WITH (UPDLOCK, HOLDLOCK) WHERE [单号]=@单号", new { 单号 }, tx);
         if (审核 is null) return false;
         if (审核 == "1") throw new InvalidOperationException("已审核的成品入仓单不能删除，请先反审核。");
         await c.ExecuteAsync("DELETE FROM [成品入仓明细单] WHERE [单号]=@单号", new { 单号 }, tx);
         await c.ExecuteAsync("DELETE FROM [成品入仓单] WHERE [单号]=@单号", new { 单号 }, tx);
         tx.Commit();
         return true;
+    }
+
+    public async Task<PagedResult<FinishedReceiptProductRow>> ProductsAsync(FinishedReceiptProductQuery query)
+    {
+        var page = Math.Max(query.Page, 1);
+        var size = Math.Clamp(query.Size, 1, 200);
+        var keyword = string.IsNullOrWhiteSpace(query.Keyword) ? null : query.Keyword.Trim();
+        var match = keyword is null || query.Exact ? keyword : $"%{keyword}%";
+        var comparer = query.Exact ? "=" : "LIKE";
+        var field = query.Field switch
+        {
+            "产品名称" => "b.[产品名称]",
+            "配件编号" => "b.[配件编号]",
+            "客户" => "b.[客户]",
+            "产品装配名称" => "b.[产品装配名称]",
+            _ => "b.[产品货号]"
+        };
+        var cte = $@"
+WITH LatestHeader AS (
+    SELECT h.*, ROW_NUMBER() OVER (PARTITION BY h.[产品编号] ORDER BY h.[ID] DESC) AS rn
+    FROM [款号物料总表] h WHERE NULLIF(LTRIM(RTRIM(h.[产品编号])), N'') IS NOT NULL
+), Base AS (
+    SELECT h.[产品编号] AS [配件编号],
+           COALESCE(NULLIF(LTRIM(RTRIM(h.[客户名称])), N''), NULLIF(LTRIM(RTRIM(h.[客户])), N'')) AS [客户],
+           h.[款号] AS [产品货号], NULLIF(LTRIM(RTRIM(h.[款式])), N'') AS [产品名称], NULLIF(LTRIM(RTRIM(h.[款式])), N'') AS [产品装配名称],
+           CAST(NULL AS decimal(18,4)) AS [加工单价], CAST(NULL AS decimal(18,4)) AS [库存单价]
+    FROM LatestHeader h WHERE h.rn=1
+), Filtered AS (
+    SELECT b.* FROM Base b
+    WHERE NULLIF(LTRIM(RTRIM(b.[配件编号])), N'') IS NOT NULL AND (@keyword IS NULL OR {field} {comparer} @match)
+)";
+        var sql = $@"{cte}
+SELECT COUNT(*) FROM Filtered;
+{cte}
+SELECT [配件编号],[客户],[产品货号],[产品名称],[产品装配名称],[加工单价],[库存单价]
+FROM Filtered ORDER BY [产品货号],[配件编号]
+OFFSET (@page-1)*@size ROWS FETCH NEXT @size ROWS ONLY;";
+        using var c = factory.Create(); await c.OpenAsync();
+        using var multi = await c.QueryMultipleAsync(sql, new { keyword, match, page, size });
+        var total = await multi.ReadFirstAsync<int>();
+        var items = (await multi.ReadAsync<FinishedReceiptProductRow>()).AsList();
+        return new(items, total);
     }
 }
