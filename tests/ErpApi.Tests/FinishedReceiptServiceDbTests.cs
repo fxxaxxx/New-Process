@@ -18,11 +18,11 @@ public class FinishedReceiptServiceDbTests(DbFixture fx)
 
     private static FinishedReceiptCreateDto Dto() => new()
     {
-        仓库 = P5TestData.仓库, 生产单号 = P5TestData.生产单号, 款号 = P5TestData.款号, 款式 = "P5测试款式", 床号 = "1",
+        仓库 = P5TestData.仓库, 订单单号 = "P5订单",
         明细 =
         [
-            new FinishedReceiptLineDto { 色号 = "01", 颜色 = "黑色", 尺码 = "M", 数量 = 60, 单价 = 10 },
-            new FinishedReceiptLineDto { 色号 = "02", 颜色 = "白色", 尺码 = "L", 数量 = 40, 单价 = 10 },
+            new FinishedReceiptLineDto { 配件编号 = "BBAP5T01", 客户 = "P5客户", 产品货号 = P5TestData.款号, 产品名称 = "P5测试款式", 产品装配名称 = "P5测试款式", 生产单号 = P5TestData.生产单号, 箱数 = 6, 数量 = 60, 单价 = 10 },
+            new FinishedReceiptLineDto { 配件编号 = "BBAP5T02", 客户 = "P5客户", 产品货号 = P5TestData.款号, 产品名称 = "P5测试款式2", 产品装配名称 = "P5测试款式2", 生产单号 = P5TestData.生产单号, 箱数 = 4, 数量 = 40, 单价 = 10 },
         ]
     };
 
