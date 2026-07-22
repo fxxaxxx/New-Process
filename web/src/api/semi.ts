@@ -120,6 +120,13 @@ export const semiScrapQueryApi = {
   summary: (params: SemiStkReturnQueryParams = {}) => api.get<SemiScrapSummaryRow[]>("/semi-scrap-query/summary", { params }).then(r => r.data),
   detail: (params: SemiStkReturnQueryParams = {}) => api.get<SemiScrapDetailRow[]>("/semi-scrap-query/detail", { params }).then(r => r.data),
 };
+export interface SemiStkQuerySummaryRow { 配件编号?: string | null; 产品货号?: string | null; 产品名称?: string | null; 产品装配名称?: string | null; 系统数: number; 盘点数: number; 盈亏数: number }
+export interface SemiStkQueryDetailRow { 日期?: string | null; 单号?: string | null; 配件编号?: string | null; 产品货号?: string | null; 产品名称?: string | null; 产品装配名称?: string | null; 系统数量: number; 盘点数量: number; 盈亏数量: number; 备注?: string | null; 审核?: string | null }
+export interface SemiStkQueryParams { 起日期?: string; 止日期?: string; field?: string; keyword?: string; exact?: boolean; 审核?: string; materialOnly?: boolean }
+export const semiStocktakeQueryApi = {
+  summary: (params: SemiStkQueryParams = {}) => api.get<SemiStkQuerySummaryRow[]>("/semi-stocktake-query/summary", { params }).then(r => r.data),
+  detail: (params: SemiStkQueryParams = {}) => api.get<SemiStkQueryDetailRow[]>("/semi-stocktake-query/detail", { params }).then(r => r.data),
+};
 export const semiInventoryApi = {
   list: (仓库: string) => api.get<SemiStockRow[]>("/semi-inventory", { params: { 仓库 } }).then(r => r.data),
   report: (params: SemiInvReportQuery = {}) => api.get<SemiInvReportRow[]>("/semi-inventory/report", { params }).then(r => r.data),

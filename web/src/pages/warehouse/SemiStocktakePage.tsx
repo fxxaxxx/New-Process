@@ -3,7 +3,7 @@ import { Button, Card, Col, DatePicker, Form, Input, InputNumber, Modal, Popconf
 import type { ColumnsType } from "antd/es/table";
 import { CheckOutlined, CloseOutlined, CopyOutlined, DeleteOutlined, FileAddOutlined, FolderOpenOutlined, LeftOutlined, PrinterOutlined, ProfileOutlined, ReloadOutlined, RightOutlined, SaveOutlined, TableOutlined, UndoOutlined } from "@ant-design/icons";
 import dayjs, { type Dayjs } from "dayjs";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { semiStocktakeApi, type STKDetail, type STKHeader } from "../../api/semi";
 import { can } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
@@ -40,6 +40,16 @@ export default function SemiStocktakePage() {
     setOpened(d);
   };
   const openDoc = async (no: string) => { setBusy(true); try { apply(await semiStocktakeApi.get(no)); } catch (e) { message.error(err(e, "打开盘点单失败")); } finally { setBusy(false); } };
+  const [searchParams, setSearchParams] = useSearchParams();
+  const autoOpenedRef = useRef(false);
+  useEffect(() => {
+    const no = searchParams.get("open");
+    if (no && !autoOpenedRef.current) {
+      autoOpenedRef.current = true;
+      void openDoc(no);
+      setSearchParams(prev => { const n = new URLSearchParams(prev); n.delete("open"); return n; }, { replace: true });
+    }
+  }, [searchParams, setSearchParams]); // eslint-disable-line react-hooks/exhaustive-deps
   const pickProducts = (rows: SemiFinishedLabelProduct[]) => setLines(cur => mergeSemiStocktakeLines(cur, rows.map(p => ({ 配件编号: p.配件编号, 客户: p.客户, 产品货号: p.产品货号, 产品名称: p.产品名称, 产品装配名称: p.产品装配名称 })), code => sysQtyMap.current.get(code.trim()) ?? 0));
   const updateLine = (key: number, patch: Partial<STKDraftLine>) => setLines(v => v.map(x => x.key === key ? { ...x, ...patch } : x));
 
