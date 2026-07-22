@@ -40,6 +40,13 @@ export const finishedReceiptApi = {
     api.get<FRDetail | undefined>(`/finished-receipts/${enc(单号)}/adjacent`, { params: { next: direction === "next" } })
       .then(r => r.status === 204 ? undefined : r.data),
 };
+export interface FRQSummaryRow { 客户?: string | null; 配件编号?: string | null; 产品货号?: string | null; 产品名称?: string | null; 产品装配名称?: string | null; 供应商编号?: string | null; 供应商名称?: string | null; 入仓箱数: number; 入仓数量: number }
+export interface FRQDetailRow { 日期?: string | null; 单号?: string | null; 入库单号?: string | null; 订单单号?: string | null; 供应商编号?: string | null; 供应商名称?: string | null; 生产单号?: string | null; 配件编号?: string | null; 客户?: string | null; 产品货号?: string | null; 产品名称?: string | null; 产品装配名称?: string | null; 箱数?: number | null; 数量: number; 备注?: string | null; 审核?: string | null }
+export interface FRQParams { 起日期?: string; 止日期?: string; field?: string; keyword?: string; exact?: boolean; 审核?: string; 客户?: string; materialOnly?: boolean; bySupplier?: boolean }
+export const finishedReceiptQueryApi = {
+  summary: (params: FRQParams = {}) => api.get<FRQSummaryRow[]>("/finished-receipt-query/summary", { params }).then(r => r.data),
+  detail: (params: FRQParams = {}) => api.get<FRQDetailRow[]>("/finished-receipt-query/detail", { params }).then(r => r.data),
+};
 export const finishedIssueApi = {
   list: (page = 1, size = 20, keyword = "") => api.get<Paged<FIHeader>>("/finished-issues", { params: { page, size, keyword } }).then(r => r.data),
   get: (单号: string) => api.get<FIDetail>(`/finished-issues/${enc(单号)}`).then(r => r.data),

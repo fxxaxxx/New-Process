@@ -178,6 +178,6 @@ export const MENU_TREE: MenuGroup[] = [
   // ⑱ 成品仓库 (原截图截断,仅含可见项)
   { key: "g-finished", label: "成品仓库", children: [
     M("成品入仓单", "/finished-receipts", "成品入仓"),
-    M("成品入仓查询"),
+    M("成品入仓查询", "/finished-receipt-query", "成品入仓"),
   ]},
 ];

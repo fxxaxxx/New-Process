@@ -127,6 +127,7 @@ import OutsourcePage from "./pages/workshop/OutsourcePage";
 import OutsourceReturnPage from "./pages/workshop/OutsourceReturnPage";
 import OutsourceReconcilePage from "./pages/workshop/OutsourceReconcilePage";
 import FinishedReceiptPage from "./pages/warehouse/FinishedReceiptPage";
+import FinishedReceiptQueryPage from "./pages/warehouse/FinishedReceiptQueryPage";
 import FinishedIssuePage from "./pages/warehouse/FinishedIssuePage";
 import FinishedStocktakePage from "./pages/warehouse/FinishedStocktakePage";
 import FinishedInventoryPage from "./pages/warehouse/FinishedInventoryPage";
@@ -300,6 +301,7 @@ export default function App() {
           <Route path="outsourcing-returns" element={<OutsourceReturnPage />} />
           <Route path="outsourcing-reconcile" element={<OutsourceReconcilePage />} />
           <Route path="finished-receipts" element={<FinishedReceiptPage />} />
+          <Route path="finished-receipt-query" element={<FinishedReceiptQueryPage />} />
           <Route path="finished-issues" element={<FinishedIssuePage />} />
           <Route path="finished-stocktakes" element={<FinishedStocktakePage />} />
           <Route path="finished-inventory" element={<FinishedInventoryPage />} />
