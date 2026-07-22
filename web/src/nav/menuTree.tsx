@@ -172,7 +172,7 @@ export const MENU_TREE: MenuGroup[] = [
     M("半成品退仓查询", "/semi-warehouse-return-query", "半成品退仓"),
     M("半成品出库查询", "/semi-issue-query", "半成品领料"),
     M("半成品退库查询", "/semi-stock-return-query", "半成品退库"),
-    M("半成品报废查询"),
+    M("半成品报废查询", "/semi-scrap-query", "半成品报废"),
     M("半成品盘点查询"),
   ]},
   // ⑱ 成品仓库 (原截图截断,仅含可见项)
