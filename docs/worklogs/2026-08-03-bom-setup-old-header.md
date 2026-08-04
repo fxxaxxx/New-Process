@@ -1,0 +1,129 @@
+# 2026-08-03 BOM 物料设置页:款号直接录入/选择 + 旧版表头字段
+
+## 改动清单
+
+### DB / 后端
+- db/67_bom_master_old_fields.sql:[款号物料总表] 加 [默认单价] nvarchar(20)、[类型] nvarchar(10)(幂等,DbDeploy 已应用)。
+- 说明:任务书写"款号物料总表 实体加两属性",但该表此前无 EF 实体(应用层全走 Dapper,且**此前全后端没有任何写入 款号物料总表 的代码**,只有 db/60 demo 种子插过),故未建实体,改动落在 Dapper 链路。
+- StyleDtos.cs:BomSaveDto 末尾加可选 默认单价/类型;新增 BomHeaderViewDto(日期/客户编号/客户名称/单位/默认单价/类型/操作员/审核/备注);StyleMaterialsViewDto 末尾加可选 单头。
+- StyleService.cs:
+  - ReplaceMaterialsAsync 加可选参数 操作员;保存时 MERGE upsert [款号物料总表](更新:日期/客户/款式/单位/默认单价/类型;新建:另写 审核='0'(分析口径不变)/操作员)。
+  - GetMaterialsViewAsync 台头 SELECT 扩列并映射 单头 返回。
+  - 客户编号 本非必填(保存校验只有 款号存在/未审核),无需放开。
+- StyleController.cs:PutMaterials 把 CurrentUser 传给 操作员。
+
+### 前端
+- api/styles.ts:BomSave 加 默认单价/类型;materials() 返回类型加 单头。
+- styles/BomSetupPage.tsx:
+  - 去掉"先选客户再选货号"级联:产品货号改 AutoComplete(款号总表数据源,可筛选可手输,必填保留);选中带出款式并加载 BOM;客户变化不再清空货号。
+  - 客户改可选(去 required、去保存拦截),只作记录。
+  - 表头补:默认单价=Select(报价类别 quote-categories,取 类别 字段,allowClear+showSearch)、类型=Select(明细/汇总,默认明细)、单位默认 PCS、款式可编辑;装配扩展字段未动。
+  - 水合:优先 单头(客户/日期/单位/默认单价/类型),null 回落第一行物料;buildBody 带 默认单价/类型。
+- __tests__/bomSetupAssemblyPersistence.test.ts:antd mock 补 AutoComplete(映射到现有 Select mock),修复 11 个测试因 mock 缺导出失败。
+
+### 基础数据(用户知情)
+- 客户资料 ZURU/ZURU、款号总表 77772/唱片机 已用 API 创建(保留)。
+
+## 验证
+- dotnet build 0 错;dotnet test 212 过;npm run build 过;npm test 62 文件 310 过;eslint 改动文件 3=基线 3(中途修了 agent 引入的全角空格正则 no-irregular-whitespace,`\s` 本身已覆盖 U+3000)。
+- curl/DB:PUT 77772 BOM(客户 ZURU/默认单价 HK/类型 明细/1 行物料)→ GET 单头 全字段正确往返(日期/客户/单位/默认单价/类型/操作员=admin/审核=0),明细行 单位/客户 落库正确。
+- Playwright:BOM 页不选客户直接 AutoComplete 输 77772 → 下拉选中 → 款式=唱片机/单位=PCS/日期/客户 ZURU 全部水合,默认单价=HK/类型=明细 显示正确,明细行在(截图 bom_loaded.png)。
+- 现场:验证用 BOM 明细/总表行已 SQL 清理(77772 是我造的假数据);客户 ZURU 与款号 77772 主数据保留。
+- 部署:后端 Development 重启;web/dist 已同步 src/ErpApi/wwwroot(index-CIRUC-Kn.js)。
+
+## 备注
+- 此前应用层从不写 款号物料总表,BOM 分析类 SQL(JOIN 该表)对真实 BOM 原本查不到;现在保存会落台头(审核='0'),AuxiliaryPurchaseAnalysis"需领"等只统计 审核='1' 台头的口径不变。
+- 单头.操作员/审核 未水合到表单(操作员沿用登录人);默认单价选项取报价类别"类别"字段(若旧系统对应"名称"字段,改 BomSetupPage 取值一处即可)。
+
+## 生产通知单货号=已设 BOM 的款号(同日追加)
+- 规则:生产通知单货号必须先在 BOM 物料设置里建档;货号选项数据源从 款号总表 改为 款号物料总表(已设 BOM 的款号)。
+- 新增 GET /api/styles/bom-headers(款号资料·打开):返回 款号/款式/客户编号/客户名称/单位/默认单价/类型(StyleService.ListBomHeadersAsync,Dapper)。
+- ProductionNoticePage:货号 AutoComplete 改用 bomHeaders;选中带出 款号名称(=款式)、BOM款号默认=款号,并把 客户编号/客户名称/默认单价 回填到生产通知单表头。
+- 已为 77772 建立空明细的 BOM 单头占位(客户 ZURU、类型 明细、审核=0),明细行和审核待用户补。
+
+## 编号名称重复显示修复(同日追加)
+- 客户编号=客户名称时(如 ZURU/ZURU)下拉显示 "ZURU ZURU" 重复;新增 utils/codeName.ts(相同则只显示编号),应用到 BOM物料设置/客户订单/装配加工采购单/装配物料汇总/采购订单 的客户·供应商显示。
+
+## BOM页按入口隐藏装配扩展字段(同日追加)
+- 生产管理>BOM物料设置(/bom-setup)不再显示 配件编号/共用物料编号/装配方式/产品装配名称/类别/库存单价HK/需求用量/其他成本HK/半成品计算库存,表头对齐旧系统(客户/产品货号/日期/单位/操作员/默认单价/类型/备注);外发装配>装配物料设置(/assembly-material-setup)照常显示。利用页面既有 isAssembly(按路由)判断,数据与保存逻辑不变(antd Form preserve 保值,BOM 入口保存不写扩展)。
+
+## 生产通知单选货号自动填入对齐旧系统(同日追加)
+- 旧系统选货号后自动填:款号/款式/客户款号(=货号)/客户/默认单价,明细 BOM款号+款号名称,分析默认打勾。
+- 本次补:客户款号=货号 回填表头;分析 选中默认 true。此前已有:款号名称(款式)/BOM款号/客户编号/客户名称/默认单价。
+
+## 生产通知单删货号行清表头(同日追加)
+- 删除货号明细行时,该行选货号带入的表头字段(客户编号/客户名称/默认单价/客户款号)一并清除;仅当表头值仍与该货号选项一致时才清(用户手改过的不动)。
+
+---
+
+# 2026-08-03 追加:BOM 台头审核 + 77772 建 BOM 的 FK 结论
+
+## BOM 台头审核(已完成)
+- StyleService.BomSetAuditAsync:UPDLOCK 判当前值,翻转 款号物料总表.审核;重复审核/未审核反审核/无台头 均中文 InvalidOperationException。
+- StyleController:POST /api/styles/{款号}/bom-audit、bom-reverse-audit(权限 款号资料·审核/反审核,409 透消息,写审计)。与装配审核(半成品共用物料设置.调整审核,/audit)是两套。
+- BomSetupPage:BOM 入口(非装配)工具栏加"BOM审核"/"BOM反审核"按钮(tooltip 注明审台头),表头加 审核状态 Tag(绿已审核/灰未审核);装配入口按钮未动。api/styles.ts 加 bomAudit/bomReverseAudit。
+- curl 验证:重建 77772 台头(空明细,客户 ZURU/单位 PCS/类型 明细)→ 审核 204 → 重复审核 409"已审核，请勿重复审核。"→ 反审核 204 → 未审核反审核 409"未审核，无需反审核。"→ 无台新款号 409"还没有 BOM 台头，请先保存 BOM。"。
+- **注意:BOM 台头审核后页面/保存不锁**(readOnly 仍只看装配 调整审核),保存拦截未加——若旧系统 BOM 审核后禁改,需后续在 ReplaceMaterialsAsync 加 台头.审核='1' 拒绝(一行检查,见遗留)。
+
+## 坑 1 结论:FK_133_查找 拦截塑胶料进 BOM(实测)
+- 款号物料明细表.FK_133_查找:物料编号 → 物料资料.物料编号,**启用且受信**(is_disabled=0, is_not_trusted=0,db/02 WITH CHECK 建)。另有 FK_131(客户编号→客户资料)。
+- 实测:PUT 77772 BOM 带 57001896(只在 塑胶物料资料)→ 500 SqlException"INSERT statement conflicted with the FOREIGN KEY constraint FK_133_查找"。**顺带问题**:PutMaterials 不抓 SqlException,FK 冲突是裸 500(参照采购订单 SqlException 547→400 的写法可顺手补)。
+- 按约定未动 FK。方案建议(旧系统 BOM 混合来料+塑胶料,必须解):
+  A. **35 条胶件镜像进 物料资料**(改动最小、不动 schema):从 塑胶物料资料 同步插入 物料编号/物料名称/规格/颜色/单位/款号/单价,FK 自然满足;代价是来料主数据页/选料器会看到胶件(可用 物料类别='塑胶件' 区分),两边单价维护需留意。
+  B. **删/停用 FK_133_查找**(ALTER TABLE ... NOCHECK 或 DROP):最贴近"混合 BOM"本质,但失去来料编号的引用完整性保护,且与 db/02 重建脚本口径不一致(重跑建库会加回来,需同步改脚本)。
+  推荐 A(可逆、不动约束),B 需用户拍板并同步 db/02。
+
+## 流程链验证状态(停在 BOM 明细)
+- 35 条胶件(用量合计 41)建 BOM 明细被 FK 拦截 → BOM 台头保留(77772,审核='0',明细空)→ 生产通知单/采购分析未走(无明细则无缺口可出,走了也只能验证空结果,未造测试单)。
+- 待 FK 方案定夺后:35 行 PUT 进 BOM → bom-audit → 生产通知单(2 台)→ 采购物料分析 应出 35 行、需订=2×用量。
+
+## 验证与部署
+- dotnet build 0 错;dotnet test 212 过;npm run build 过;npm test 310 过;eslint 3=基线 3。
+- 后端 Development 重启;web/dist 已同步 src/ErpApi/wwwroot(index-72GGDDZi.js)。
+
+---
+
+# 2026-08-03 追加:方案 C 落地——放开 BOM FK、混合档案取数、77772 流程链走通
+
+## 改动清单
+- db/68_drop_bom_material_fk.sql(已 DbDeploy 应用):DROP FK_133_查找(款号物料明细表.物料编号→物料资料);**顺带 DROP FK_140_查找**(生产BOM物料清单.物料编号→物料资料,同一链路,制单展开快照也会撞;任务书只点了 FK_133,FK_140 是实测链路必撞的姊妹约束,同注释说明)。不改 db/02 历史脚本(重建库仍会加回,需彻底一致另行同步)。
+- StyleService.ReplaceMaterialsAsync:应用层兜底校验——明细 物料编号 必须存在于 [物料资料] ∪ [塑胶物料资料],缺失行中文列出编号、整组回滚(实测 NO-SUCH-MAT 被拒且 35 行现场完好)。
+- StyleController.PutMaterials:补 catch SqlException → 400 中文(不再裸 500)。
+- 取数混合档案(只动 JOIN,不动公式):
+  - ProductionService.ExpandBomAsync 的 BOM 行查询:LEFT JOIN 物料资料 + LEFT JOIN 塑胶物料资料(来料优先,COALESCE 取 单价/供应商;塑胶 单价=原胶件单价)。
+  - MaterialMasterService AuxiliaryPurchaseAnalysis 的 src CTE:FROM (物料资料 UNION ALL 塑胶物料资料)(库存/名称/规格/单位/供应商 两档案合并,GROUP BY 同编号自然合并)。
+  - 库存口径说明:制单展开的 库存数量 走库存引擎(单据符号法,塑胶单据未接入前自然为 0);辅料分析 CTE 用两表 库存 列 union。塑胶采购分析(/plastic-material-analysis)本就是塑胶单据档,未动。
+
+## 77772 BOM(真实数据,保留)
+- 35 条塑胶料(塑胶物料资料 WHERE 款号='77772')PUT 进 BOM:款号物料明细表 35 行、使用数量合计 41;bom-audit 后 款号物料总表.审核='1'。
+
+## 流程链实测(测试单已清理)
+- 生产通知单 SC20260803001(货号 77772、黑色/均码×2 台)创建+审核:ExpandBom 混合取数展开成功(塑胶行 FK 不再拦)。
+- 采购物料分析(basis):**35 行胶件全部列出;总数量合计=82(=2×41)、需订合计=82(库存 0);用量 1→总数量 2、用量 2→总数量 4(6 行);预算单价=塑胶 单价(原胶件单价,如 57001896=0.0687),无空价行**。
+- 塑胶采购分析(plastic-material-docs/orders):接口正常,现有 1 张历史塑胶订购单(非本流程产生)。
+- 清理:通知单反审核+删除,生产制单/生产BOM物料清单=0;77772 BOM(35 行,已审核)保留。
+
+## 验证与部署
+- dotnet build 0 错;dotnet test 212 过(本轮纯后端+DB,前端未动,wwwroot 沿用上轮 index-72GGDDZi)。
+- 遗留:①下游单据 FK 仍指 物料资料(采购明细单.FK_207 等),塑胶料开采购单时会撞——下一步若开塑胶采购单需同样放开或走塑胶专档;②重建库(db/02)会把两个 FK 加回来,需同步时改 db/02 或重建后重跑 db/68;③BOM 台头已审核后保存仍不锁(见上轮遗留)。
+
+## 生产通知单"打开"列表对齐旧系统(同日追加)
+- 打开弹窗列从 5 列扩为旧系统全套:订单类型/标识/生产单号/款号/款式/客户款号/日期/交货日期/客户编号/客户名称/计划数量/制单人/跟单员/备注(+审核状态);弹窗加宽 1200,横向滚动。
+
+## 生产通知单跟单员联动部门人事(同日追加)
+- 跟单员 Input 改 AutoComplete,数据源 人事档案(/api/master/employees),显示 姓名(部门编号/职称),可手输;人事档案在 基本设置>部门人事 手动维护。
+
+---
+
+# 2026-08-03 追加:「部门人事」独立页面(旧系统样式)
+
+## 改动清单
+- 实体 人事档案.cs:补 EF 映射 自动编号/出生日期/身份证号/入职日期/离职日期/地址(列早已在 db/01,纯映射无迁移)。
+- 新页面 web/src/pages/system/DepartmentPersonnelPage.tsx(401 行):左部门列表(全部部门+各部门带人数,新增部门弹窗 编号/部门/备注,行内删除有引用人数警告不强拦)+ 右人员网格(旧系统 17 列:部门编号|部门名称|自动编号|编号|姓名|性别|职称|电话|手机|地址|身份证号|出生日期|入职日期|离职日期|基本工资|备注|在职;日期 slice(0,10);部门名称前端 join;基本工资按 人事档案·单价 权限 ***)。人员 新增/编辑/删除(masterApi("employees")),双击选中+工具栏样式同项目约定;表单全字段(日期 DatePicker、部门编号 Select、在职默认在职、基本工资按权限隐藏)。权限:人员用"人事档案"、部门用"部门信息"。
+- 路由/菜单:App.tsx 加 /hr/department-personnel;menuTree 部门人事 由 /master/部门信息 改指新页面(菜单权限名保持"部门信息"不变,页面内部按 人事档案/部门信息 分别门控)。
+
+## 验证
+- dotnet build 0 错;dotnet test 212 过;npm run build 过;npm test 310 过;eslint:新页面 1 个 set-state-in-effect(全仓既有基线同款模式,App.tsx/menuTree 0 问题)。
+- curl 字段往返:POST 全字段人员 → GET 18 个字段全部正确往返(含 自动编号/出生日期/入职日期/地址/身份证号/基本工资),抽查行已删。
+- Playwright 全链(截图 hr_*.png):新增部门 业务部 → 新增人员 0001/测试员/部门下拉选 YWB → 网格行 "YWB业务部0001测试员138在职"(部门名称 join 正确,表头 17 列与旧系统一致) → 点业务部过滤=1 行 → 双击选中"已选中:0001 测试员" → 编辑改职称=高级工程师 → 删除人员 → 删除部门;现场已清(部门/人员 total 回基线)。
+- 部署:后端 Development 重启;web/dist 已同步 src/ErpApi/wwwroot(index-DNHA51db.js)。
