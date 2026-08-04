@@ -19,7 +19,14 @@ public class MaterialStocktakeServiceDbTests(DbFixture fx)
             new Dictionary<string, string?> { ["Erp:ConnectionStringEnvVar"] = "ERP_TEST_DB" }).Build();
         return new SqlConnectionFactory(cfg);
     }
-    private MaterialStocktakeService Svc() => new(Factory(), new DocumentNumberGenerator(), new MaterialInventoryService(Factory()));
+    private MaterialStocktakeService Svc() => new(Factory(), new DocumentNumberGenerator(), new MaterialInventoryService(Factory()), new NoOpAuditLogger());
+
+    private sealed class NoOpAuditLogger : IAuditLogger
+    {
+        public Task WriteAsync(string tableName, string action, string user, string record,
+            Microsoft.Data.SqlClient.SqlConnection conn, Microsoft.Data.SqlClient.SqlTransaction? tx = null)
+            => Task.CompletedTask;
+    }
 
     private sealed class AuxiliaryQueryPermissionService(bool allowOpen, bool allowUnitPrice) : IPermissionService
     {
@@ -54,7 +61,7 @@ public class MaterialStocktakeServiceDbTests(DbFixture fx)
     private static void SeedStock(Microsoft.Data.SqlClient.SqlConnection c)
     {
         Cleanup(c);
-        c.Execute("INSERT INTO [物料资料]([物料编号],[物料名称],[规格],[单位],[单价]) VALUES(N'PDM01',N'盘点料',N'规格A',N'米',10)");
+        c.Execute("INSERT INTO [物料资料]([物料编号],[物料名称],[规格],[单位],[单价],[库存]) VALUES(N'PDM01',N'盘点料',N'规格A',N'米',10,100)");
         c.Execute("INSERT INTO [采购入仓单]([单号],[仓库],[审核]) VALUES(N'PDRK01',N'物料仓','1')");
         c.Execute(@"INSERT INTO [采购入仓明细单]([单号],[仓库],[物料编号],[物料名称],[规格],[单位],[数量])
                     VALUES(N'PDRK01',N'物料仓',N'PDM01',N'盘点料',N'规格A',N'米',100)");
@@ -367,6 +374,80 @@ public class MaterialStocktakeServiceDbTests(DbFixture fx)
             // 新建即未审核：审核情况="已审核"应过滤掉，"未审核"应保留
             Assert.DoesNotContain(await Svc().StocktakeQueryDetailAsync(null, null, "PDM01", null, "已审核"), r => r.单号 == pd);
             Assert.Contains(await Svc().StocktakeQueryDetailAsync(null, null, "PDM01", null, "未审核"), r => r.单号 == pd);
+        }
+        finally
+        {
+            if (pd != null) { c.Execute("DELETE FROM [盘点明细单] WHERE [单号]=@n", new { n = pd }); c.Execute("DELETE FROM [盘点单] WHERE [单号]=@n", new { n = pd }); }
+            Cleanup(c);
+        }
+    }
+
+    [SkippableFact]
+    public async Task Approve_writes_盘点数量_back_to_master_stock()
+    {
+        Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
+        using var c = fx.Open();
+        SeedStock(c);
+        string? pd = null;
+        try
+        {
+            // 主档库存100；盘点：系统100 盘成80
+            pd = await Svc().CreateAsync(new MaterialStocktakeCreateDto
+            {
+                仓库 = "物料仓",
+                明细 = [ new MaterialStocktakeLineDto {
+                    物料编号 = "PDM01", 物料名称 = "盘点料", 规格 = "规格A", 单位 = "米",
+                    系统数量 = 100, 盘点数量 = 80 } ]
+            }, "tester");
+
+            Assert.True(await Svc().ApproveAsync(pd, "tester"));
+            Assert.Equal(80m, c.ExecuteScalar<decimal>(
+                "SELECT [库存] FROM [物料资料] WHERE [物料编号]=N'PDM01'"));
+            Assert.Equal("1", c.ExecuteScalar<string>(
+                "SELECT [审核] FROM [盘点单] WHERE [单号]=@n", new { n = pd }));
+
+            // 重复审核幂等：返回 false 且库存不变
+            Assert.False(await Svc().ApproveAsync(pd, "tester"));
+            Assert.Equal(80m, c.ExecuteScalar<decimal>(
+                "SELECT [库存] FROM [物料资料] WHERE [物料编号]=N'PDM01'"));
+        }
+        finally
+        {
+            if (pd != null) { c.Execute("DELETE FROM [盘点明细单] WHERE [单号]=@n", new { n = pd }); c.Execute("DELETE FROM [盘点单] WHERE [单号]=@n", new { n = pd }); }
+            Cleanup(c);
+        }
+    }
+
+    [SkippableFact]
+    public async Task Unapprove_restores_master_stock_to_系统数量()
+    {
+        Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
+        using var c = fx.Open();
+        SeedStock(c);
+        string? pd = null;
+        try
+        {
+            pd = await Svc().CreateAsync(new MaterialStocktakeCreateDto
+            {
+                仓库 = "物料仓",
+                明细 = [ new MaterialStocktakeLineDto {
+                    物料编号 = "PDM01", 物料名称 = "盘点料", 规格 = "规格A", 单位 = "米",
+                    系统数量 = 100, 盘点数量 = 80 } ]
+            }, "tester");
+            Assert.True(await Svc().ApproveAsync(pd, "tester"));
+            Assert.Equal(80m, c.ExecuteScalar<decimal>(
+                "SELECT [库存] FROM [物料资料] WHERE [物料编号]=N'PDM01'"));
+
+            Assert.True(await Svc().UnapproveAsync(pd, "tester"));
+            Assert.Equal(100m, c.ExecuteScalar<decimal>(
+                "SELECT [库存] FROM [物料资料] WHERE [物料编号]=N'PDM01'"));
+            Assert.Equal("0", c.ExecuteScalar<string>(
+                "SELECT [审核] FROM [盘点单] WHERE [单号]=@n", new { n = pd }));
+
+            // 重复反审核幂等：返回 false 且库存不变
+            Assert.False(await Svc().UnapproveAsync(pd, "tester"));
+            Assert.Equal(100m, c.ExecuteScalar<decimal>(
+                "SELECT [库存] FROM [物料资料] WHERE [物料编号]=N'PDM01'"));
         }
         finally
         {

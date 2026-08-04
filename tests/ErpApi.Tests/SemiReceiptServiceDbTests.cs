@@ -67,6 +67,9 @@ public class SemiReceiptServiceDbTests(DbFixture fx)
     {
         using var c = fx.Open();
         P5cTestData.Seed(c);
+        // 共享测试库可能留有其他用例的入仓单；本用例断言 Total=1 与"上一单=null"，先清表保证隔离
+        c.Execute("DELETE FROM [半成品入仓明细单]");
+        c.Execute("DELETE FROM [半成品入仓单]");
         var 单号 = await Svc().CreateAsync(Dto(), "tester");
         try
         {

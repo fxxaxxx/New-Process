@@ -107,12 +107,24 @@ public sealed class SemiFinishedShortageServiceDbTests(DbFixture fx)
         connection.Execute("DELETE FROM [半成品盘点单] WHERE [单号] LIKE N'SFS-%'");
         connection.Execute("DELETE FROM [半成品共用物料设置] WHERE [产品货号] LIKE N'SFS-%'");
         connection.Execute("DELETE FROM [生产制单] WHERE [生产单号] LIKE N'SFS-%'");
+        // 引用行删净后再删 FK 父行：生产制单→客户资料(FK_143)/款号总表(FK_144)，出入仓/领料/盘点明细→物料资料(FK_9/21/13)
+        connection.Execute("DELETE FROM [客户资料] WHERE [客户编号] IN (N'C01',N'C02',N'C03',N'C04',N'C-EXPORT',N'C-TIE')");
+        connection.Execute("DELETE FROM [款号总表] WHERE [款号] LIKE N'SFS-%'");
+        connection.Execute("DELETE FROM [物料资料] WHERE [物料编号] LIKE N'SFS-%'");
     }
 
     private static void Seed(SqlConnection connection)
     {
         Clean(connection);
         connection.Execute("""
+            INSERT INTO [客户资料]([客户编号],[客户名称]) VALUES
+            (N'C01',N'客户一'),(N'C02',N'客户二'),(N'C03',N'客户三'),(N'C04',N'客户四'),
+            (N'C-EXPORT',N'SFS-EXPORT'),(N'C-TIE',N'SFS-TIE-CUSTOMER');
+            INSERT INTO [款号总表]([款号],[款式]) VALUES
+            (N'SFS-P1',N'测试产品一'),(N'SFS-P2',N'测试产品二'),(N'SFS-P3',N'测试产品三'),(N'SFS-P4',N'测试产品四'),
+            (N'SFS-EXPORT-1',N'Export product one'),(N'SFS-EXPORT-2',N'Export product two'),(N'SFS-TIE',N'Tie product');
+            INSERT INTO [物料资料]([物料编号],[物料名称],[单位]) VALUES
+            (N'SFS-A1',N'配件一',N'PCS');
             INSERT INTO [生产制单]([生产单号],[款号],[款式],[客户编号],[客户名称],[计划数量],[审核],[完成]) VALUES
             (N'SFS-MO-1',N'SFS-P1',N'测试产品一',N'C01',N'客户一',10,'1',N'否'),
             (N'SFS-MO-2',N'SFS-P1',N'测试产品一',N'C01',N'客户一',5,'1',N'否'),

@@ -261,8 +261,8 @@ public class P5MonthEndApiIntegrationTests(DbFixture fx)
         string? rk = null;
         try
         {
-            // 款号/款式在单头；明细仅 色号/颜色/尺码/数量/单价
-            var body = new { 仓库 = wh, 款号 = "PLK1", 款式 = "锁款", 明细 = new[] { new { 色号 = "01", 颜色 = "黑", 尺码 = "M", 数量 = 10, 单价 = 5 } } };
+            // 成品入仓单已改玩具模型(commit 30a5ffce):明细按 配件编号
+            var body = new { 仓库 = wh, 明细 = new[] { new { 配件编号 = "PLPJ1", 产品货号 = "PLK1", 产品名称 = "锁款", 数量 = 10, 单价 = 5 } } };
             var cr = await client.PostAsJsonAsync("/api/finished-receipts", body);
             Assert.Equal(HttpStatusCode.Created, cr.StatusCode);
             rk = (await cr.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("单号").GetString();

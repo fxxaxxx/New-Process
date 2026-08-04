@@ -42,15 +42,33 @@ public class P5ApiIntegrationTests(DbFixture fx)
         return client;
     }
 
+    // 成品入仓单已重写为玩具模型(commit 30a5ffce):明细按 配件编号,不再带 色号/尺码;
+    // 与服装模型的 成品出仓/库存 不联动(用户确认),故库存断言只看总量。
     private static object ReceiptBody() => new
     {
-        仓库 = P5TestData.仓库, 生产单号 = P5TestData.生产单号, 款号 = P5TestData.款号, 款式 = "P5测试款式", 床号 = "1",
+        仓库 = P5TestData.仓库,
         明细 = new[]
         {
-            new { 色号 = "01", 颜色 = "黑色", 尺码 = "M", 数量 = 60, 单价 = 10 },
-            new { 色号 = "02", 颜色 = "白色", 尺码 = "L", 数量 = 40, 单价 = 10 },
+            new { 配件编号 = "P5PJ01", 产品货号 = P5TestData.款号, 产品名称 = "P5测试款式", 生产单号 = P5TestData.生产单号, 数量 = 60, 单价 = 10 },
+            new { 配件编号 = "P5PJ02", 产品货号 = P5TestData.款号, 产品名称 = "P5测试款式", 生产单号 = P5TestData.生产单号, 数量 = 40, 单价 = 10 },
         }
     };
+
+    // 服装模型库存链路(出仓/盘点)的入仓基准:成品入仓单 API 已改玩具模型,
+    // 故绕过 API 直接种审核过的服装模型入仓单(与 Transfer_lifecycle 测试同法)。
+    private static void SeedClothingReceipt(SqlConnection c, string 单号)
+    {
+        c.Execute("INSERT INTO [成品入仓单]([单号],[仓库],[审核]) VALUES(@n,N'P5成品仓','1')", new { n = 单号 });
+        c.Execute(@"INSERT INTO [成品入仓明细单]([单号],[仓库],[生产单号],[款号],[款式],[色号],[颜色],[尺码],[数量],[审核])
+                    VALUES(@n,N'P5成品仓',N'P5SC01',N'P5K01',N'P5测试款式',N'01',N'黑色',N'M',60,'1')", new { n = 单号 });
+        c.Execute(@"INSERT INTO [成品入仓明细单]([单号],[仓库],[生产单号],[款号],[款式],[色号],[颜色],[尺码],[数量],[审核])
+                    VALUES(@n,N'P5成品仓',N'P5SC01',N'P5K01',N'P5测试款式',N'02',N'白色',N'L',40,'1')", new { n = 单号 });
+    }
+    private static void DropReceipt(SqlConnection c, string 单号)
+    {
+        c.Execute("DELETE FROM [成品入仓明细单] WHERE [单号]=@n", new { n = 单号 });
+        c.Execute("DELETE FROM [成品入仓单] WHERE [单号]=@n", new { n = 单号 });
+    }
 
     [SkippableFact]
     public async Task Receipt_create_forbidden_without_save()
@@ -123,17 +141,13 @@ public class P5ApiIntegrationTests(DbFixture fx)
     public async Task Issue_lifecycle_reduces_inventory()
     {
         using var app = Factory();
-        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P5TestData.Seed(c); }
-        SeedPerms("p5ck", "成品入仓", open: true, save: true, approve: true);
+        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P5TestData.Seed(c); SeedClothingReceipt(c, "P5ISR"); }
         SeedPerms("p5ck", "成品出仓", open: true, save: true, del: true, price: true, approve: true, unapprove: true);
         SeedPerms("p5ck", "成品库存", open: true);
         var client = Client(app, "p5ck");
-        string? rk = null, ck = null;
+        string? ck = null;
         try
         {
-            var cr = await client.PostAsJsonAsync("/api/finished-receipts", ReceiptBody());
-            rk = (await cr.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("单号").GetString()!;
-            await client.PostAsync($"/api/finished-receipts/{rk}/approve", null);
             var ci = await client.PostAsJsonAsync("/api/finished-issues", new {
                 仓库 = P5TestData.仓库, 客户编号 = P5TestData.客户编号, 客户名称 = "P5测试客户",
                 生产单号 = P5TestData.生产单号, 款号 = P5TestData.款号, 款式 = "P5测试款式",
@@ -149,7 +163,7 @@ public class P5ApiIntegrationTests(DbFixture fx)
         {
             using var c = new SqlConnection(fx.ConnectionString); c.Open();
             if (ck != null) { c.Execute("DELETE FROM [成品出仓明细单] WHERE [单号]=@n", new { n = ck }); c.Execute("DELETE FROM [成品出仓单] WHERE [单号]=@n", new { n = ck }); }
-            if (rk != null) { c.Execute("DELETE FROM [成品入仓明细单] WHERE [单号]=@n", new { n = rk }); c.Execute("DELETE FROM [成品入仓单] WHERE [单号]=@n", new { n = rk }); }
+            DropReceipt(c, "P5ISR");
             P5TestData.Cleanup(c);
         }
     }
@@ -158,21 +172,18 @@ public class P5ApiIntegrationTests(DbFixture fx)
     public async Task FullLoop_receipt_issue_stocktake_inventory()
     {
         using var app = Factory();
-        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P5TestData.Seed(c); }
-        foreach (var m in new[] { "成品入仓", "成品出仓", "成品盘点" })
+        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P5TestData.Seed(c); SeedClothingReceipt(c, "P5FLR"); }
+        foreach (var m in new[] { "成品出仓", "成品盘点" })
             SeedPerms("p5loop", m, open: true, save: true, del: true, price: true, approve: true, unapprove: true);
         SeedPerms("p5loop", "成品库存", open: true);
         var client = Client(app, "p5loop");
-        string? rk = null, ck = null, pd = null;
+        string? ck = null, pd = null;
         async Task<decimal> Inv() {
             var inv = await client.GetFromJsonAsync<JsonElement>($"/api/finished-inventory?{Uri.EscapeDataString("仓库")}={Uri.EscapeDataString(P5TestData.仓库)}");
             decimal s = 0; foreach (var r in inv.EnumerateArray()) s += r.GetProperty("库存").GetDecimal(); return s;
         }
         try
         {
-            var cr = await client.PostAsJsonAsync("/api/finished-receipts", ReceiptBody());
-            rk = (await cr.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("单号").GetString()!;
-            await client.PostAsync($"/api/finished-receipts/{rk}/approve", null);
             Assert.Equal(100m, await Inv());
 
             var ci = await client.PostAsJsonAsync("/api/finished-issues", new {
@@ -205,7 +216,7 @@ public class P5ApiIntegrationTests(DbFixture fx)
             using var c = new SqlConnection(fx.ConnectionString); c.Open();
             if (pd != null) { c.Execute("DELETE FROM [成品盘点明细单] WHERE [单号]=@n", new { n = pd }); c.Execute("DELETE FROM [成品盘点单] WHERE [单号]=@n", new { n = pd }); }
             if (ck != null) { c.Execute("DELETE FROM [成品出仓明细单] WHERE [单号]=@n", new { n = ck }); c.Execute("DELETE FROM [成品出仓单] WHERE [单号]=@n", new { n = ck }); }
-            if (rk != null) { c.Execute("DELETE FROM [成品入仓明细单] WHERE [单号]=@n", new { n = rk }); c.Execute("DELETE FROM [成品入仓单] WHERE [单号]=@n", new { n = rk }); }
+            DropReceipt(c, "P5FLR");
             P5TestData.Cleanup(c);
         }
     }

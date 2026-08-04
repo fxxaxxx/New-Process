@@ -210,6 +210,9 @@ public sealed class StyleMaterialsPricePermissionApiTests(DbFixture fx)
     private void SeedStyleAndPermission()
     {
         using var c = fx.Open();
+        // 客户编号 FK→客户资料(FK_129)、明细物料编号 FK→物料资料(FK_133)，需先建父行
+        c.Execute("INSERT INTO [客户资料]([客户编号],[客户名称]) VALUES(N'0003',N'ZURU')");
+        c.Execute("INSERT INTO [物料资料]([物料编号],[物料名称],[单位]) VALUES(N'MAT-1',N'彩盒',N'PCS')");
         c.Execute("INSERT INTO [款号总表]([款号],[款式]) VALUES(@StyleNo,N'产品')", new { StyleNo });
         c.Execute(@"INSERT INTO [款号物料总表]([日期],[客户编号],[客户名称],[产品编号],[款号],[款式],[备注],[单位])
 VALUES('2026-07-14',N'0003',N'ZURU',N'PART-1',@StyleNo,N'产品',N'头备注',N'PCS')", new { StyleNo });
@@ -225,6 +228,8 @@ VALUES(@User,N'款号资料',1,1,0)", new { User });
         c.Execute("DELETE FROM [款号物料明细表] WHERE [款号]=@StyleNo", new { StyleNo });
         c.Execute("DELETE FROM [款号物料总表] WHERE [款号]=@StyleNo", new { StyleNo });
         c.Execute("DELETE FROM [款号总表] WHERE [款号]=@StyleNo", new { StyleNo });
+        c.Execute("DELETE FROM [客户资料] WHERE [客户编号]=N'0003'");
+        c.Execute("DELETE FROM [物料资料] WHERE [物料编号]=N'MAT-1'");
         c.Execute("DELETE FROM [userbqrpower] WHERE [用户]=@User AND [菜单]=N'款号资料'", new { User });
     }
 

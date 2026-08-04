@@ -45,11 +45,26 @@ public sealed class StyleAssemblyMaterialsDbTests(DbFixture fx)
         c.Execute("DELETE FROM [款号物料明细表] WHERE [款号]=N'STYLE-1'");
         c.Execute("DELETE FROM [款号物料总表] WHERE [款号]=N'STYLE-1'");
         c.Execute("DELETE FROM [款号总表] WHERE [款号]=N'STYLE-1'");
+        // 客户编号 FK→客户资料(FK_129/FK_131)、物料编号 FK→物料资料(FK_133)，引用行删净后再删父
+        c.Execute("DELETE FROM [客户资料] WHERE [客户编号]=N'0003'");
+        c.Execute("DELETE FROM [物料资料] WHERE [物料编号] IN (N'MAT-1',N'MAT-2',N'MAT-P1',N'MAT-P2')");
+    }
+
+    // db/43 新增了 款号总表.[出厂价]/[装彩盒单价]；未部署时跳过自动计算相关测试。
+    private void SkipIfAssemblyRuleSchemaMissing()
+    {
+        using var c = fx.Open();
+        var hasColumns = c.ExecuteScalar<int>(
+            "SELECT CASE WHEN COL_LENGTH(N'[款号总表]',N'出厂价') IS NOT NULL AND COL_LENGTH(N'[款号总表]',N'装彩盒单价') IS NOT NULL THEN 1 ELSE 0 END") == 1;
+        Skip.IfNot(hasColumns, "ERP_TEST_DB 未应用 db/43_assembly_rules.sql");
     }
 
     private void SeedStyle()
     {
         using var c = fx.Open();
+        // 客户编号 FK→客户资料(FK_129)、明细物料编号 FK→物料资料(FK_133)，需先建父行
+        c.Execute("INSERT INTO [客户资料]([客户编号],[客户名称]) VALUES(N'0003',N'ZURU')");
+        c.Execute("INSERT INTO [物料资料]([物料编号],[物料名称],[单位]) VALUES(N'MAT-1',N'彩盒',N'PCS'),(N'MAT-2',N'新物料',N'PCS')");
         c.Execute("INSERT INTO [款号总表]([款号],[款式]) VALUES(N'STYLE-1',N'产品一')");
         c.Execute(@"
 INSERT INTO [款号物料总表]([日期],[客户编号],[客户名称],[产品编号],[款号],[款式],[备注],[单位])
@@ -191,6 +206,141 @@ VALUES('2026-07-13',N'0003',N'ZURU',N'PART-1',N'STYLE-1',N'产品一',N'头备�
         var loaded = await Style().GetMaterialsViewAsync("STYLE-1");
         Assert.True(loaded!.扩展.调整审核);
         Assert.Equal("auditor", loaded.扩展.审核人);
+
+        Cleanup();
+    }
+
+    [SkippableFact]
+    public async Task In_house_quote_row_without_partner_saves()
+    {
+        SkipIfDatabaseUnavailable();
+        Cleanup();
+        SeedStyle();
+
+        var payload = ValidPayload() with
+        {
+            报价 = [new AssemblyMaterialQuoteDto(
+                null, "MAT-1", "彩盒", "本厂", null, null,
+                new DateTime(2026, 7, 13), "HK$", 2.5m, 2.5m, 0, 0, true, 1, "本厂装配")]
+        };
+        await Style().ReplaceMaterialsAsync("STYLE-1", payload);
+
+        var loaded = await Style().GetMaterialsViewAsync("STYLE-1");
+        var quote = Assert.Single(loaded!.报价!);
+        Assert.Equal("本厂", quote.合作方类型);
+        Assert.Null(quote.合作方编号);
+        Assert.Null(quote.合作方名称);
+
+        Cleanup();
+    }
+
+    [SkippableFact]
+    public async Task In_house_quote_row_with_partner_is_rejected()
+    {
+        SkipIfDatabaseUnavailable();
+        Cleanup();
+        SeedStyle();
+
+        var payload = ValidPayload() with
+        {
+            报价 = [new AssemblyMaterialQuoteDto(
+                null, "MAT-1", "彩盒", "本厂", "0088", "东莞加工厂",
+                new DateTime(2026, 7, 13), "HK$", 2.5m, 2.5m, 0, 0, true, 1, null)]
+        };
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => Style().ReplaceMaterialsAsync("STYLE-1", payload));
+        Assert.Contains("本厂", ex.Message);
+
+        Cleanup();
+    }
+
+    [SkippableFact]
+    public async Task Second_in_house_quote_row_is_rejected()
+    {
+        SkipIfDatabaseUnavailable();
+        Cleanup();
+        SeedStyle();
+
+        AssemblyMaterialQuoteDto InHouse(int seq) => new(
+            null, "MAT-1", "彩盒", "本厂", null, null,
+            new DateTime(2026, 7, 13), "HK$", 2.5m, 2.5m, 0, 0, seq == 1, seq, null);
+        var payload = ValidPayload() with { 报价 = [InHouse(1), InHouse(2)] };
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => Style().ReplaceMaterialsAsync("STYLE-1", payload));
+        Assert.Contains("本厂", ex.Message);
+
+        Cleanup();
+    }
+
+    [SkippableFact]
+    public async Task Empty_inventory_price_prefers_master_ex_factory_price_for_finished_category()
+    {
+        SkipIfDatabaseUnavailable();
+        SkipIfAssemblyRuleSchemaMissing();
+        Cleanup();
+        SeedStyle();
+        using (var c = fx.Open())
+            c.Execute("UPDATE [款号总表] SET [出厂价]=7.5, [装彩盒单价]=3.5 WHERE [款号]=N'STYLE-1'");
+
+        var payload = ValidPayload() with
+        {
+            扩展 = ValidPayload().扩展! with { 类别 = "成品", 库存单价HK = null }
+        };
+        await Style().ReplaceMaterialsAsync("STYLE-1", payload);
+
+        var loaded = await Style().GetMaterialsViewAsync("STYLE-1");
+        Assert.Equal(7.5m, loaded!.扩展!.库存单价HK);
+
+        Cleanup();
+    }
+
+    [SkippableFact]
+    public async Task Empty_inventory_price_falls_back_to_bom_quantity_times_material_price()
+    {
+        SkipIfDatabaseUnavailable();
+        SkipIfAssemblyRuleSchemaMissing();
+        Cleanup();
+        SeedStyle();
+        using (var c = fx.Open())
+            c.Execute(@"
+INSERT INTO [物料资料]([物料编号],[物料名称],[单价]) VALUES
+    (N'MAT-P1',N'彩盒',2),(N'MAT-P2',N'胶袋',3)");
+
+        var payload = ValidPayload() with
+        {
+            明细 =
+            [
+                new StyleMaterialDto("MAT-P1", "彩盒", "包装", null, null, "PCS", 2),
+                new StyleMaterialDto("MAT-P2", "胶袋", "包装", null, null, "PCS", 1),
+            ],
+            扩展 = ValidPayload().扩展! with { 类别 = "半成品", 库存单价HK = null }
+        };
+        await Style().ReplaceMaterialsAsync("STYLE-1", payload);
+
+        var loaded = await Style().GetMaterialsViewAsync("STYLE-1");
+        Assert.Equal(7m, loaded!.扩展!.库存单价HK);
+
+        Cleanup();
+    }
+
+    [SkippableFact]
+    public async Task Manual_inventory_price_is_not_overwritten()
+    {
+        SkipIfDatabaseUnavailable();
+        SkipIfAssemblyRuleSchemaMissing();
+        Cleanup();
+        SeedStyle();
+        using (var c = fx.Open())
+            c.Execute("UPDATE [款号总表] SET [出厂价]=7.5 WHERE [款号]=N'STYLE-1'");
+
+        var payload = ValidPayload() with
+        {
+            扩展 = ValidPayload().扩展! with { 类别 = "成品", 库存单价HK = 9.9m }
+        };
+        await Style().ReplaceMaterialsAsync("STYLE-1", payload);
+
+        var loaded = await Style().GetMaterialsViewAsync("STYLE-1");
+        Assert.Equal(9.9m, loaded!.扩展!.库存单价HK);
 
         Cleanup();
     }

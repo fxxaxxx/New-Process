@@ -31,11 +31,11 @@ public class PlasticProcessPurchaseOrderServiceDbTests(DbFixture fx)
 
     private static void Clean(SqlConnection c)
     {
-        c.Execute("DELETE FROM [塑胶加工采购单明细] WHERE [物料编号]=N'PJPM'");
-        c.Execute("DELETE h FROM [塑胶加工采购单] h JOIN [塑胶加工采购单明细] d ON d.[单号]=h.[单号] WHERE d.[物料编号]=N'PJPM'");
+        c.Execute("DELETE FROM [塑胶加工采购单明细] WHERE [物料编号] IN (N'PJPM',N'PJPM2')");
+        c.Execute("DELETE h FROM [塑胶加工采购单] h JOIN [塑胶加工采购单明细] d ON d.[单号]=h.[单号] WHERE d.[物料编号] IN (N'PJPM',N'PJPM2')");
         c.Execute("DELETE FROM [塑胶加工采购单] WHERE [客户名称]=N'PJ测试客户'");
         c.Execute("DELETE FROM [塑胶共用物料表] WHERE [塑胶货号]=N'H-PJ'");
-        c.Execute("DELETE FROM [塑胶物料资料] WHERE [物料编号]=N'PJPM'");
+        c.Execute("DELETE FROM [塑胶物料资料] WHERE [物料编号] IN (N'PJPM',N'PJPM2')");
         c.Execute("DELETE FROM [生产制单货号] WHERE [生产单号]=N'PJ-MO'");
         c.Execute("DELETE FROM [生产制单] WHERE [生产单号]=N'PJ-MO'");
         c.Execute("DELETE FROM [款号总表] WHERE [款号]=N'K-PJ'");
@@ -81,6 +81,40 @@ public class PlasticProcessPurchaseOrderServiceDbTests(DbFixture fx)
             Assert.Equal(15m, d.明细[0].金额);
             Assert.Equal(3m, d.明细[1].数量);
             Assert.Equal(9m, d.明细[1].金额);
+        }
+        finally { Clean(c); }
+    }
+
+    [SkippableFact]
+    public async Task Basis_and_Create_carry_second_process_fields()
+    {
+        using var c = fx.Open(); Seed(c);
+        try
+        {
+            // 二次加工 BOM 行: 喷油(第一次) + 植绒(第二次) → AF 类
+            c.Execute("INSERT INTO [塑胶共用物料表]([塑胶货号],[工模编号],[物料编号],[物料名称],[颜色],[用料名称],[加工内容],[二次加工内容],[加工单价]) VALUES(N'H-PJ',N'GM-PJ',N'PJPM2',N'PC粒',N'白',N'用B',N'喷油',N'植绒',5)");
+            c.Execute("INSERT INTO [塑胶物料资料]([物料编号],[物料名称],[单位]) VALUES(N'PJPM2',N'PC粒',N'kg')");
+
+            var basis = await Svc().BasisAsync("PJ-MO");
+            Assert.Equal(2, basis.Count);
+            var b2 = basis.Single(x => x.物料编号 == "PJPM2");
+            Assert.Equal("植绒", b2.二次加工内容);
+            Assert.Equal("AF", b2.二次加工类别);
+            Assert.Null(basis.Single(x => x.物料编号 == "PJPM").二次加工类别);
+
+            var dto = MakeDto();
+            dto.明细.Clear();
+            dto.明细.Add(new() { 生产单号 = "PJ-MO", 款号 = "K-PJ", 模具编号 = "GM-PJ", 物料编号 = "PJPM2", 物料名称 = "PC粒", 颜色 = "白", 加工内容 = "喷油", 加工次序 = "第一次", 加工字母 = "A", 数量 = 4, 单价 = 5 });
+            dto.明细.Add(new() { 生产单号 = "PJ-MO", 款号 = "K-PJ", 模具编号 = "GM-PJ", 物料编号 = "PJPM2", 物料名称 = "PC粒", 颜色 = "白", 加工内容 = "植绒", 加工次序 = "第二次", 加工字母 = "F", 数量 = 4, 单价 = 6 });
+            var 单号 = await Svc().CreateAsync(dto, "tester");
+
+            var d = await Svc().GetAsync(单号);
+            Assert.NotNull(d);
+            Assert.Equal(2, d!.明细.Count);
+            Assert.Equal("第一次", d.明细[0].加工次序);
+            Assert.Equal("A", d.明细[0].加工字母);
+            Assert.Equal("第二次", d.明细[1].加工次序);
+            Assert.Equal("F", d.明细[1].加工字母);
         }
         finally { Clean(c); }
     }

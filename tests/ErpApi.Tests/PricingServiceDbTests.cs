@@ -19,6 +19,7 @@ public class PricingServiceDbTests(DbFixture fx)
     [SkippableFact]
     public async Task Picks_latest_effective_price_on_or_before_date()
     {
+        Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
         using (var c = new SqlConnection(fx.ConnectionString))
         {
             c.Open();
