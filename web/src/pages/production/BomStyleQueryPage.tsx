@@ -58,7 +58,7 @@ export default function BomStyleQueryPage() {
       </Space>
       <Table
         size="small" rowKey={(_, i) => `r-${i}`} loading={loading}
-        dataSource={rows} columns={columns} scroll={{ x: 700 }}
+        dataSource={rows} columns={columns} scroll={{ x: 700, y: "calc(100vh - 300px)" }}
         onRow={(r) => ({ onClick: () => go(r.款号), style: { cursor: "pointer" } })}
         pagination={{ pageSize: 50, showSizeChanger: false, showTotal: (t) => `共 ${t} 条` }}
       />

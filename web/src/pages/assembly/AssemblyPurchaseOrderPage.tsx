@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Button, Card, Col, DatePicker, Form, Input, InputNumber, Modal,
   Row, Select, Space, Table, Typography, message,
@@ -12,16 +12,28 @@ import dayjs, { type Dayjs } from "dayjs";
 import { useSearchParams } from "react-router-dom";
 import { masterApi } from "../../api/master";
 import { stylesApi, type StyleBomLine, type StyleListItem } from "../../api/styles";
-import { assemblyPurchaseQueryApi, type AssemblyPurchaseDetailRow } from "../../api/assemblyPurchaseQuery";
+import { assemblyPurchaseQueryApi } from "../../api/assemblyPurchaseQuery";
+import {
+  assemblyPurchaseOrderApi,
+  type AssemblyPurchaseOrderHeaderRow,
+  type AssemblyPurchaseOrderSave,
+} from "../../api/assemblyPurchaseOrder";
 import type { ProductionTrackingRow } from "../../api/productionReports";
 import { can } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
+import { adjacentDocNo } from "../../utils/docNav";
+import { codeName } from "../../utils/codeName";
 import ProductionPicker from "../materials/ProductionPicker";
 
 const MENU = "款号资料";
+const DOC_MENU = "装配加工采购单";
 const currentUser = () => localStorage.getItem("erp_user") || "用户";
 const fmtDate = (v?: string | null) => (v ? String(v).slice(0, 10) : "");
 const money = (v?: number | null) => Number(v ?? 0).toFixed(2);
+const errMsg = (e: unknown, fallback: string) => {
+  const m = (e as { response?: { data?: { 消息?: string } } })?.response?.data?.消息;
+  return m || fallback;
+};
 
 interface CustomerPick {
   客户编号?: string;
@@ -116,8 +128,18 @@ export default function AssemblyPurchaseOrderPage() {
   const [partnerLoading, setPartnerLoading] = useState(false);
   const [prodPickFor, setProdPickFor] = useState<number | null>(null);
   const [openDocModal, setOpenDocModal] = useState(false);
-  const [openDocs, setOpenDocs] = useState<AssemblyPurchaseDetailRow[]>([]);
+  const [openDocs, setOpenDocs] = useState<AssemblyPurchaseOrderHeaderRow[]>([]);
   const [openLoading, setOpenLoading] = useState(false);
+  const [docNo, setDocNo] = useState<string | null>(null);
+  const [approved, setApproved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  // 打开已保存的单后,辅料表读快照,不要被 BOM×数量 的自动重算覆盖
+  const suppressRebuild = useRef(false);
+  const canSaveDoc = can(perms, DOC_MENU, "保存");
+  const canDeleteDoc = can(perms, DOC_MENU, "删除");
+  const canApproveDoc = can(perms, DOC_MENU, "审核");
+  const canUnapproveDoc = can(perms, DOC_MENU, "反审核");
+  const canPrintDoc = can(perms, DOC_MENU, "打印");
 
   const reset = useCallback(() => {
     form.resetFields();
@@ -134,6 +156,9 @@ export default function AssemblyPurchaseOrderPage() {
     setProductionLines(blankProduction());
     setAccessoryLines(blankAccessories());
     setBomMaterials([]);
+    setDocNo(null);
+    setApproved(false);
+    suppressRebuild.current = false;
   }, [form]);
 
   useEffect(() => {
@@ -153,7 +178,7 @@ export default function AssemblyPurchaseOrderPage() {
   const customerOptions = useMemo(() =>
     customers
       .filter(c => c.客户编号)
-      .map(c => ({ value: c.客户编号!, label: `${c.客户编号} ${c.客户名称 ?? ""}` })),
+      .map(c => ({ value: c.客户编号!, label: codeName(c.客户编号, c.客户名称) })),
   [customers]);
 
   const productOptions = useMemo(() =>
@@ -189,6 +214,7 @@ export default function AssemblyPurchaseOrderPage() {
   }, []);
 
   useEffect(() => {
+    if (suppressRebuild.current) return;
     rebuildAccessories(bomMaterials, totalQty);
   }, [bomMaterials, rebuildAccessories, totalQty]);
 
@@ -217,6 +243,7 @@ export default function AssemblyPurchaseOrderPage() {
     try {
       const full = await stylesApi.materials(productNo);
       const styleName = full.款式 ?? "";
+      suppressRebuild.current = false;
       const customerText = [form.getFieldValue("客户编号"), form.getFieldValue("客户名称")].filter(Boolean).join("，");
       setBomMaterials(full.物料 ?? []);
       setProductLines(rows => rows.map((r, i) => (i === 0 ? {
@@ -306,11 +333,8 @@ export default function AssemblyPurchaseOrderPage() {
     setOpenDocModal(true);
     setOpenLoading(true);
     try {
-      const rows = await assemblyPurchaseQueryApi.detail({
-        起: dayjs().subtract(1, "month").format("YYYY-MM-DD"),
-        止: dayjs().format("YYYY-MM-DD"),
-      });
-      setOpenDocs(rows);
+      const result = await assemblyPurchaseOrderApi.list(1, 200, "");
+      setOpenDocs(result.items);
     } catch {
       message.error("加载装配加工单列表失败");
     } finally {
@@ -321,8 +345,17 @@ export default function AssemblyPurchaseOrderPage() {
   const openGeneratedDoc = useCallback(async (单号?: string) => {
     if (!单号) return;
     try {
-      const doc = await assemblyPurchaseQueryApi.get(单号);
+      // 优先读已落库的装配加工采购单(辅料表=BOM快照);取不到再按旧的实时展开逻辑打开
+      let doc;
+      let persisted = true;
+      try {
+        doc = await assemblyPurchaseOrderApi.get(单号);
+      } catch {
+        doc = await assemblyPurchaseQueryApi.get(单号);
+        persisted = false;
+      }
       const h = doc.单头;
+      suppressRebuild.current = true;
       form.setFieldsValue({
         供应商编号: h?.供应商编号,
         供应商名称: h?.供应商名称,
@@ -330,7 +363,7 @@ export default function AssemblyPurchaseOrderPage() {
         单价: h?.单价,
         金额: h?.金额,
         收货仓库: h?.收货仓库 ?? "半成品仓",
-        电脑单号: h?.电脑单号,
+        电脑单号: h?.电脑单号 ?? h?.单号,
         客户名称: h?.客户,
         备注: h?.备注,
         开始交货日期: h?.开始交货日期 ? dayjs(h.开始交货日期) : dayjs(),
@@ -341,10 +374,12 @@ export default function AssemblyPurchaseOrderPage() {
       });
       setProductLines(doc.产品明细.map(r => ({ key: nextKey(), ...r })));
       setProductionLines([
-        ...doc.生产明细.map(r => ({ key: nextKey(), ...r })),
+        ...doc.生产明细.map(r => ({ key: nextKey(), ...r, 接单日期: fmtDate(r.接单日期) })),
         ...blankProduction().slice(0, Math.max(0, 8 - doc.生产明细.length)),
       ]);
       setAccessoryLines(doc.辅料表.map(r => ({ key: nextKey(), 序号: r.序号 ?? 0, ...r })));
+      setDocNo(persisted ? (h?.单号 ?? 单号) : null);
+      setApproved(h?.审核 === "1");
       setOpenDocModal(false);
     } catch {
       message.error("打开装配加工单失败");
@@ -358,13 +393,131 @@ export default function AssemblyPurchaseOrderPage() {
 
   const fillLastNo = async () => {
     try {
-      const rows = await assemblyPurchaseQueryApi.detail({
-        起: dayjs().subtract(1, "year").format("YYYY-MM-DD"),
-        止: dayjs().format("YYYY-MM-DD"),
-      });
-      form.setFieldValue("电脑单号", rows[0]?.单号 ?? "");
+      const result = await assemblyPurchaseOrderApi.list(1, 1, "");
+      form.setFieldValue("电脑单号", result.items[0]?.单号 ?? "");
     } catch {
       message.error("读取最后号码失败");
+    }
+  };
+
+  // 前单/后单：用列表端点拉已落库的装配加工采购单，按单号升序定位相邻单（口径见 utils/docNav）
+  const move = async (next: boolean) => {
+    if (!docNo) return;
+    setSaving(true);
+    try {
+      const result = await assemblyPurchaseOrderApi.list(1, 1000, "");
+      const target = adjacentDocNo(result.items.map(row => row.单号), docNo, next);
+      if (!target) message.info(next ? "已经是最后一张单据" : "已经是第一张单据");
+      else await openGeneratedDoc(target);
+    } catch {
+      message.error("切换单据失败");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const collectPayload = (): AssemblyPurchaseOrderSave => {
+    const v = form.getFieldsValue();
+    const 生产明细 = productionLines
+      .filter(r => r.生产单号 || r.产品货号)
+      .map(r => ({
+        接单日期: r.接单日期 || undefined,
+        生产单号: r.生产单号,
+        款号: r.产品货号,
+        产品名称: r.产品名称,
+        配件编号: r.配件编号,
+        产品装配名称: r.产品装配名称,
+        加工数量: Number(r.加工数量 ?? 0),
+        单价: r.单价 ?? undefined,
+      }));
+    const 物料明细 = accessoryLines
+      .filter(r => r.辅料编号)
+      .map(r => ({
+        物料编号: r.辅料编号,
+        物料名称: r.辅料名称,
+        单位: r.需求数克 != null ? "克" : "个",
+        用量: r.单个产品需求量 ?? undefined,
+        需求数量: Number(r.需求数克 ?? r.需求数个 ?? 0),
+      }));
+    return {
+      供应商编号: v.供应商编号,
+      供应商名称: v.供应商名称,
+      客户编号: v.客户编号,
+      客户名称: v.客户名称,
+      出单日期: v.出单日期?.format("YYYY-MM-DD"),
+      收货仓库: v.收货仓库,
+      电脑单号: v.电脑单号,
+      装配方式: productLines.find(r => r.产品货号)?.装配方式,
+      开始交货日期: v.开始交货日期?.format("YYYY-MM-DD"),
+      每天交货: v.每天交货 ?? undefined,
+      完成日期: v.完成日期?.format("YYYY-MM-DD"),
+      收货人: v.收货人,
+      单价: v.单价 ?? undefined,
+      备注: v.备注,
+      生产明细,
+      物料明细,
+    };
+  };
+
+  const save = async () => {
+    const payload = collectPayload();
+    if (payload.生产明细.length === 0 && payload.物料明细.length === 0) {
+      message.warning("请先调入生产单/产品货号，再保存");
+      return;
+    }
+    setSaving(true);
+    try {
+      if (docNo) {
+        await assemblyPurchaseOrderApi.update(docNo, payload);
+        message.success(`装配加工采购单 ${docNo} 已保存`);
+      } else {
+        const { 单号 } = await assemblyPurchaseOrderApi.create(payload);
+        setDocNo(单号);
+        setApproved(false);
+        form.setFieldValue("电脑单号", 单号);
+        message.success(`已保存，单号 ${单号}`);
+      }
+    } catch (e) {
+      message.error(errMsg(e, "保存装配加工采购单失败"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const removeDoc = () => {
+    if (!docNo) return;
+    Modal.confirm({
+      title: "删除装配加工采购单",
+      content: `确定删除单号 ${docNo}？`,
+      okText: "删除",
+      okButtonProps: { danger: true },
+      cancelText: "取消",
+      onOk: async () => {
+        try {
+          await assemblyPurchaseOrderApi.remove(docNo);
+          message.success("已删除");
+          reset();
+        } catch (e) {
+          message.error(errMsg(e, "删除失败"));
+        }
+      },
+    });
+  };
+
+  const approveDoc = async (un: boolean) => {
+    if (!docNo) return;
+    try {
+      if (un) {
+        await assemblyPurchaseOrderApi.unapprove(docNo);
+        setApproved(false);
+        message.success("已反审核");
+      } else {
+        await assemblyPurchaseOrderApi.approve(docNo);
+        setApproved(true);
+        message.success("已审核");
+      }
+    } catch (e) {
+      message.error(errMsg(e, un ? "反审核失败" : "审核失败"));
     }
   };
 
@@ -421,14 +574,21 @@ export default function AssemblyPurchaseOrderPage() {
     { title: "金额", dataIndex: "金额", width: 105, align: "right", render: (_v, r) => money(r.金额) },
   ];
 
+  const patchAccessory = (key: number, patch: Partial<AccessoryLine>) =>
+    setAccessoryLines(rows => rows.map(r => (r.key === key ? { ...r, ...patch } : r)));
+
   const accessoryColumns: ColumnsType<AccessoryLine> = [
     { title: "序号", dataIndex: "序号", width: 55 },
     { title: "辅料编号", dataIndex: "辅料编号", width: 110 },
     { title: "辅料名称", dataIndex: "辅料名称", width: 170 },
     { title: "加工总数量", dataIndex: "加工总数量", width: 105, align: "right" },
     { title: "单个产品需求量", dataIndex: "单个产品需求量", width: 130, align: "right" },
-    { title: "需求数(g)", dataIndex: "需求数克", width: 95, align: "right" },
-    { title: "需求数(个)", dataIndex: "需求数个", width: 95, align: "right" },
+    { title: "需求数(g)", dataIndex: "需求数克", width: 95, align: "right", render: (_v, r) => (
+      <InputNumber min={0} style={{ width: 82 }} value={r.需求数克} disabled={approved} onChange={n => patchAccessory(r.key, { 需求数克: n ?? undefined })} />
+    ) },
+    { title: "需求数(个)", dataIndex: "需求数个", width: 95, align: "right", render: (_v, r) => (
+      <InputNumber min={0} style={{ width: 82 }} value={r.需求数个} disabled={approved} onChange={n => patchAccessory(r.key, { 需求数个: n ?? undefined })} />
+    ) },
   ];
 
   return (
@@ -439,16 +599,16 @@ export default function AssemblyPurchaseOrderPage() {
         <Space wrap>
           <Button icon={<FileAddOutlined />} onClick={reset}>新建</Button>
           <Button icon={<FolderOpenOutlined />} onClick={openDocList}>打开</Button>
-          <Button icon={<SaveOutlined />} disabled onClick={() => message.warning("当前数据库没有装配加工采购单落库表，暂不能保存")}>保存</Button>
-          <Button disabled>删除</Button>
-          <Button disabled>前单</Button>
-          <Button disabled>后单</Button>
-          <Button disabled>审核</Button>
-          <Button disabled>反审核</Button>
+          <Button icon={<SaveOutlined />} type="primary" loading={saving} disabled={!canSaveDoc || approved} onClick={save}>保存</Button>
+          <Button disabled={!docNo || approved || !canDeleteDoc} onClick={removeDoc}>删除</Button>
+          <Button disabled={!docNo || saving} onClick={() => void move(false)}>前单</Button>
+          <Button disabled={!docNo || saving} onClick={() => void move(true)}>后单</Button>
+          <Button disabled={!docNo || approved || !canApproveDoc} onClick={() => approveDoc(false)}>审核</Button>
+          <Button disabled={!docNo || !approved || !canUnapproveDoc} onClick={() => approveDoc(true)}>反审核</Button>
           <Button disabled>刷新清单单价</Button>
           <Button icon={<TableOutlined />} disabled>表格设置</Button>
           <Button icon={<TableOutlined />} onClick={() => rebuildAccessories(bomMaterials, totalQty)}>辅料表</Button>
-          <Button icon={<PrinterOutlined />} disabled>打印</Button>
+          <Button icon={<PrinterOutlined />} disabled={!canPrintDoc} onClick={() => window.print()}>打印</Button>
           <Button disabled>文本导出</Button>
           <Button danger icon={<CloseOutlined />} onClick={() => window.history.back()}>关闭</Button>
         </Space>
@@ -558,14 +718,15 @@ export default function AssemblyPurchaseOrderPage() {
           scroll={{ x: "max-content", y: 440 }}
           onRow={r => ({ onClick: () => openGeneratedDoc(r.单号), style: { cursor: "pointer" } })}
           columns={[
-            { title: "开单日期", dataIndex: "开单日期", width: 105, render: fmtDate },
-            { title: "单号", dataIndex: "单号", width: 120, render: (v: string) => <a className="erp-num">{v}</a> },
+            { title: "开单日期", dataIndex: "日期", width: 105, render: fmtDate },
+            { title: "单号", dataIndex: "单号", width: 150, render: (v: string) => <a className="erp-num">{v}</a> },
             { title: "供应商名称", dataIndex: "供应商名称", width: 160 },
-            { title: "产品货号", dataIndex: "产品货号", width: 130 },
-            { title: "配件编号", dataIndex: "配件编号", width: 110 },
-            { title: "产品装配名称", dataIndex: "产品装配名称", width: 170 },
-            { title: "生产单号", dataIndex: "生产单号", width: 130 },
+            { title: "客户名称", dataIndex: "客户名称", width: 140 },
+            { title: "收货仓库", dataIndex: "收货仓库", width: 100 },
             { title: "数量", dataIndex: "数量", width: 90, align: "right" },
+            { title: "金额", dataIndex: "金额", width: 100, align: "right", render: money },
+            { title: "审核", dataIndex: "审核", width: 70, render: (v?: string) => (v === "1" ? "已审核" : "未审核") },
+            { title: "操作员", dataIndex: "操作员", width: 90 },
           ]}
         />
       </Modal>

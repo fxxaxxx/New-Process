@@ -225,7 +225,7 @@ export default function SemiFinishedShortageAnalysisPage() {
         loading={loading}
         dataSource={rows}
         columns={columns}
-        scroll={{ x: 1450 }}
+        scroll={{ x: 1450, y: "calc(100vh - 300px)" }}
         locale={{ emptyText: "暂无欠料数据" }}
         pagination={{
           current: activeQuery.page,

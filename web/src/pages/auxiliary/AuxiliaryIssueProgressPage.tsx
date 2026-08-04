@@ -23,6 +23,7 @@ import dayjs, { type Dayjs } from "dayjs";
 import { auxiliaryIssueProgressApi } from "../../api/auxiliaryIssueProgress";
 import { can } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
+import { printTable, type ExportCol } from "../../utils/tableExport";
 import {
   buildAuxiliaryIssueProgressQuery,
   getAuxiliaryIssueProgressTextColor,
@@ -104,6 +105,20 @@ export default function AuxiliaryIssueProgressPage() {
     { title: "操作员", dataIndex: "操作员", width: 120, render: text },
   ];
 
+  const exportCols: ExportCol[] = [
+    { title: "开单日期", key: "开单日期" },
+    { title: "装配生产单号", key: "装配生产单号" },
+    { title: "领料备注", key: "领料备注" },
+    { title: "辅料编号", key: "辅料编号" },
+    { title: "辅料名称", key: "辅料名称" },
+    { title: "规格", key: "规格" },
+    { title: "单位", key: "单位" },
+    { title: "需求数量", key: "需求数量", fmt: v => Number(v ?? 0).toLocaleString() },
+    { title: "已领数量", key: "已领数量", fmt: v => Number(v ?? 0).toLocaleString() },
+    { title: "未领数量", key: "未领数量", fmt: v => Number(v ?? 0).toLocaleString() },
+    { title: "操作员", key: "操作员" },
+  ];
+
   return (
     <Card
       title="辅料出库进度表"
@@ -146,7 +161,7 @@ export default function AuxiliaryIssueProgressPage() {
         <DatePicker size="small" value={endDate} onChange={value => value && setEndDate(value)} />
         <Button size="small" icon={<TableOutlined />} disabled>表格设置</Button>
         <Button size="small" icon={<ExportOutlined />} disabled>导出EXCEL</Button>
-        <Button size="small" icon={<PrinterOutlined />} disabled>打印</Button>
+        <Button size="small" icon={<PrinterOutlined />} onClick={() => printTable("辅料出库进度表", exportCols, displayRows as unknown as Record<string, unknown>[])}>打印</Button>
         <Button size="small" danger icon={<CloseOutlined />} onClick={() => window.history.back()}>关闭</Button>
       </Space>
 

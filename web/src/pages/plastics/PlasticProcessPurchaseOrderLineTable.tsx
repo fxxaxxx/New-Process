@@ -1,5 +1,5 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
-import { Button, Input, InputNumber, Table } from "antd";
+import { Button, Input, InputNumber, Select, Table } from "antd";
 import { PlusOutlined, SearchOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import PlasticMaterialPicker from "./PlasticMaterialPicker";
@@ -48,6 +48,17 @@ export default function PlasticProcessPurchaseOrderLineTable({ value, onChange, 
     { title: "用料名称", dataIndex: "用料名称", width: 130, render: (_, r, i) => txt(r.用料名称, s => setLine(i, { 用料名称: s }), 118) },
     { title: "颜色", dataIndex: "颜色", width: 80, render: (_, r, i) => txt(r.颜色, s => setLine(i, { 颜色: s }), 68) },
     { title: "加工内容", dataIndex: "加工内容", width: 130, render: (_, r, i) => txt(r.加工内容, s => setLine(i, { 加工内容: s }), 118) },
+    {
+      title: "加工次序", dataIndex: "加工次序", width: 96,
+      filters: [{ text: "第一次", value: "第一次" }, { text: "第二次", value: "第二次" }],
+      onFilter: (v, r) => (r.加工次序 ?? "") === v,
+      render: (_, r, i) => (
+        <Select style={{ width: 84 }} allowClear disabled={readOnly} value={r.加工次序 ?? undefined}
+          options={["第一次", "第二次"].map(v => ({ value: v, label: v }))}
+          onChange={v => setLine(i, { 加工次序: v ?? undefined })} />
+      ),
+    },
+    { title: "加工字母", dataIndex: "加工字母", width: 76, render: (_, r, i) => txt(r.加工字母, s => setLine(i, { 加工字母: s }), 56) },
     { title: "数量", dataIndex: "数量", width: 92, render: (_, r, i) => <InputNumber min={0} precision={2} style={{ width: 80 }} disabled={readOnly} value={r.数量 ?? 0} onChange={n => setLine(i, { 数量: Number(n ?? 0) })} /> },
     ...(hidePrice ? [] : [
       { title: "单价", dataIndex: "单价", width: 92, render: (_: unknown, r: PPPOLine, i: number) => <InputNumber min={0} precision={2} style={{ width: 80 }} disabled={readOnly} value={r.单价 ?? 0} onChange={n => setLine(i, { 单价: Number(n ?? 0) })} /> },

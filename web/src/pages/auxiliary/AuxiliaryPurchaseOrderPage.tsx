@@ -32,6 +32,7 @@ import {
 import dayjs, { type Dayjs } from "dayjs";
 import { materialMasterApi, type MaterialRow } from "../../api/materialMaster";
 import { masterApi } from "../../api/master";
+import { purchaseMaterialSettingsApi } from "../../api/purchaseMaterialSettings";
 import { purchaseOrderApi, type PurchaseOrderHeader, type PurchaseOrderLine } from "../../api/purchaseOrders";
 import { can } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
@@ -40,9 +41,12 @@ import {
   AUXILIARY_PURCHASE_ORDER_CATEGORY,
   buildAuxiliaryPurchasePayload,
   createAuxiliaryPurchaseLines,
+  minOrderPrefill,
+  resolveDefaultSupplier,
   summarizeAuxiliaryPurchaseLines,
   type AuxiliaryPurchaseLine,
 } from "../../utils/auxiliaryPurchaseOrder";
+import { adjacentDocNo } from "../../utils/docNav";
 
 const API_MENU = "采购订单";
 const currentUser = () => localStorage.getItem("erp_user") || "admin";
@@ -51,7 +55,6 @@ const money = (value: number) => value.toFixed(2);
 const supplierApi = masterApi("suppliers");
 
 interface SupplierRow {
-  ID?: number;
   供应商编号?: string;
   供应商名称?: string;
   供应商类别?: string;
@@ -89,6 +92,7 @@ export default function AuxiliaryPurchaseOrderPage() {
   const canDelete = can(perms, API_MENU, "删除");
   const canApprove = can(perms, API_MENU, "审核");
   const canUnapprove = can(perms, API_MENU, "反审核");
+  const canPrint = can(perms, API_MENU, "打印");
   const [form] = Form.useForm<HeaderForm>();
   const [lines, setLines] = useState<AuxiliaryPurchaseLine[]>(() => createAuxiliaryPurchaseLines(20));
   const [openedNo, setOpenedNo] = useState<string | null>(null);
@@ -178,6 +182,41 @@ export default function AuxiliaryPurchaseOrderPage() {
       return normalizeLineNo(next);
     });
     setMaterialOpen(false);
+    void applyPurchaseSettings(picked);
+  };
+
+  // 采购物料设置消费: 选物料后 ① 表头供应商为空时按设置的默认供应商预填(精确匹配供应商资料);
+  // ② 行数量为空/0 时按最小订量预填并提示一次。设置未配置/查询失败时静默跳过。
+  const applyPurchaseSettings = async (picked: MaterialRow[]) => {
+    const codes = picked.map(m => (m.物料编号 ?? "").trim()).filter(Boolean);
+    if (codes.length === 0) return;
+    const settings = await Promise.all(codes.map(code =>
+      purchaseMaterialSettingsApi.lookup(code).catch(() => null)));
+
+    const minFills: string[] = [];
+    setLines(prev => prev.map(line => {
+      const idx = codes.indexOf((line.辅料编号 ?? "").trim());
+      if (idx < 0) return line;
+      const min = minOrderPrefill(line.数量, settings[idx]?.最小订量);
+      if (min == null) return line;
+      minFills.push(`${line.辅料编号}→${min}`);
+      return { ...line, 数量: min };
+    }));
+    if (minFills.length) message.info(`已按采购物料设置预填最小订量: ${minFills.join("、")}`);
+
+    const headerNo = String(form.getFieldValue("供应商编号") ?? "").trim();
+    const headerName = String(form.getFieldValue("供应商名称") ?? "").trim();
+    if (headerNo || headerName) return;
+    const candidate = settings.find(s => (s?.默认供应商 ?? "").trim());
+    if (!candidate?.默认供应商) return;
+    try {
+      const result = await supplierApi.list(1, 300, candidate.默认供应商.trim());
+      const hit = resolveDefaultSupplier(result.items as SupplierRow[], candidate.默认供应商);
+      if (hit) {
+        form.setFieldsValue({ 供应商编号: hit.供应商编号, 供应商名称: hit.供应商名称 });
+        message.info(`已按采购物料设置预填默认供应商: ${hit.供应商名称 ?? hit.供应商编号}`);
+      }
+    } catch { /* 供应商资料不可达则不预填 */ }
   };
 
   const loadSuppliers = useCallback(async () => {
@@ -328,6 +367,22 @@ export default function AuxiliaryPurchaseOrderPage() {
     }
   };
 
+  // 前单/后单：用列表端点拉采购订单，按单号升序定位相邻单（口径见 utils/docNav）
+  const move = async (next: boolean) => {
+    if (!openedNo) return;
+    setSaving(true);
+    try {
+      const result = await purchaseOrderApi.list(1, 1000, "");
+      const target = adjacentDocNo(result.items.filter(row => !row.生产单号).map(row => row.单号), openedNo, next);
+      if (!target) message.info(next ? "已经是最后一张单据" : "已经是第一张单据");
+      else await openDoc(target);
+    } catch {
+      message.error("切换单据失败");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const materialColumns: ColumnsType<MaterialRow> = [
     { title: "辅料编号", dataIndex: "物料编号", width: 125 },
     { title: "辅料名称", dataIndex: "物料名称", width: 290 },
@@ -411,12 +466,12 @@ export default function AuxiliaryPurchaseOrderPage() {
           <Button disabled>调入清单</Button>
           <Button icon={<ReloadOutlined />} onClick={loadMaterials}>刷新</Button>
           <Button disabled>资料</Button>
-          <Button disabled>前单</Button>
-          <Button disabled>后单</Button>
+          <Button disabled={!openedNo || saving} onClick={() => void move(false)}>前单</Button>
+          <Button disabled={!openedNo || saving} onClick={() => void move(true)}>后单</Button>
           <Button icon={<CheckOutlined />} disabled={!openedNo || openedAudit === "1" || !canApprove} onClick={approveDoc}>审核</Button>
           <Button disabled={!openedNo || openedAudit !== "1" || !canUnapprove} onClick={unapproveDoc}>反审核</Button>
           <Button icon={<TableOutlined />} disabled>表格设置</Button>
-          <Button icon={<PrinterOutlined />} disabled>打印</Button>
+          <Button icon={<PrinterOutlined />} disabled={!canPrint} onClick={() => window.print()}>打印</Button>
           <Button danger icon={<CloseOutlined />} onClick={() => window.history.back()}>关闭</Button>
         </Space>
       }
@@ -502,7 +557,7 @@ export default function AuxiliaryPurchaseOrderPage() {
           <Button size="small" danger icon={<CloseOutlined />} onClick={() => setSupplierOpen(false)}>关闭</Button>
         </Space>
         <Table
-          rowKey={(row, index) => String(row.ID ?? row.供应商编号 ?? index)}
+          rowKey={(row, index) => String(row.供应商编号 ?? index)}
           size="small"
           pagination={false}
           loading={supplierLoading}

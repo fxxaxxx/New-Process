@@ -60,7 +60,8 @@ export default function CuttingPage() {
           {can(perms, MENU, "保存") && <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>新建裁床单</Button>}
         </Space>
       }>
-      <Table rowKey="id" size="middle" dataSource={rows} columns={columns} scroll={{ x: true }}
+      <Table rowKey="id" size="middle" dataSource={rows} columns={columns}
+        scroll={{ x: "max-content", y: "calc(100vh - 300px)" }}
         pagination={{ current: page, pageSize: 10, total, onChange: setPage, showTotal: t => `共 ${t} 条` }} />
       <CuttingCreateDrawer open={creating} onClose={() => setCreating(false)} onCreated={load} />
       <CuttingDetailDrawer 裁床单号={viewing} onClose={() => setViewing(null)} />

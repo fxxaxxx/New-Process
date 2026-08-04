@@ -33,6 +33,7 @@ export default function OrderDetailDrawer({ 单号, onClose }: { 单号: string 
               { key: "9", label: "备注", children: h?.备注 ?? "-" },
             ]} />
           <Table size="small" rowKey="id" pagination={false} dataSource={detail.明细}
+            scroll={{ x: "max-content", y: 380 }}
             columns={[
               { title: "色号", dataIndex: "色号" }, { title: "颜色", dataIndex: "颜色" },
               { title: "尺码", dataIndex: "尺码" }, { title: "数量", dataIndex: "数量" },

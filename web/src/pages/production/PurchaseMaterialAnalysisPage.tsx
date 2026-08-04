@@ -87,7 +87,7 @@ export default function PurchaseMaterialAnalysisPage() {
 
       <Table
         size="small" rowKey="id" loading={loading} dataSource={rows}
-        columns={columns} scroll={{ x: 1180 }}
+        columns={columns} scroll={{ x: 1180, y: "calc(100vh - 300px)" }}
         pagination={{
           current: page, pageSize: PAGE_SIZE, total, showSizeChanger: false,
           onChange: setPage,

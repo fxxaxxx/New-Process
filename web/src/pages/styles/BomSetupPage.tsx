@@ -1,26 +1,36 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
-  Button, Card, Checkbox, Col, DatePicker, Form, Input, InputNumber, Modal, Popconfirm,
-  Result, Row, Select, Space, Table, Tabs, Tag, message,
+  AutoComplete, Button, Card, Checkbox, Col, DatePicker, Form, Input, InputNumber, Modal, Popconfirm,
+  Radio, Result, Row, Select, Space, Table, Tabs, Tag, Upload, message,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import {
-  CheckOutlined, CloseOutlined, DeleteOutlined, FileAddOutlined,
-  FolderOpenOutlined, PlusOutlined, PrinterOutlined, SaveOutlined,
+  CheckOutlined, CloseOutlined, CopyOutlined, DeleteOutlined, FileAddOutlined,
+  FolderOpenOutlined, ImportOutlined, PlusOutlined, PrinterOutlined, SaveOutlined,
+  UploadOutlined,
 } from "@ant-design/icons";
 import dayjs, { type Dayjs } from "dayjs";
-import { stylesApi, type BomSave, type StyleListItem } from "../../api/styles";
+import { stylesApi, type BomSave, type SemiOption, type StyleListItem } from "../../api/styles";
 import { api } from "../../api/client";
 import { masterApi } from "../../api/master";
 import { can } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
+import { toDocCurrency, useFeatureSettings } from "../../auth/featureSettings";
+import ImageNotesPanel from "../../components/ImageNotesPanel";
+import { codeName } from "../../utils/codeName";
+import {
+  decodeCsvBuffer, parseBomImport, validateBomImportRows,
+  type BomImportCheckedRow,
+} from "../../utils/bomImport";
 
 const MENU = "款号资料";
 const materialsApi = masterApi("materials");
 const customersApi = masterApi("customers");
 const suppliersApi = masterApi("suppliers");
 const factoriesApi = masterApi("factories");
+// 报价类别主数据：表头 默认单价 下拉数据源
+const quoteCategoriesApi = masterApi("quote-categories");
 
 interface CustomerPick {
   客户编号?: string;
@@ -73,7 +83,7 @@ interface QuoteRow {
   ID?: number;
   物料编号?: string;
   物料名称?: string;
-  类型: "加工厂" | "供应商";
+  类型: "本厂" | "加工厂" | "供应商";
   编号: string;
   名称: string;
   报价日期: string;
@@ -104,6 +114,8 @@ interface HeaderForm {
   备注?: string;
   需求用量?: number;
   单位?: string;
+  默认单价?: string;
+  类型?: string;
 }
 
 let rowSeq = 1;
@@ -124,13 +136,13 @@ const newRow = (): MatRow => ({
   备注: "",
 });
 const blankRows = (count = 8) => Array.from({ length: count }, () => newRow());
-const newQuoteRow = (patch: Partial<QuoteRow> = {}): QuoteRow => ({
+const newQuoteRow = (patch: Partial<QuoteRow> = {}, defaultCurrency = "HK$"): QuoteRow => ({
   key: qid(),
   类型: "供应商",
   编号: "",
   名称: "",
   报价日期: dayjs().format("YYYY-MM-DD"),
-  货币: "HK$",
+  货币: defaultCurrency,
   ...patch,
 });
 
@@ -155,6 +167,8 @@ export default function BomSetupPage() {
   const [sp] = useSearchParams();
   const loc = useLocation();
   const navigate = useNavigate();
+  // 功能设置消费: 新报价行货币默认取 系统.默认货币(HKD→HK$ 写法对齐页面选项)
+  const defaultCurrency = toDocCurrency(useFeatureSettings().默认货币);
   const 款号Param = sp.get("款号");
   const returnTo = sp.get("return");
   const isAssembly = loc.pathname.includes("assembly");
@@ -167,22 +181,32 @@ export default function BomSetupPage() {
   const [saving, setSaving] = useState(false);
   const [auditSaving, setAuditSaving] = useState(false);
   const [audited, setAudited] = useState(false);
+  // BOM 台头审核状态（款号物料总表.审核='1'）及按钮提交态，仅 BOM 入口使用
+  const [bomAudited, setBomAudited] = useState(false);
+  const [bomAuditSaving, setBomAuditSaving] = useState(false);
   const [hasExtensionData, setHasExtensionData] = useState(false);
   const [hasQuoteData, setHasQuoteData] = useState(false);
   const readOnly = audited;
 
   const [customers, setCustomers] = useState<CustomerPick[]>([]);
   const [styles, setStyles] = useState<StyleListItem[]>([]);
+  const [quoteCategories, setQuoteCategories] = useState<string[]>([]);
 
   const [openModal, setOpenModal] = useState(false);
   const [openRows, setOpenRows] = useState<StyleListItem[]>([]);
   const [openKw, setOpenKw] = useState("");
   const [openLoading, setOpenLoading] = useState(false);
 
+  const [copyOpen, setCopyOpen] = useState(false);
+  const [copyTarget, setCopyTarget] = useState<string>();
+  const [copying, setCopying] = useState(false);
+
   const [pickRowKey, setPickRowKey] = useState<number | null>(null);
   const [pickRows, setPickRows] = useState<MaterialPick[]>([]);
   const [pickKw, setPickKw] = useState("");
   const [pickLoading, setPickLoading] = useState(false);
+  const [pickTab, setPickTab] = useState<"material" | "semi">("material");
+  const [semiOptions, setSemiOptions] = useState<SemiOption[]>([]);
 
   const [partnerOpen, setPartnerOpen] = useState(false);
   const [partnerTab, setPartnerTab] = useState<"factory" | "supplier">("supplier");
@@ -192,6 +216,16 @@ export default function BomSetupPage() {
   const [partnerForRow, setPartnerForRow] = useState<number | null>(null);
   const [partnerForQuote, setPartnerForQuote] = useState<number | null>(null);
   const loadVersion = useRef(0);
+
+  // 表格导入：粘贴 TSV / 上传 CSV → 解析校验 → 预览 → 填入明细网格
+  const [importOpen, setImportOpen] = useState(false);
+  const [importTab, setImportTab] = useState<"paste" | "file">("paste");
+  const [importText, setImportText] = useState("");
+  const [importRows, setImportRows] = useState<BomImportCheckedRow[]>([]);
+  const [importHasHeader, setImportHasHeader] = useState(false);
+  const [importMode, setImportMode] = useState<"append" | "replace">("append");
+  const [importMaster, setImportMaster] = useState<Map<string, MaterialPick> | null>(null);
+  const [importLoading, setImportLoading] = useState(false);
 
   const patch = (key: number, p: Partial<MatRow>) =>
     setRows(rs => rs.map(r => (r.key === key ? { ...r, ...p } : r)));
@@ -204,6 +238,7 @@ export default function BomSetupPage() {
     loadVersion.current += 1;
     setLoaded款号("");
     setAudited(false);
+    setBomAudited(false);
     setHasExtensionData(false);
     setHasQuoteData(false);
     form.resetFields();
@@ -213,6 +248,7 @@ export default function BomSetupPage() {
       库存单价HK: 0,
       需求用量: 1,
       单位: "PCS",
+      类型: "明细",
       操作员: currentUser,
     });
     setRows(blankRows());
@@ -234,8 +270,28 @@ export default function BomSetupPage() {
       } catch {
         message.error("加载客户/产品货号资料失败");
       }
+      // 报价类别（默认单价下拉）：失败时静默降级为无选项，仍可保存空值
+      try {
+        const r = await quoteCategoriesApi.list(1, 1000, "");
+        const names = r.items
+          .map(c => String(c.类别 ?? c.名称 ?? "").trim())
+          .filter(Boolean);
+        setQuoteCategories([...new Set(names)]);
+      } catch { /* 类别加载失败时保持空选项 */ }
     })();
+    // 已设置的半成品款号：BOM 明细可调入下级半成品（接口缺失/失败时静默降级为不可选）
+    stylesApi.semiOptions?.().then(list => setSemiOptions(list ?? [])).catch(() => {});
   }, [canOpen]);
+
+  // 半成品判定集（与后端一致）：编号在 半成品共用物料设置.产品货号 中即为半成品行
+  const semiSet = useMemo(() => new Set(semiOptions.map(s => s.款号)), [semiOptions]);
+
+  const filteredSemiOptions = useMemo(() => {
+    const kw = pickKw.trim().toLowerCase();
+    if (!kw) return semiOptions;
+    return semiOptions.filter(s =>
+      `${s.款号} ${s.款式 ?? ""} ${s.类别 ?? ""}`.toLowerCase().includes(kw));
+  }, [semiOptions, pickKw]);
 
   const productOptions = useMemo(() =>
     styles
@@ -246,7 +302,7 @@ export default function BomSetupPage() {
   const customerOptions = useMemo(() =>
     customers
       .filter(c => c.客户编号)
-      .map(c => ({ value: c.客户编号!, label: `${c.客户编号} ${c.客户名称 ?? ""}` })),
+      .map(c => ({ value: c.客户编号!, label: codeName(c.客户编号, c.客户名称) })),
   [customers]);
 
   const rowsFromMaterials = (materials: MaterialPick[]) => {
@@ -280,17 +336,22 @@ export default function BomSetupPage() {
         && Object.prototype.hasOwnProperty.call(full, "报价")
         && Array.isArray(full.报价);
       const extension = full.扩展;
+      // 单头=款号物料总表台头行；老数据为 null 时回落"第一行物料"水合（默认单价/类型给默认）
+      const head = full.单头 ?? null;
+      const doc日期 = head?.日期 ?? first?.日期;
       const current = form.getFieldsValue();
       setLoaded款号(key);
       setHasExtensionData(hasExtension);
       setHasQuoteData(hasQuotes);
       setAudited(hasExtension && Boolean(extension?.调整审核));
+      // BOM 台头审核状态：单头.审核='1' 为已审核（无台头视为未审核）
+      setBomAudited(head?.审核 === "1");
       form.setFieldsValue({
-        客户编号: preserveCustomer ? current.客户编号 : first?.客户编号 ?? current.客户编号,
-        客户名称: preserveCustomer ? current.客户名称 : first?.客户名称 ?? current.客户名称,
+        客户编号: preserveCustomer ? current.客户编号 : head?.客户编号 ?? first?.客户编号 ?? current.客户编号,
+        客户名称: preserveCustomer ? current.客户名称 : head?.客户名称 ?? first?.客户名称 ?? current.客户名称,
         产品货号: key,
         产品名称: String(full.款式 ?? ""),
-        日期: first?.日期 ? dayjs(first.日期) : current.日期 ?? dayjs(),
+        日期: doc日期 ? dayjs(doc日期) : current.日期 ?? dayjs(),
         配件编号: hasExtension ? extension?.配件编号 ?? undefined : undefined,
         共用物料编号: hasExtension ? extension?.共用物料编号 ?? undefined : undefined,
         装配方式: hasExtension ? extension?.装配方式 ?? undefined : undefined,
@@ -301,7 +362,9 @@ export default function BomSetupPage() {
         其他成本HK: hasExtension ? extension?.其他成本HK ?? undefined : undefined,
         需求用量: hasExtension ? extension?.需求用量 ?? 1 : undefined,
         备注: hasExtension ? extension?.备注内容 ?? undefined : undefined,
-        单位: hasExtension ? extension?.单位 ?? first?.单位 ?? "PCS" : first?.单位 ?? "PCS",
+        单位: hasExtension ? extension?.单位 ?? head?.单位 ?? first?.单位 ?? "PCS" : head?.单位 ?? first?.单位 ?? "PCS",
+        默认单价: head?.默认单价 ?? undefined,
+        类型: head?.类型 ?? "明细",
         操作员: current.操作员 ?? currentUser,
       });
       setRows(rowsFromMaterials((full.物料 ?? []) as MaterialPick[]));
@@ -312,7 +375,7 @@ export default function BomSetupPage() {
               ID: q.ID ?? undefined,
               物料编号: q.物料编号 ?? undefined,
               物料名称: q.物料名称 ?? undefined,
-              类型: q.合作方类型 === "加工厂" ? "加工厂" : "供应商",
+              类型: q.合作方类型 === "加工厂" ? "加工厂" : q.合作方类型 === "本厂" ? "本厂" : "供应商",
               编号: q.合作方编号 ?? "",
               名称: q.合作方名称 ?? "",
               报价日期: q.报价日期 ? String(q.报价日期).slice(0, 10) : "",
@@ -341,42 +404,41 @@ export default function BomSetupPage() {
     else reset();
   }, [款号Param, loadDoc, reset]);
 
+  // 客户与产品货号已解除级联：客户独立赋值，不再清空货号/明细
   const onCustomerChange = (customerNo?: string) => {
-    loadVersion.current += 1;
     const picked = customers.find(c => c.客户编号 === customerNo);
     form.setFieldsValue({
       客户编号: customerNo,
       客户名称: picked?.客户名称,
-      产品货号: undefined,
-      产品名称: undefined,
     });
+  };
+
+  // 清空产品货号 → 回到新建态
+  const clearProduct = () => {
+    loadVersion.current += 1;
+    form.setFieldsValue({ 产品货号: undefined, 产品名称: undefined });
     setLoaded款号("");
     setRows(blankRows());
     setQuoteRows([]);
     setHasExtensionData(false);
     setHasQuoteData(false);
-    setPartnerForRow(null);
-    setPartnerForQuote(null);
+    setBomAudited(false);
   };
 
-  const onProductChange = async (productNo?: string) => {
-    if (!productNo) {
-      loadVersion.current += 1;
-      form.setFieldsValue({ 产品货号: undefined, 产品名称: undefined });
-      setLoaded款号("");
-      setRows(blankRows());
-      setQuoteRows([]);
-      setHasExtensionData(false);
-      setHasQuoteData(false);
-      return;
-    }
-    const customerNo = form.getFieldValue("客户编号");
-    if (!customerNo) {
-      message.warning("请先选择客户，再选择产品货号");
-      form.setFieldsValue({ 产品货号: undefined, 产品名称: undefined });
-      return;
-    }
-    await loadDoc(productNo, true);
+  // 选中款号（下拉选择/手输确认）：款式从款号总表带出到产品名称，再按现有逻辑载入该货号 BOM
+  const pickProduct = async (productNo: string) => {
+    const key = productNo.trim();
+    if (!key) { clearProduct(); return; }
+    const matched = styles.find(s => s.款号 === key);
+    if (matched) form.setFieldsValue({ 产品名称: matched.款式 ?? "" });
+    await loadDoc(key);
+  };
+
+  // 手输货号失焦时确认载入（与当前已载货号相同则不重复请求）
+  const onProductBlur = () => {
+    const v = String(form.getFieldValue("产品货号") ?? "").trim();
+    if (!v) { clearProduct(); return; }
+    if (v !== loaded款号) void pickProduct(v);
   };
 
   const loadOpenList = useCallback(async (kw: string) => {
@@ -393,7 +455,7 @@ export default function BomSetupPage() {
   const loadPickList = useCallback(async (kw: string) => {
     const productNo = form.getFieldValue("产品货号")?.trim();
     if (!productNo) {
-      message.warning("请先选择客户和产品货号");
+      message.warning("请先选择产品货号");
       return;
     }
     setPickLoading(true);
@@ -425,14 +487,14 @@ export default function BomSetupPage() {
   }, [form]);
 
   const openPicker = (rowKey: number) => {
-    const customerNo = form.getFieldValue("客户编号");
     const productNo = form.getFieldValue("产品货号");
-    if (!customerNo || !productNo) {
-      message.warning("请先选择客户和产品货号");
+    if (!productNo) {
+      message.warning("请先选择产品货号");
       return;
     }
     setPickRowKey(rowKey);
     setPickKw("");
+    setPickTab("material");
     loadPickList("");
   };
 
@@ -466,6 +528,24 @@ export default function BomSetupPage() {
     openPartnerPicker(pickRowKey, "supplier");
   };
 
+  // 调入下级半成品：行内存款号，用量默认取半成品的需求用量（可手工改）；半成品无需选供应商
+  const chooseSemi = (s: SemiOption) => {
+    if (pickRowKey == null) return;
+    patch(pickRowKey, {
+      物料编号: s.款号,
+      物料名称: s.款式 ?? "",
+      工模编号: "",
+      规格: "",
+      材料: s.类别 ?? "半成品",
+      颜色: "",
+      单位: s.单位 ?? "",
+      用量: s.需求用量 ?? 1,
+      备注: "",
+    });
+    setRows(prev => (prev.some(r => !r.物料编号 && !r.物料名称) ? prev : [...prev, newRow()]));
+    setPickRowKey(null);
+  };
+
   const loadPartnerList = useCallback(async () => {
     setPartnerLoading(true);
     try {
@@ -487,7 +567,7 @@ export default function BomSetupPage() {
     const isFactory = partnerTab === "factory";
     const 编号 = isFactory ? (row as FactoryPick).加工厂编号 ?? "" : (row as SupplierPick).供应商编号 ?? "";
     const 名称 = isFactory ? (row as FactoryPick).加工厂名称 ?? "" : (row as SupplierPick).供应商名称 ?? "";
-    const 货币 = isFactory ? "HK$" : (row as SupplierPick).货币 ?? "HK$";
+    const 货币 = isFactory ? defaultCurrency : (row as SupplierPick).货币 ?? defaultCurrency;
     if (partnerForQuote != null) {
       if (isAssembly) setHasQuoteData(true);
       setQuoteRows(prev => prev.map(q => q.key === partnerForQuote
@@ -506,7 +586,7 @@ export default function BomSetupPage() {
       货币,
       物料编号: mat?.物料编号,
       物料名称: mat?.物料名称,
-    });
+    }, defaultCurrency);
     if (isAssembly) setHasQuoteData(true);
     setQuoteRows(prev => [...prev.filter(q => q.物料编号 || q.物料名称 || q.编号 || q.名称), quote]);
     setPartnerOpen(false);
@@ -516,12 +596,86 @@ export default function BomSetupPage() {
   const addRow = () => setRows(rs => [...rs, newRow()]);
   const removeRow = (key: number) => setRows(rs => rs.filter(r => r.key !== key));
 
+  // 打开导入弹窗：一次性全量拉取物料档案建 Map 供逐行校验
+  const openImport = async () => {
+    if (!loaded款号) { message.warning("请先打开产品货号"); return; }
+    setImportTab("paste");
+    setImportText("");
+    setImportRows([]);
+    setImportHasHeader(false);
+    setImportMode("append");
+    setImportOpen(true);
+    if (importMaster) return;
+    setImportLoading(true);
+    try {
+      const r = await materialsApi.list(1, 1000, "");
+      const map = new Map<string, MaterialPick>();
+      for (const m of r.items as MaterialPick[]) {
+        const code = (m.物料编号 ?? "").replace(/\s/g, "");
+        if (code && !map.has(code)) map.set(code, m);
+      }
+      setImportMaster(map);
+    } catch {
+      message.error("加载物料档案失败，无法校验导入数据");
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  const applyImportText = (text: string) => {
+    if (!text.trim()) { setImportRows([]); setImportHasHeader(false); return; }
+    const { rows: parsed, hasHeader } = parseBomImport(text);
+    setImportHasHeader(hasHeader);
+    setImportRows(validateBomImportRows(parsed, importMaster ?? new Map()));
+  };
+
+  const readImportFile = async (file: File) => {
+    try {
+      const text = decodeCsvBuffer(await file.arrayBuffer());
+      setImportText(text);
+      applyImportText(text);
+    } catch {
+      message.error("读取文件失败");
+    }
+  };
+
+  const importValidCount = importRows.filter(r => !r.错误).length;
+
+  const doImport = () => {
+    const valid = importRows.filter(r => !r.错误);
+    const skipped = importRows.length - valid.length;
+    if (!valid.length) { message.warning("没有可导入的有效行"); return; }
+    const imported: MatRow[] = valid.map(r => ({
+      key: uid(),
+      物料编号: r.物料编号,
+      物料名称: r.material?.物料名称 ?? r.物料名称 ?? "",
+      工模编号: r.material?.工模编号 ?? "",
+      规格: r.material?.规格 ?? r.规格 ?? "",
+      材料: r.material?.材料 ?? r.material?.物料类别 ?? "",
+      颜色: r.material?.颜色 ?? r.颜色 ?? "",
+      单位: r.material?.单位 ?? r.单位 ?? "",
+      用量: r.使用数量,
+      备注: "",
+    }));
+    setRows(prev => {
+      const base = importMode === "replace"
+        ? []
+        : prev.filter(r => r.物料编号.trim() || r.物料名称.trim());
+      const merged = [...base, ...imported];
+      return merged.some(r => !r.物料编号 && !r.物料名称) ? merged : [...merged, newRow()];
+    });
+    message.success(`已导入 ${valid.length} 行${skipped ? `，跳过 ${skipped} 行无效数据` : ""}，请检查后保存`);
+    setImportOpen(false);
+  };
+
   const buildBody = (v: HeaderForm): BomSave => {
     const body: BomSave = {
       客户编号: v.客户编号 || undefined,
       客户名称: v.客户名称 || undefined,
       日期: v.日期 ? v.日期.format("YYYY-MM-DD") : undefined,
       单位: v.单位 || undefined,
+      默认单价: v.默认单价 || undefined,
+      类型: v.类型 || "明细",
       明细: rows
         .filter(r => r.物料编号.trim() || r.物料名称.trim())
         .map(r => ({
@@ -553,14 +707,14 @@ export default function BomSetupPage() {
     }
     if (hasQuoteData) {
       body.报价 = quoteRows
-        .filter(q => q.物料编号 || q.物料名称 || q.编号.trim() || q.名称.trim())
+        .filter(q => q.物料编号 || q.物料名称 || q.编号.trim() || q.名称.trim() || q.类型 === "本厂")
         .map((q, i) => ({
           ID: q.ID ?? null,
           物料编号: q.物料编号 || null,
           物料名称: q.物料名称 || null,
           合作方类型: q.类型,
-          合作方编号: q.编号.trim() || null,
-          合作方名称: q.名称.trim() || null,
+          合作方编号: q.类型 === "本厂" ? null : q.编号.trim() || null,
+          合作方名称: q.类型 === "本厂" ? null : q.名称.trim() || null,
           报价日期: q.报价日期 || null,
           货币: q.货币 || null,
           单价: canEditPrices ? q.单价 ?? null : null,
@@ -581,14 +735,25 @@ export default function BomSetupPage() {
     try { v = await form.validateFields(); }
     catch { return; }
     const key = (v.产品货号 ?? "").trim();
-    if (!v.客户编号) { message.error("请先选择客户"); return; }
     if (!key) { message.error("请先选择产品货号"); return; }
     const body = buildBody(v);
     if (body.明细.length === 0) { message.error("请至少选择一行物料"); return; }
     setSaving(true);
     try {
-      await stylesApi.saveMaterials(key, body);
+      const res = await stylesApi.saveMaterials(key, body);
       message.success("装配物料设置已保存");
+      // 后端警告（既调半成品又直接列其组成物料 → 重复扣料风险）：提示但不阻止
+      const warns = (res as { data?: { 警告?: string[] } } | undefined)?.data?.警告;
+      if (Array.isArray(warns) && warns.length > 0) {
+        Modal.warning?.({
+          title: "已保存，但存在重复扣料风险",
+          content: (
+            <ul style={{ paddingLeft: 18, marginBottom: 0 }}>
+              {warns.map((w, i) => <li key={i}>{w}</li>)}
+            </ul>
+          ),
+        });
+      }
       await loadDoc(key, true);
     } catch (e) {
       message.error(errMsg(e, "保存失败，请重试"));
@@ -610,6 +775,42 @@ export default function BomSetupPage() {
     }
   };
 
+  const openCopy = () => {
+    if (!loaded款号) { message.warning("请先打开要复制的产品货号"); return; }
+    setCopyTarget(undefined);
+    setCopyOpen(true);
+  };
+
+  const doCopy = async (覆盖 = false) => {
+    const source = loaded款号.trim();
+    const target = (copyTarget ?? "").trim();
+    if (!source) { message.warning("请先打开要复制的产品货号"); return; }
+    if (!target) { message.warning("请选择目标产品货号"); return; }
+    if (target === source) { message.warning("目标产品货号不能与源货号相同"); return; }
+    setCopying(true);
+    try {
+      await stylesApi.copyBom(source, { 目标款号: target, 覆盖 });
+      message.success(`已复制到 ${target}`);
+      setCopyOpen(false);
+    } catch (e) {
+      const status = (e as { response?: { status?: number } }).response?.status;
+      const msg = errMsg(e, "复制失败，请重试");
+      if (status === 409 && msg.includes("已有 BOM")) {
+        Modal.confirm({
+          title: "目标货号已有 BOM",
+          content: `${target} 已有 BOM 物料明细，确认覆盖？`,
+          okText: "覆盖",
+          cancelText: "取消",
+          onOk: () => doCopy(true),
+        });
+      } else {
+        message.error(msg);
+      }
+    } finally {
+      setCopying(false);
+    }
+  };
+
   const changeAudit = async () => {
     if (!isAssembly) return;
     const key = loaded款号 || form.getFieldValue("产品货号");
@@ -624,6 +825,24 @@ export default function BomSetupPage() {
       message.error(errMsg(e, audited ? "反审核失败" : "审核失败"));
     } finally {
       setAuditSaving(false);
+    }
+  };
+
+  // BOM 入口审核/反审核：翻转 款号物料总表.审核（与装配入口的 调整审核 互不影响）
+  const changeBomAudit = async () => {
+    if (isAssembly) return;
+    const key = loaded款号 || form.getFieldValue("产品货号");
+    if (!key || (bomAudited ? !canReverseAudit : !canAudit)) return;
+    setBomAuditSaving(true);
+    try {
+      if (bomAudited) await stylesApi.bomReverseAudit(key);
+      else await stylesApi.bomAudit(key);
+      message.success(bomAudited ? "已反审核" : "已审核");
+      await loadDoc(key, true);
+    } catch (e) {
+      message.error(errMsg(e, bomAudited ? "BOM反审核失败" : "BOM审核失败"));
+    } finally {
+      setBomAuditSaving(false);
     }
   };
 
@@ -646,9 +865,18 @@ export default function BomSetupPage() {
           <Button danger disabled={readOnly} icon={<DeleteOutlined />}>删除</Button>
         </Popconfirm>
       )}
+      {canSave && <Button icon={<CopyOutlined />} disabled={!loaded款号} onClick={openCopy}>复制单</Button>}
+      {canSave && <Button icon={<ImportOutlined />} disabled={readOnly || !loaded款号} onClick={openImport}>导入</Button>}
       {isAssembly && canAudit && !audited && <Button icon={<CheckOutlined />} loading={auditSaving} onClick={changeAudit}>审核</Button>}
       {isAssembly && canReverseAudit && audited && <Button icon={<CloseOutlined />} loading={auditSaving} onClick={changeAudit}>反审核</Button>}
-      <Button icon={<PrinterOutlined />} onClick={() => message.info("打印功能开发中")}>打印</Button>
+      {/* BOM 入口审核 BOM 台头（款号物料总表.审核），文案加 BOM 前缀与装配审核区分 */}
+      {!isAssembly && canAudit && !bomAudited && (
+        <Button icon={<CheckOutlined />} loading={bomAuditSaving} onClick={changeBomAudit} title="审核 BOM 台头（款号物料总表）">BOM审核</Button>
+      )}
+      {!isAssembly && canReverseAudit && bomAudited && (
+        <Button icon={<CloseOutlined />} loading={bomAuditSaving} onClick={changeBomAudit} title="反审核 BOM 台头（款号物料总表）">BOM反审核</Button>
+      )}
+      <Button icon={<PrinterOutlined />} onClick={() => window.print()}>打印</Button>
       <Button icon={<CloseOutlined />} onClick={close}>关闭</Button>
     </Space>
   );
@@ -704,6 +932,12 @@ export default function BomSetupPage() {
       ),
     },
     textCol("备注", "备注", 160),
+    {
+      title: "", width: 76, align: "center",
+      render: (_v, r) => (r.物料编号.trim() && semiSet.has(r.物料编号.trim())
+        ? <Tag color="purple">半成品</Tag>
+        : null),
+    },
   ];
 
   const quoteColumns: ColumnsType<QuoteRow> = [
@@ -725,10 +959,10 @@ export default function BomSetupPage() {
       render: (v, r) => (
          <Input.Search
            value={String(v ?? "")}
-           disabled={readOnly}
-          placeholder="选择"
+           disabled={readOnly || r.类型 === "本厂"}
+          placeholder={r.类型 === "本厂" ? "本厂无需选择" : "选择"}
           data-role="quote-partner"
-          onSearch={() => openPartnerPicker(null, r.类型 === "加工厂" ? "factory" : "supplier", r.key)}
+          onSearch={() => { if (r.类型 !== "本厂") openPartnerPicker(null, r.类型 === "加工厂" ? "factory" : "supplier", r.key); }}
           onChange={e => patchQuote(r.key, { 名称: e.target.value })}
         />
       ),
@@ -740,7 +974,7 @@ export default function BomSetupPage() {
            value={v}
            disabled={readOnly}
           style={{ width: 82 }}
-          options={[{ value: "供应商", label: "供应商" }, { value: "加工厂", label: "加工厂" }]}
+          options={[{ value: "本厂", label: "本厂" }, { value: "供应商", label: "供应商" }, { value: "加工厂", label: "加工厂" }]}
           onChange={val => patchQuote(r.key, { 类型: val, 编号: "", 名称: "" })}
         />
       ),
@@ -858,12 +1092,12 @@ export default function BomSetupPage() {
       >
         <Row gutter={12}>
           <Col span={3}>
-            <Form.Item name="客户编号" label="客户" rules={[{ required: true, message: "请先选择客户" }]}>
+            <Form.Item name="客户编号" label="客户">
               <Select
                 showSearch
                 allowClear
                 optionFilterProp="label"
-                placeholder="选择客户"
+                placeholder="选择客户（可选）"
                 options={customerOptions}
                 disabled={readOnly}
                 onChange={onCustomerChange}
@@ -873,51 +1107,86 @@ export default function BomSetupPage() {
           <Col span={3}><Form.Item name="客户名称" label="客户名称"><Input disabled /></Form.Item></Col>
           <Col span={4}>
             <Form.Item name="产品货号" label="产品货号" rules={[{ required: true, message: "请选择产品货号" }]}>
-              <Select
-                showSearch
+              <AutoComplete
                 allowClear
-                optionFilterProp="label"
-                placeholder="先选客户，再选货号"
+                placeholder="直接录入或选择产品货号"
                 options={productOptions}
-                disabled={readOnly || !form.getFieldValue("客户编号")}
-                onChange={onProductChange}
+                filterOption={(input, option) =>
+                  String(option?.label ?? "").toLowerCase().includes(input.toLowerCase())}
+                disabled={readOnly}
+                onChange={v => { if (!v) clearProduct(); }}
+                onSelect={v => void pickProduct(String(v))}
+                onBlur={onProductBlur}
               />
             </Form.Item>
           </Col>
-          <Col span={4}><Form.Item name="产品名称" label="产品名称"><Input disabled placeholder="由产品货号带出" /></Form.Item></Col>
-          <Col span={3}><Form.Item name="配件编号" label="配件编号"><Input disabled={readOnly} /></Form.Item></Col>
-          <Col span={3}><Form.Item name="共用物料编号" label="共用物料编号"><Input disabled={readOnly} /></Form.Item></Col>
+          <Col span={4}><Form.Item name="产品名称" label="产品名称"><Input disabled={readOnly} placeholder="由产品货号带出" /></Form.Item></Col>
+          {isAssembly && <Col span={3}><Form.Item name="配件编号" label="配件编号"><Input disabled={readOnly} /></Form.Item></Col>}
+          {isAssembly && <Col span={3}><Form.Item name="共用物料编号" label="共用物料编号"><Input disabled={readOnly} /></Form.Item></Col>}
           <Col span={4}><Form.Item name="日期" label="日期"><DatePicker disabled={readOnly} style={{ width: "100%" }} /></Form.Item></Col>
         </Row>
         <Row gutter={12}>
-          <Col span={4}><Form.Item name="装配方式" label="装配方式"><Input disabled={readOnly} /></Form.Item></Col>
-          <Col span={5}><Form.Item name="产品装配名称" label="产品装配名称"><Input disabled={readOnly} /></Form.Item></Col>
-          <Col span={4}>
-            <Form.Item name="类别" label="类别">
-              <Select disabled={readOnly} options={["未包装半成品", "半成品", "成品"].map(v => ({ value: v, label: v }))} />
-            </Form.Item>
-          </Col>
-          <Col span={3}>
-            {canEditPrices
-              ? <Form.Item name="库存单价HK" label="库存单价(HK$)"><InputNumber data-price-field="extension-inventory-price" disabled={readOnly} min={0} style={{ width: "100%" }} /></Form.Item>
-              : <Form.Item label="库存单价(HK$)"><Input data-price-field="extension-inventory-price" disabled value="***" /></Form.Item>}
-          </Col>
-          <Col span={3}><Form.Item name="需求用量" label="需求用量"><InputNumber disabled={readOnly} min={0} style={{ width: "100%" }} /></Form.Item></Col>
+          {isAssembly && <Col span={4}><Form.Item name="装配方式" label="装配方式"><Input disabled={readOnly} /></Form.Item></Col>}
+          {isAssembly && <Col span={5}><Form.Item name="产品装配名称" label="产品装配名称"><Input disabled={readOnly} /></Form.Item></Col>}
+          {isAssembly && (
+            <Col span={4}>
+              <Form.Item name="类别" label="类别">
+                <Select disabled={readOnly} options={["未包装半成品", "半成品", "成品"].map(v => ({ value: v, label: v }))} />
+              </Form.Item>
+            </Col>
+          )}
+          {isAssembly && (
+            <Col span={3}>
+              {canEditPrices
+                ? <Form.Item name="库存单价HK" label="库存单价(HK$)"><InputNumber data-price-field="extension-inventory-price" disabled={readOnly} min={0} style={{ width: "100%" }} /></Form.Item>
+                : <Form.Item label="库存单价(HK$)"><Input data-price-field="extension-inventory-price" disabled value="***" /></Form.Item>}
+            </Col>
+          )}
+          {isAssembly && <Col span={3}><Form.Item name="需求用量" label="需求用量"><InputNumber disabled={readOnly} min={0} style={{ width: "100%" }} /></Form.Item></Col>}
           <Col span={2}><Form.Item name="单位" label="单位"><Input disabled={readOnly} placeholder="PCS" /></Form.Item></Col>
           <Col span={3}><Form.Item name="操作员" label="操作员"><Input disabled /></Form.Item></Col>
         </Row>
         <Row gutter={12}>
-          <Col span={4}>
-            {canEditPrices
-              ? <Form.Item name="其他成本HK" label="其他成本(HK$)"><InputNumber data-price-field="extension-other-cost" disabled={readOnly} min={0} style={{ width: "100%" }} /></Form.Item>
-              : <Form.Item label="其他成本(HK$)"><Input data-price-field="extension-other-cost" disabled value="***" /></Form.Item>}
-          </Col>
-          <Col span={4}>
-            <Form.Item name="半成品计算库存" label="半成品计算库存" valuePropName="checked">
-              <Checkbox disabled={readOnly}>计算库存</Checkbox>
+          {isAssembly && (
+            <Col span={4}>
+              {canEditPrices
+                ? <Form.Item name="其他成本HK" label="其他成本(HK$)"><InputNumber data-price-field="extension-other-cost" disabled={readOnly} min={0} style={{ width: "100%" }} /></Form.Item>
+                : <Form.Item label="其他成本(HK$)"><Input data-price-field="extension-other-cost" disabled value="***" /></Form.Item>}
+            </Col>
+          )}
+          {isAssembly && (
+            <Col span={4}>
+              <Form.Item name="半成品计算库存" label="半成品计算库存" valuePropName="checked">
+                <Checkbox disabled={readOnly}>计算库存</Checkbox>
+              </Form.Item>
+            </Col>
+          )}
+          <Col span={3}>
+            <Form.Item name="默认单价" label="默认单价">
+              <Select
+                allowClear
+                showSearch
+                optionFilterProp="label"
+                placeholder="默认单价(HK)"
+                disabled={readOnly}
+                options={quoteCategories.map(c => ({ value: c, label: c }))}
+              />
             </Form.Item>
           </Col>
-          <Col span={10}><Form.Item name="备注" label="备注"><Input disabled={readOnly} /></Form.Item></Col>
+          <Col span={3}>
+            <Form.Item name="类型" label="类型">
+              <Select disabled={readOnly} options={["明细", "汇总"].map(v => ({ value: v, label: v }))} />
+            </Form.Item>
+          </Col>
+          {/* BOM 台头审核状态（仅 BOM 入口展示；新建无台头也按未审核显示） */}
+          {!isAssembly && (
+            <Col span={2}>
+              <Form.Item label="审核状态">
+                {bomAudited ? <Tag color="green">已审核</Tag> : <Tag>未审核</Tag>}
+              </Form.Item>
+            </Col>
+          )}
+          <Col span={isAssembly ? 10 : 8}><Form.Item name="备注" label="备注"><Input disabled={readOnly} /></Form.Item></Col>
         </Row>
       </Form>
 
@@ -933,7 +1202,7 @@ export default function BomSetupPage() {
               </Row>
             ),
           },
-          { key: "img", label: "尺寸图片备注", children: <div style={{ padding: 24, color: "#999" }}>功能开发中</div> },
+          { key: "img", label: "尺寸图片备注", children: <ImageNotesPanel 模块="BOM" 单号={loaded款号} canEdit={canSave} emptyHint="请先打开一个产品货号" /> },
         ]}
       />
 
@@ -954,31 +1223,89 @@ export default function BomSetupPage() {
         />
       </Modal>
 
-      <Modal title="选择该货号的物料" open={pickRowKey != null} footer={null} width={980} onCancel={() => setPickRowKey(null)}>
+      <Modal
+        title={`复制单 · ${loaded款号}`}
+        open={copyOpen}
+        okText="复制"
+        cancelText="取消"
+        confirmLoading={copying}
+        onOk={() => doCopy(false)}
+        onCancel={() => setCopyOpen(false)}
+      >
+        <Form layout="vertical" size="small" style={{ marginTop: 12 }}>
+          <Form.Item label="目标产品货号" required>
+            <Select
+              showSearch
+              allowClear
+              optionFilterProp="label"
+              placeholder="选择目标产品货号"
+              options={productOptions.filter(o => o.value !== loaded款号)}
+              value={copyTarget}
+              onChange={v => setCopyTarget(v)}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal title="选择该货号的物料/下级半成品" open={pickRowKey != null} footer={null} width={980} onCancel={() => setPickRowKey(null)}>
         <Input.Search
           placeholder="搜索物料编号/物料名称/规格" allowClear style={{ marginBottom: 12, width: 320 }}
           value={pickKw} onChange={e => setPickKw(e.target.value)}
-          onSearch={loadPickList}
+          onSearch={v => { if (pickTab === "semi") setPickKw(v); else loadPickList(v); }}
         />
-        <Table<MaterialPick>
-          size="small"
-          rowKey={(_, i) => `m-${i}`}
-          loading={pickLoading}
-          dataSource={pickRows}
-          scroll={{ y: 420, x: "max-content" }}
-          pagination={false}
-          onRow={r => ({ onClick: () => choosePick(r), style: { cursor: "pointer" } })}
-          columns={[
-            { title: "款号", dataIndex: "款号", width: 120 },
-            { title: "物料编号", dataIndex: "物料编号", width: 130, render: (v: string) => <a className="erp-num">{v}</a> },
-            { title: "工模编号", dataIndex: "工模编号", width: 130 },
-            { title: "物料名称", dataIndex: "物料名称", width: 220 },
-            { title: "规格", dataIndex: "规格", width: 140 },
-            { title: "材料", dataIndex: "物料类别", width: 120 },
-            { title: "颜色", dataIndex: "颜色", width: 100 },
-            { title: "单位", dataIndex: "单位", width: 80 },
-            { title: "用量", dataIndex: "使用数量", width: 90 },
-            { title: "备注", dataIndex: "备注", width: 180 },
+        <Tabs
+          activeKey={pickTab}
+          onChange={k => setPickTab(k as "material" | "semi")}
+          items={[
+            {
+              key: "material",
+              label: "物料",
+              children: (
+                <Table<MaterialPick>
+                  size="small"
+                  rowKey={(_, i) => `m-${i}`}
+                  loading={pickLoading}
+                  dataSource={pickRows}
+                  scroll={{ y: 420, x: "max-content" }}
+                  pagination={false}
+                  onRow={r => ({ onClick: () => choosePick(r), style: { cursor: "pointer" } })}
+                  columns={[
+                    { title: "款号", dataIndex: "款号", width: 120 },
+                    { title: "物料编号", dataIndex: "物料编号", width: 130, render: (v: string) => <a className="erp-num">{v}</a> },
+                    { title: "工模编号", dataIndex: "工模编号", width: 130 },
+                    { title: "物料名称", dataIndex: "物料名称", width: 220 },
+                    { title: "规格", dataIndex: "规格", width: 140 },
+                    { title: "材料", dataIndex: "物料类别", width: 120 },
+                    { title: "颜色", dataIndex: "颜色", width: 100 },
+                    { title: "单位", dataIndex: "单位", width: 80 },
+                    { title: "用量", dataIndex: "使用数量", width: 90 },
+                    { title: "备注", dataIndex: "备注", width: 180 },
+                  ]}
+                />
+              ),
+            },
+            {
+              key: "semi",
+              label: "半成品",
+              children: (
+                <Table<SemiOption>
+                  size="small"
+                  rowKey="款号"
+                  dataSource={filteredSemiOptions}
+                  scroll={{ y: 420, x: "max-content" }}
+                  pagination={false}
+                  locale={{ emptyText: "尚无已设置的半成品款号" }}
+                  onRow={r => ({ onClick: () => chooseSemi(r), style: { cursor: "pointer" } })}
+                  columns={[
+                    { title: "半成品款号", dataIndex: "款号", width: 140, render: (v: string) => <a className="erp-num">{v}</a> },
+                    { title: "产品名称", dataIndex: "款式", width: 240 },
+                    { title: "类别", dataIndex: "类别", width: 140, render: (v: string) => (v ? <Tag color="purple">{v}</Tag> : null) },
+                    { title: "需求用量", dataIndex: "需求用量", width: 100 },
+                    { title: "单位", dataIndex: "单位", width: 90 },
+                  ]}
+                />
+              ),
+            },
           ]}
         />
       </Modal>
@@ -1007,6 +1334,95 @@ export default function BomSetupPage() {
           pagination={false}
           onRow={r => ({ onClick: () => choosePartner(r), style: { cursor: "pointer" } })}
         />
+      </Modal>
+
+      <Modal
+        title={`导入物料明细 · ${loaded款号}`}
+        open={importOpen}
+        width={900}
+        okText="确定导入"
+        cancelText="取消"
+        okButtonProps={{ disabled: !importValidCount }}
+        onOk={doImport}
+        onCancel={() => setImportOpen(false)}
+      >
+        <Space direction="vertical" style={{ width: "100%" }} size={12}>
+          <Tabs
+            activeKey={importTab}
+            onChange={k => setImportTab(k as "paste" | "file")}
+            items={[
+              {
+                key: "paste",
+                label: "粘贴 Excel 内容",
+                children: (
+                  <Space direction="vertical" style={{ width: "100%" }} size={8}>
+                    <Input.TextArea
+                      rows={6}
+                      value={importText}
+                      onChange={e => setImportText(e.target.value)}
+                      placeholder={"从 Excel 复制后直接粘贴（支持带表头）。\n表头列：物料编号(必填)、物料名称、规格、颜色、单位、使用数量；无表头时第1列=物料编号、第2列=使用数量。"}
+                    />
+                    <Button loading={importLoading} onClick={() => applyImportText(importText)}>解析</Button>
+                  </Space>
+                ),
+              },
+              {
+                key: "file",
+                label: "上传 CSV 文件",
+                children: (
+                  <Space direction="vertical" size={8}>
+                    <Upload
+                      accept=".csv,.txt"
+                      showUploadList={false}
+                      beforeUpload={file => { void readImportFile(file); return false; }}
+                    >
+                      <Button icon={<UploadOutlined />} loading={importLoading}>选择 CSV / TXT 文件</Button>
+                    </Upload>
+                    <span style={{ color: "#888" }}>支持 UTF-8 / GBK 编码；xlsx 请先在 Excel 中另存为 CSV。</span>
+                  </Space>
+                ),
+              },
+            ]}
+          />
+          <div>
+            共 {importRows.length} 行，有效 {importValidCount} 行，跳过 {importRows.length - importValidCount} 行
+            {importRows.length > 0 && (importHasHeader ? "（已按表头列名映射）" : "（无表头，按第1列=物料编号、第2列=使用数量）")}
+          </div>
+          <Table<BomImportCheckedRow>
+            size="small"
+            rowKey="行号"
+            pagination={false}
+            scroll={{ y: 300, x: "max-content" }}
+            dataSource={importRows}
+            locale={{ emptyText: "请先粘贴数据或选择文件后解析" }}
+            columns={[
+              { title: "行号", dataIndex: "行号", width: 60 },
+              {
+                title: "物料编号", dataIndex: "物料编号", width: 130,
+                render: (v: string, r) => <span style={r.错误 ? { color: "#cf1322" } : undefined}>{v}</span>,
+              },
+              { title: "使用数量", dataIndex: "使用数量", width: 90 },
+              { title: "物料名称", width: 180, render: (_v, r) => r.material?.物料名称 ?? r.物料名称 ?? "" },
+              { title: "规格", width: 120, render: (_v, r) => r.material?.规格 ?? r.规格 ?? "" },
+              { title: "颜色", width: 90, render: (_v, r) => r.material?.颜色 ?? r.颜色 ?? "" },
+              { title: "单位", width: 70, render: (_v, r) => r.material?.单位 ?? r.单位 ?? "" },
+              {
+                title: "校验", width: 130,
+                render: (_v, r) => r.错误
+                  ? <span style={{ color: "#cf1322" }}>{r.错误}</span>
+                  : <Tag color="green">有效</Tag>,
+              },
+            ]}
+          />
+          <Radio.Group
+            value={importMode}
+            onChange={e => setImportMode(e.target.value as "append" | "replace")}
+            options={[
+              { value: "append", label: "追加到现有明细" },
+              { value: "replace", label: "替换全部明细" },
+            ]}
+          />
+        </Space>
       </Modal>
     </Card>
   );

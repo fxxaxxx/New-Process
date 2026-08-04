@@ -25,6 +25,7 @@ import dayjs, { type Dayjs } from "dayjs";
 import { purchaseOrderApi } from "../../api/purchaseOrders";
 import { can } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
+import { printTable, type ExportCol } from "../../utils/tableExport";
 import PurchaseOrderDrawer from "../production/PurchaseOrderDrawer";
 import {
   buildAuxiliaryPurchaseProgressQuery,
@@ -116,6 +117,24 @@ export default function AuxiliaryPurchaseProgressPage() {
     { title: "备注", dataIndex: "备注", width: 210, render: text },
   ];
 
+  const exportCols: ExportCol[] = [
+    { title: "订购日期", key: "订购日期" },
+    { title: "交货日期", key: "交货日期" },
+    { title: "订单单号", key: "订单单号" },
+    { title: "供应商编号", key: "供应商编号" },
+    { title: "供应商名称", key: "供应商名称" },
+    { title: "辅料编号", key: "辅料编号" },
+    { title: "辅料名称", key: "辅料名称" },
+    { title: "规格", key: "规格" },
+    { title: "单位", key: "单位" },
+    { title: "单价类型", key: "单价类型" },
+    { title: "订货数量", key: "订货数量", fmt: v => Number(v ?? 0).toLocaleString() },
+    { title: "入仓数量", key: "入仓数量", fmt: v => Number(v ?? 0).toLocaleString() },
+    { title: "相差数量", key: "相差数量", fmt: v => Number(v ?? 0).toLocaleString() },
+    { title: "操作员", key: "操作员" },
+    { title: "备注", key: "备注" },
+  ];
+
   return (
     <Card
       title="辅料采购进度表"
@@ -153,7 +172,7 @@ export default function AuxiliaryPurchaseProgressPage() {
         <DatePicker size="small" value={endDate} onChange={value => value && setEndDate(value)} />
         <Button size="small" icon={<TableOutlined />} disabled>表格设置</Button>
         <Button size="small" icon={<ExportOutlined />} disabled>导出EXCEL</Button>
-        <Button size="small" icon={<PrinterOutlined />} disabled>打印</Button>
+        <Button size="small" icon={<PrinterOutlined />} onClick={() => printTable("辅料采购进度表", exportCols, displayRows as unknown as Record<string, unknown>[])}>打印</Button>
         <Button size="small" danger icon={<CloseOutlined />} onClick={() => window.history.back()}>关闭</Button>
       </Space>
 

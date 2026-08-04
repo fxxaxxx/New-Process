@@ -80,6 +80,7 @@ export default function OrdersPage() {
         </Space>
       }>
       <Table rowKey="id" size="middle" dataSource={rows} columns={columns}
+        scroll={{ x: "max-content", y: "calc(100vh - 300px)" }}
         pagination={{ current: page, pageSize: 10, total, onChange: setPage, showTotal: t => `共 ${t} 条` }} />
       <OrderCreateDrawer open={creating} onClose={() => setCreating(false)} onCreated={load} />
       <OrderDetailDrawer 单号={viewing} onClose={() => setViewing(null)} />

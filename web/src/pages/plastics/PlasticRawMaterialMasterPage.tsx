@@ -156,7 +156,7 @@ export default function PlasticRawMaterialMasterPage() {
         </Space>
         <Table
           size="small" rowKey="ID" loading={loading} dataSource={rows} columns={columns}
-          scroll={{ x: true }}
+          scroll={{ x: "max-content", y: "calc(100vh - 300px)" }}
           pagination={{
             current: page, pageSize: 50, total, showSizeChanger: false,
             onChange: p => { setPage(p); loadRows(p); }, showTotal: t => `共 ${t} 条`,

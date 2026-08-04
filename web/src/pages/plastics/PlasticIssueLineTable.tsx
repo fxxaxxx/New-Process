@@ -9,10 +9,12 @@ import type { PILine } from "../../api/plasticIssue";
 
 // 塑胶领料明细可编辑行(保真列序:装配采购|生产单号|款号|物料编号|模具编号|物料名称|颜色|色粉号|用料名称|单位|数量)。
 // 物料编号🔍=PlasticMaterialPicker(回填名称/规格/颜色/仓位号/单位);生产单号/款号🔍=ProductionPicker(回填生产单号/款号)。只读=查看已建单。
-export default function PlasticIssueLineTable({ value, onChange, readOnly }: {
+// onMaterialPicked: 选中物料后的额外回调(父页用于按塑胶物料设置预填表头默认仓库)。
+export default function PlasticIssueLineTable({ value, onChange, readOnly, onMaterialPicked }: {
   value: PILine[];
   onChange: Dispatch<SetStateAction<PILine[]>>;
   readOnly?: boolean;
+  onMaterialPicked?: (row: PlasticMaterialRow) => void;
 }) {
   const setLine = (i: number, patch: Partial<PILine>) =>
     onChange(prev => prev.map((l, j) => (j === i ? { ...l, ...patch } : l)));
@@ -26,6 +28,7 @@ export default function PlasticIssueLineTable({ value, onChange, readOnly }: {
       规格: row.规格 ?? undefined, 颜色: row.颜色 ?? undefined,
       仓位号: row.仓位号 ?? undefined, 单位: row.单位 ?? undefined,
     });
+    onMaterialPicked?.(row);
   };
   const fillFromProduction = (row: ProductionTrackingRow) => {
     if (prodPickFor === null) return;

@@ -26,7 +26,8 @@ export default function FinishedInventoryPage() {
     <Card title="成品库存" variant="borderless"
       extra={<Input.Search placeholder="输入仓库查询" allowClear onSearch={set仓库} style={{ width: 220 }} />}>
       <Table rowKey={r => `${r.款号}|${r.色号}|${r.颜色}|${r.尺码}`} size="middle" dataSource={rows} columns={columns}
-        pagination={{ pageSize: 20, showTotal: t => `共 ${t} 条` }} />
+        pagination={{ pageSize: 20, showTotal: t => `共 ${t} 条` }}
+        scroll={{ x: "max-content", y: "calc(100vh - 300px)" }} />
     </Card>
   );
 }

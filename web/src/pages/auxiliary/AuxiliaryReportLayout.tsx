@@ -18,7 +18,7 @@ export function AuxiliaryReportLayout({ title, recordCount, children }: Auxiliar
           {typeof recordCount === "number" ? <Tag color="blue">记录 {recordCount}</Tag> : null}
           <Button icon={<SettingOutlined />}>表格设置</Button>
           <Button icon={<ExportOutlined />} disabled>导出EXCEL</Button>
-          <Button icon={<PrinterOutlined />} disabled>打印</Button>
+          <Button icon={<PrinterOutlined />} onClick={() => window.print()}>打印</Button>
           <Button danger icon={<CloseOutlined />} onClick={() => window.history.back()}>关闭</Button>
         </Space>
       }

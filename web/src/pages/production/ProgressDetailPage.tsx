@@ -90,7 +90,7 @@ export default function ProgressDetailPage() {
       </Space>
       <Table
         size="small" rowKey={(_, i) => String(i)} loading={loading} dataSource={rows}
-        columns={columns} scroll={{ x: true }}
+        columns={columns} scroll={{ x: "max-content", y: "calc(100vh - 300px)" }}
         pagination={{ pageSize: 50, showSizeChanger: false, showTotal: t => `共 ${t} 条` }}
         onRow={r => ({ onClick: () => r.采购单号 && setViewing(r.采购单号), style: { cursor: "pointer" } })}
       />

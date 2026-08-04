@@ -11,6 +11,7 @@ import { masterApi } from "../../api/master";
 import { can } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
 import { downloadCsv, printTable, type ExportCol } from "../../utils/tableExport";
+import { codeName } from "../../utils/codeName";
 
 const MENU = "款号资料";
 const defaultRange = (): [Dayjs, Dayjs] => [dayjs().subtract(1, "month"), dayjs()];
@@ -90,7 +91,7 @@ export default function AssemblyMaterialSummaryPage() {
     { value: "全部", label: "全部" },
     ...customers
       .filter(c => c.客户编号)
-      .map(c => ({ value: `${c.客户编号} ${c.客户名称 ?? ""}`.trim(), label: `${c.客户编号} ${c.客户名称 ?? ""}`.trim() })),
+      .map(c => ({ value: codeName(c.客户编号, c.客户名称), label: codeName(c.客户编号, c.客户名称) })),
   ], [customers]);
 
   const summaryColumns: ColumnsType<AssemblyMaterialSummaryRow> = useMemo(() => [

@@ -72,7 +72,7 @@ export default function WageTemplatePage() {
         </Space>
       }>
       <Table rowKey={(r) => r.模板编号 ?? ""} size="middle" loading={loading}
-        dataSource={rows} columns={columns} scroll={{ x: true }}
+        dataSource={rows} columns={columns} scroll={{ x: "max-content", y: "calc(100vh - 300px)" }}
         pagination={{ pageSize: 20, showTotal: (t) => `共 ${t} 条` }} />
       <EditDrawer open={open} 模板编号={editing} onClose={() => setOpen(false)} onSaved={load} />
     </Card>

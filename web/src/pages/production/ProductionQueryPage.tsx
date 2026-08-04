@@ -166,7 +166,7 @@ export default function ProductionQueryPage() {
 
       <Table
         size="small" rowKey="id" loading={loading} dataSource={displayRows}
-        columns={columns} scroll={{ x: 1300 }}
+        columns={columns} scroll={{ x: 1300, y: "calc(100vh - 300px)" }}
         pagination={{
           current: page, pageSize: PAGE_SIZE, total, showSizeChanger: false,
           onChange: setPage,
@@ -214,7 +214,7 @@ export default function ProductionQueryPage() {
                     <Table
                       size="small" rowKey={(_, i) => `g-${i}`} pagination={false}
                       dataSource={detail?.货号明细 ?? []} columns={goodsColumns}
-                      scroll={{ x: true }}
+                      scroll={{ x: "max-content", y: 380 }}
                     />
                   ),
                 },
@@ -224,7 +224,7 @@ export default function ProductionQueryPage() {
                     <Table
                       size="small" rowKey={(_, i) => `p-${i}`} pagination={false}
                       dataSource={detail?.工序 ?? []} columns={procColumns}
-                      scroll={{ x: true }}
+                      scroll={{ x: "max-content", y: 380 }}
                     />
                   ),
                 },
@@ -234,7 +234,7 @@ export default function ProductionQueryPage() {
                     <Table
                       size="small" rowKey={(_, i) => `m-${i}`} pagination={false}
                       dataSource={detail?.物料 ?? []} columns={matColumns}
-                      scroll={{ x: true }}
+                      scroll={{ x: "max-content", y: 380 }}
                     />
                   ),
                 },

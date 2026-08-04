@@ -4,7 +4,7 @@ import type { Paged } from "./master";
 export interface PPPOLine {
   id?: number;
   生产单号?: string; 款号?: string; 模具编号?: string; 物料编号?: string; 物料名称?: string;
-  用料名称?: string; 颜色?: string; 加工内容?: string;
+  用料名称?: string; 颜色?: string; 加工内容?: string; 加工次序?: string; 加工字母?: string;
   数量?: number; 单价?: number | null; 金额?: number | null; 备注?: string;
 }
 export interface PPPOHeader {
@@ -15,7 +15,8 @@ export interface PPPOHeader {
 export interface PPPODetail { 单头?: PPPOHeader; 明细: PPPOLine[] }
 export interface PPPOBasisRow {
   生产单号?: string; 款号?: string; 模具编号?: string; 物料编号?: string; 物料名称?: string;
-  用料名称?: string; 颜色?: string; 加工内容?: string; 单价?: number | null;
+  用料名称?: string; 颜色?: string; 加工内容?: string; 二次加工内容?: string; 二次加工类别?: string;
+  单价?: number | null;
 }
 
 const enc = encodeURIComponent;

@@ -65,7 +65,7 @@ export default function PurchaseAnalysisQueryPage() {
       </Space>
       <Table
         size="small" rowKey={(_, i) => `pa-${i}`} loading={loading}
-        dataSource={rows} columns={columns} scroll={{ x: 1700 }}
+        dataSource={rows} columns={columns} scroll={{ x: 1700, y: "calc(100vh - 300px)" }}
         pagination={{ pageSize: 50, showSizeChanger: false, showTotal: (t) => `共 ${t} 条` }}
       />
     </Card>

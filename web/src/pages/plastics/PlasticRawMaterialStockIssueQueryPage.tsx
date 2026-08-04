@@ -189,7 +189,7 @@ export default function PlasticRawMaterialStockIssueQueryPage() {
                 loading={loading}
                 dataSource={summary}
                 columns={summaryColumns}
-                scroll={{ x: "max-content" }}
+                scroll={{ x: "max-content", y: "calc(100vh - 340px)" }}
                 pagination={{ pageSize: 50, showTotal: t => `共 ${t} 条` }}
                 summary={() => (
                   <Table.Summary fixed>
@@ -213,7 +213,7 @@ export default function PlasticRawMaterialStockIssueQueryPage() {
                 loading={loading}
                 dataSource={detail}
                 columns={detailColumns}
-                scroll={{ x: "max-content" }}
+                scroll={{ x: "max-content", y: "calc(100vh - 340px)" }}
                 pagination={{ pageSize: 50, showTotal: t => `共 ${t} 条` }}
                 onRow={r => ({
                   onDoubleClick: () => { if (r.单号) setViewing(r.单号); },

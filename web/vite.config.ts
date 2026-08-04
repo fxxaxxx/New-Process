@@ -7,6 +7,8 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": "http://localhost:5000",
+      // 图片备注等上传文件由后端 wwwroot 静态服务提供
+      "/uploads": "http://localhost:5000",
     },
   },
 })

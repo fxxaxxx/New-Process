@@ -2,16 +2,22 @@ import { useCallback, useEffect, useState } from "react";
 import {
   Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Table, message,
 } from "antd";
-import { PlusOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
+import { PlusOutlined } from "@ant-design/icons";
 import { plasticCommonMaterialApi, type PlasticCommonMaterialRow } from "../../api/plasticCommonMaterial";
 import { masterApi } from "../../api/master";
 import { can, hidePrice } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
 import PlasticMaterialPicker from "./PlasticMaterialPicker";
+import PlasticMoldPicker from "./PlasticMoldPicker";
+import type { PlasticMoldRow } from "../../api/plasticMold";
+import { 二次加工类别后缀, 二次加工字母 } from "../../utils/secondProcess";
 
 const MENU = "塑胶共用物料表";
 const ALL_APPROVAL = "全部";
 const crud = masterApi("plastic-common-materials");
+const 套数规则提示 = "套数必须等于 出模数 ÷ 用量";
+// 无单价权限时跳过带回的价格字段
+const 价格字段 = new Set(["啤机价钱", "胶件啤工价", "胶料单价", "原胶料单价"]);
 
 export default function PlasticCommonMaterialPage() {
   const perms = usePerms();
@@ -33,9 +39,19 @@ export default function PlasticCommonMaterialPage() {
   const [loading, setLoading] = useState(false);
 
   const [editing, setEditing] = useState<PlasticCommonMaterialRow | null>(null);
+  const [selRow, setSelRow] = useState<PlasticCommonMaterialRow | null>(null);
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [moldPickerOpen, setMoldPickerOpen] = useState(false);
+
+  // 二次加工类别推导提示(旧说明书:BD=电镀+印喷,AF=印喷+植绒,AH=印喷+植发)
+  const 加工内容V = Form.useWatch("加工内容", form) as string | undefined;
+  const 二次V = Form.useWatch("二次加工内容", form) as string | undefined;
+  const 类别后缀 = 二次加工类别后缀(加工内容V, 二次V);
+  const 类别提示 = 类别后缀
+    ? `${类别后缀} 类(第一次 ${加工内容V ?? ""}=${二次加工字母(类别后缀, 加工内容V) ?? "?"},第二次 ${二次V ?? ""}=${二次加工字母(类别后缀, 二次V) ?? "?"})`
+    : "";
 
   const loadRows = useCallback(async (p: number) => {
     if (!canOpen) return;
@@ -50,6 +66,7 @@ export default function PlasticCommonMaterialPage() {
         page: p, size: 50,
       });
       setRows(r.items); setTotal(r.total);
+      setSelRow(null);
     } catch { message.error("加载塑胶共用物料失败"); }
     finally { setLoading(false); }
   }, [canOpen, 客户, 塑胶货号, 工模编号, keyword, 审核情况]);
@@ -76,13 +93,34 @@ export default function PlasticCommonMaterialPage() {
     try {
       if (editing && editing.ID > 0) await crud.update(editing.ID, v);
       else await crud.create(v);
-      message.success("已保存"); setEditing(null); await loadRows(page);
-    } catch { message.error("保存失败"); }
+      message.success("已保存"); setEditing(null); setSelRow(null); await loadRows(page);
+    } catch (e) {
+      message.error((e as { response?: { data?: { 消息?: string } } }).response?.data?.消息 ?? "保存失败");
+    }
     finally { setSaving(false); }
   };
 
+  // 工模联动:选中工模后带回对应字段(工模编号必带;价格字段在无单价权限时跳过)
+  const applyMold = (m: PlasticMoldRow) => {
+    const patch: Record<string, unknown> = { 工模编号: m.工模编号 };
+    const pairs: [string, unknown][] = [
+      ["颜色", m.颜色], ["色粉号", m.色粉号], ["用料名称", m.用料名称],
+      ["整啤模腔数", m.整啤模腔数], ["水口比例", m.水口比例], ["模具日产量", m.模具日产量],
+      ["整啤毛重", m.整啤毛重], ["整啤净重", m.整啤净重], ["啤机机型", m.啤机机型],
+      ["啤机价钱", m.啤机价钱], ["胶件啤工价", m.胶件啤工价], ["胶料单价", m.胶料单价], ["原胶料单价", m.原胶料单价],
+    ];
+    for (const [k, val] of pairs) {
+      if (val == null || val === "") continue;
+      if (priceHidden && 价格字段.has(k)) continue;
+      patch[k] = val;
+    }
+    form.setFieldsValue(patch);
+    void form.validateFields(["套数"]).catch(() => {});
+    message.success("已从工模表带回字段");
+  };
+
   const del = async (r: PlasticCommonMaterialRow) => {
-    try { await crud.remove(r.ID); message.success("已删除"); await loadRows(page); }
+    try { await crud.remove(r.ID); message.success("已删除"); setSelRow(null); await loadRows(page); }
     catch { message.error("删除失败"); }
   };
 
@@ -101,23 +139,22 @@ export default function PlasticCommonMaterialPage() {
     { title: "整啤模腔数", dataIndex: "整啤模腔数", width: 100, align: "right" as const, render: (v?: number | null) => v ?? "" },
     { title: "套数", dataIndex: "套数", width: 70, align: "right" as const, render: (v?: number | null) => v ?? "" },
     { title: "用量", dataIndex: "用量", width: 80, align: "right" as const, render: (v?: number | null) => v ?? "" },
+    { title: "出模数", dataIndex: "出模数", width: 80, align: "right" as const, render: (v?: number | null) => v ?? "" },
+    { title: "水口比例", dataIndex: "水口比例", width: 90, align: "right" as const, render: (v?: number | null) => v ?? "" },
+    { title: "整啤毛重", dataIndex: "整啤毛重", width: 90, align: "right" as const, render: (v?: number | null) => v ?? "" },
+    { title: "模具日产量", dataIndex: "模具日产量", width: 100, align: "right" as const, render: (v?: number | null) => v ?? "" },
+    { title: "啤机机型", dataIndex: "啤机机型", width: 90 },
+    { title: "啤机价钱", dataIndex: "啤机价钱", width: 90, align: "right" as const, render: money },
+    { title: "胶件啤工价", dataIndex: "胶件啤工价", width: 100, align: "right" as const, render: money },
+    { title: "胶料单价", dataIndex: "胶料单价", width: 90, align: "right" as const, render: money },
+    { title: "原胶料单价", dataIndex: "原胶料单价", width: 100, align: "right" as const, render: money },
+    { title: "加工总单价", dataIndex: "加工总单价", width: 100, align: "right" as const, render: money },
+    { title: "其它成本", dataIndex: "其它成本", width: 90, align: "right" as const, render: money },
+    { title: "二次加工内容", dataIndex: "二次加工内容", width: 120 },
     { title: "物料编号", dataIndex: "物料编号", width: 110 },
     { title: "共用原料编号", dataIndex: "共用原料编号", width: 110 },
     { title: "审核", dataIndex: "调整审核", width: 70, render: (v?: string) => (v === "1" ? "已审核" : "未审核") },
     { title: "备注内容", dataIndex: "备注内容", width: 140 },
-    {
-      title: "操作", width: 100, fixed: "right" as const,
-      render: (_: unknown, r: PlasticCommonMaterialRow) => (
-        <Space size="small">
-          {canSave && <a onClick={() => openEdit(r)}><EditOutlined /></a>}
-          {canDelete && (
-            <Popconfirm title="确认删除该行?" onConfirm={() => del(r)}>
-              <a style={{ color: "#cf1322" }}><DeleteOutlined /></a>
-            </Popconfirm>
-          )}
-        </Space>
-      ),
-    },
   ];
 
   if (!canOpen) {
@@ -140,10 +177,23 @@ export default function PlasticCommonMaterialPage() {
           options={[ALL_APPROVAL, "已审核", "未审核"].map(v => ({ value: v, label: v }))} />
         <Button type="primary" onClick={search}>查询</Button>
         {canSave && <Button icon={<PlusOutlined />} onClick={openCreate}>新增</Button>}
+        {canSave && <Button disabled={!selRow} onClick={() => selRow && openEdit(selRow)}>编辑</Button>}
+        {canDelete && (
+          <Popconfirm title={`确认删除该行${selRow ? ` [${selRow.物料编号}]` : ""}?`} onConfirm={() => selRow && del(selRow)}>
+            <Button danger disabled={!selRow}>删除</Button>
+          </Popconfirm>
+        )}
+        <span style={{ color: selRow ? "#1677ff" : "#999", fontSize: 12 }}>
+          {selRow ? `已选中:${selRow.物料编号}` : "双击行选中后可编辑/删除"}
+        </span>
       </Space>
       <Table
         size="small" rowKey="ID" loading={loading} dataSource={rows} columns={columns}
-        scroll={{ x: "max-content" }}
+        onRow={(r: PlasticCommonMaterialRow) => ({
+          onDoubleClick: () => setSelRow(r),
+          style: { cursor: "pointer", ...(selRow?.ID === r.ID ? { background: "#e6f4ff" } : {}) },
+        })}
+        scroll={{ x: "max-content", y: "calc(100vh - 300px)" }}
         pagination={{ current: page, pageSize: 50, total, showSizeChanger: false,
           onChange: p => { setPage(p); loadRows(p); }, showTotal: t => `共 ${t} 条` }}
       />
@@ -156,7 +206,10 @@ export default function PlasticCommonMaterialPage() {
         <Form form={form} layout="vertical">
           <Form.Item name="客户" label="客户"><Input /></Form.Item>
           <Form.Item name="塑胶货号" label="塑胶货号" rules={[{ required: true, message: "请输入塑胶货号" }]}><Input /></Form.Item>
-          <Form.Item name="工模编号" label="工模编号"><Input /></Form.Item>
+          <Form.Item name="工模编号" label="工模编号(双击或点选模,从工模表带回)">
+            <Input readOnly onDoubleClick={() => setMoldPickerOpen(true)}
+              addonAfter={<a onClick={() => setMoldPickerOpen(true)}>选模</a>} />
+          </Form.Item>
           <Form.Item name="物料编号" label="物料编号(选料回填名称/颜色)">
             <Input readOnly addonAfter={<a onClick={() => setPickerOpen(true)}>选料</a>} />
           </Form.Item>
@@ -171,8 +224,49 @@ export default function PlasticCommonMaterialPage() {
           <Form.Item name="整啤净重" label="整啤净重"><InputNumber style={{ width: "100%" }} /></Form.Item>
           <Form.Item name="原胶件单净重" label="原胶件单净重"><InputNumber style={{ width: "100%" }} /></Form.Item>
           <Form.Item name="整啤模腔数" label="整啤模腔数"><InputNumber style={{ width: "100%" }} /></Form.Item>
-          <Form.Item name="套数" label="套数"><InputNumber style={{ width: "100%" }} /></Form.Item>
+          <Form.Item name="出模数" label="出模数"><InputNumber style={{ width: "100%" }} /></Form.Item>
           <Form.Item name="用量" label="用量"><InputNumber style={{ width: "100%" }} /></Form.Item>
+          <Form.Item name="套数" label="套数(须等于 出模数 ÷ 用量)" dependencies={["出模数", "用量"]}
+            rules={[{
+              validator: (_, v) => {
+                if (v == null) return Promise.resolve();
+                const m = form.getFieldValue("出模数") as number | null | undefined;
+                const u = form.getFieldValue("用量") as number | null | undefined;
+                if (m == null || u == null) return Promise.resolve();
+                if (u === 0) return Promise.reject(new Error(套数规则提示));
+                const expected = Math.round((m / u) * 10000) / 10000;
+                return Math.abs(v - expected) < 1e-9
+                  ? Promise.resolve() : Promise.reject(new Error(套数规则提示));
+              },
+            }]}>
+            <InputNumber style={{ width: "100%" }} />
+          </Form.Item>
+          <Form.Item name="水口比例" label="水口比例"><InputNumber style={{ width: "100%" }} /></Form.Item>
+          <Form.Item name="整啤毛重" label="整啤毛重"><InputNumber style={{ width: "100%" }} /></Form.Item>
+          <Form.Item name="模具日产量" label="模具日产量"><InputNumber style={{ width: "100%" }} /></Form.Item>
+          <Form.Item name="啤机机型" label="啤机机型"><Input /></Form.Item>
+          {!priceHidden && (
+            <Form.Item name="啤机价钱" label="啤机价钱"><InputNumber min={0} style={{ width: "100%" }} /></Form.Item>
+          )}
+          {!priceHidden && (
+            <Form.Item name="胶件啤工价" label="胶件啤工价"><InputNumber min={0} style={{ width: "100%" }} /></Form.Item>
+          )}
+          {!priceHidden && (
+            <Form.Item name="胶料单价" label="胶料单价"><InputNumber min={0} style={{ width: "100%" }} /></Form.Item>
+          )}
+          {!priceHidden && (
+            <Form.Item name="原胶料单价" label="原胶料单价"><InputNumber min={0} style={{ width: "100%" }} /></Form.Item>
+          )}
+          {!priceHidden && (
+            <Form.Item name="加工总单价" label="加工总单价"><InputNumber min={0} style={{ width: "100%" }} /></Form.Item>
+          )}
+          {!priceHidden && (
+            <Form.Item name="其它成本" label="其它成本"><InputNumber min={0} style={{ width: "100%" }} /></Form.Item>
+          )}
+          <Form.Item name="二次加工内容" label="二次加工内容"><Input /></Form.Item>
+          <Form.Item label="二次加工类别(按 加工内容+二次加工内容 推导)">
+            <Input value={类别提示} readOnly placeholder="非二次加工组合" />
+          </Form.Item>
           <Form.Item name="共用原料编号" label="共用原料编号"><Input /></Form.Item>
           <Form.Item name="备注内容" label="备注内容"><Input.TextArea rows={2} /></Form.Item>
           <Form.Item name="工模表备注" label="工模表备注"><Input /></Form.Item>
@@ -183,6 +277,10 @@ export default function PlasticCommonMaterialPage() {
       <PlasticMaterialPicker
         open={pickerOpen} onClose={() => setPickerOpen(false)}
         onPick={r => form.setFieldsValue({ 物料编号: r.物料编号, 物料名称: r.物料名称, 颜色: r.颜色 })}
+      />
+      <PlasticMoldPicker
+        open={moldPickerOpen} onClose={() => setMoldPickerOpen(false)}
+        onPick={applyMold}
       />
     </Card>
   );

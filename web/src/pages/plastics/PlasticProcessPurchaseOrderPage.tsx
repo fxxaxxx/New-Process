@@ -9,9 +9,10 @@ import ProductionPicker from "../materials/ProductionPicker";
 import PlasticProcessPurchaseOrderLineTable from "./PlasticProcessPurchaseOrderLineTable";
 import { can, hidePrice } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
+import { 二次加工字母 } from "../../utils/secondProcess";
 
 const MENU = "塑胶加工采购单";
-const today = () => new Date().toLocaleDateString("zh-CN");
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }; // ISO 格式：后端 DateTime 反序列化要求
 const currentUser = () => localStorage.getItem("erp_user") ?? "";
 
 export default function PlasticProcessPurchaseOrderPage() {
@@ -44,11 +45,22 @@ export default function PlasticProcessPurchaseOrderPage() {
     if (!生产单号) return;
     try {
       const bom = await plasticProcessPurchaseOrderApi.basis(生产单号);
-      setLines(bom.map(b => ({
-        生产单号: b.生产单号, 款号: b.款号, 模具编号: b.模具编号, 物料编号: b.物料编号, 物料名称: b.物料名称,
-        用料名称: b.用料名称, 颜色: b.颜色, 加工内容: b.加工内容,
-        数量: 0, 单价: b.单价 ?? 0,
-      })));
+      // 二次加工(BD/AF/AH)的 BOM 行展开为 第一次/第二次 两条明细,便于按加工次序分给不同供应商下单
+      const ls: PPPOLine[] = [];
+      for (const b of bom) {
+        const base: PPPOLine = {
+          生产单号: b.生产单号, 款号: b.款号, 模具编号: b.模具编号, 物料编号: b.物料编号, 物料名称: b.物料名称,
+          用料名称: b.用料名称, 颜色: b.颜色, 加工内容: b.加工内容,
+          数量: 0, 单价: b.单价 ?? 0,
+        };
+        if (b.二次加工类别) {
+          ls.push({ ...base, 加工次序: "第一次", 加工字母: 二次加工字母(b.二次加工类别, b.加工内容) ?? undefined });
+          ls.push({ ...base, 加工内容: b.二次加工内容, 加工次序: "第二次", 加工字母: 二次加工字母(b.二次加工类别, b.二次加工内容) ?? undefined });
+        } else {
+          ls.push(base);
+        }
+      }
+      setLines(ls);
       message.success(`已调入生产单 ${生产单号} 的加工清单`);
     } catch { message.error("调入清单失败"); }
   };

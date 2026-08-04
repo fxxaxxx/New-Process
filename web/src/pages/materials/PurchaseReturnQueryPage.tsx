@@ -154,7 +154,7 @@ export default function PurchaseReturnQueryPage() {
               key: "detail", label: "明细查询",
               children: (
                 <Table rowKey={(_, i) => `d${i}`} size="small" loading={loading}
-                  dataSource={detail} columns={nowrap(detailColumns)} scroll={{ x: "max-content" }}
+                  dataSource={detail} columns={nowrap(detailColumns)} scroll={{ x: "max-content", y: "calc(100vh - 320px)" }}
                   pagination={{ pageSize: 20, showTotal: t => `共 ${t} 条` }}
                   onRow={r => ({
                     onDoubleClick: () => r.单号 && setViewing(r.单号),
@@ -166,7 +166,7 @@ export default function PurchaseReturnQueryPage() {
               key: "summary", label: "汇总查询",
               children: (
                 <Table rowKey={(_, i) => `s${i}`} size="small" loading={loading}
-                  dataSource={summary} columns={nowrap(summaryColumns)} scroll={{ x: "max-content" }}
+                  dataSource={summary} columns={nowrap(summaryColumns)} scroll={{ x: "max-content", y: "calc(100vh - 320px)" }}
                   pagination={{ pageSize: 20, showTotal: t => `共 ${t} 条` }} />
               ),
             },

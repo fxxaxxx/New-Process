@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Button, Card, Form, Input, Modal, Popconfirm, Space, Table, Tree, message,
 } from "antd";
-import { PlusOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
+import { PlusOutlined } from "@ant-design/icons";
 import { factoryMasterApi, type FactoryRow, type FactoryCategoryNode } from "../../api/factoryMaster";
 import { masterApi } from "../../api/master";
 import { can } from "../../auth/permissions";
@@ -27,6 +27,7 @@ export default function FactoryMasterPage() {
   const [loading, setLoading] = useState(false);
 
   const [editing, setEditing] = useState<FactoryRow | null>(null); // null=不显示；ID=0 表示新增
+  const [selRow, setSelRow] = useState<FactoryRow | null>(null);
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
 
@@ -42,6 +43,7 @@ export default function FactoryMasterPage() {
     try {
       const r = await factoryMasterApi.list(类别, keyword.trim() || undefined, p, 50);
       setRows(r.items); setTotal(r.total);
+      setSelRow(null);
     } catch { message.error("加载加工厂失败"); }
     finally { setLoading(false); }
   }, [canOpen, 类别, keyword]);
@@ -79,6 +81,7 @@ export default function FactoryMasterPage() {
       else await factories.create(v);
       message.success("已保存");
       setEditing(null);
+      setSelRow(null);
       await loadCats();
       await loadRows(page);
     } catch { message.error("保存失败"); }
@@ -89,6 +92,7 @@ export default function FactoryMasterPage() {
     try {
       await factories.remove(r.ID);
       message.success("已删除");
+      setSelRow(null);
       await loadCats();
       await loadRows(page);
     } catch { message.error("删除失败"); }
@@ -105,19 +109,6 @@ export default function FactoryMasterPage() {
     { title: "联系地址", dataIndex: "联系地址", width: 200 },
     { title: "付款方式", dataIndex: "付款方式", width: 120 },
     { title: "备注", dataIndex: "备注", width: 160 },
-    {
-      title: "操作", width: 120, fixed: "right" as const,
-      render: (_: unknown, r: FactoryRow) => (
-        <Space size="small">
-          {canSave && <a onClick={() => openEdit(r)}><EditOutlined /></a>}
-          {canDelete && (
-            <Popconfirm title="确认删除该加工厂?" onConfirm={() => del(r)}>
-              <a style={{ color: "#cf1322" }}><DeleteOutlined /></a>
-            </Popconfirm>
-          )}
-        </Space>
-      ),
-    },
   ];
 
   if (!canOpen) {
@@ -146,10 +137,23 @@ export default function FactoryMasterPage() {
             onSearch={() => { setPage(1); loadRows(1); }}
           />
           {canSave && <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增</Button>}
+          {canSave && <Button disabled={!selRow} onClick={() => selRow && openEdit(selRow)}>编辑</Button>}
+          {canDelete && (
+            <Popconfirm title={`确认删除该加工厂${selRow ? ` [${selRow.加工厂编号 ?? selRow.加工厂名称}]` : ""}?`} onConfirm={() => selRow && del(selRow)}>
+              <Button danger disabled={!selRow}>删除</Button>
+            </Popconfirm>
+          )}
+          <span style={{ color: selRow ? "#1677ff" : "#999", fontSize: 12 }}>
+            {selRow ? `已选中:${selRow.加工厂编号 ?? selRow.加工厂名称}` : "双击行选中后可编辑/删除"}
+          </span>
         </Space>
         <Table
           size="small" rowKey="ID" loading={loading} dataSource={rows} columns={columns}
-          scroll={{ x: true }}
+          onRow={(r: FactoryRow) => ({
+            onDoubleClick: () => setSelRow(r),
+            style: { cursor: "pointer", ...(selRow?.ID === r.ID ? { background: "#e6f4ff" } : {}) },
+          })}
+          scroll={{ x: "max-content", y: "calc(100vh - 300px)" }}
           pagination={{
             current: page, pageSize: 50, total, showSizeChanger: false,
             onChange: p => { setPage(p); loadRows(p); }, showTotal: t => `共 ${t} 条`,

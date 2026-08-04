@@ -32,7 +32,7 @@ export default function MaterialStocktakeDetailDrawer({ 单号, onClose }: {
               { key: "op", label: "操作员", children: h?.操作员 ?? "-" },
               { key: "memo", label: "备注", children: h?.备注 ?? "-" },
             ]} />
-          <Table size="small" rowKey="id" pagination={false} dataSource={detail.明细} scroll={{ x: true }}
+          <Table size="small" rowKey="id" pagination={false} dataSource={detail.明细} scroll={{ x: "max-content", y: 380 }}
             columns={[
               { title: "物料编号", dataIndex: "物料编号" }, { title: "物料名称", dataIndex: "物料名称" },
               { title: "规格", dataIndex: "规格" }, { title: "单位", dataIndex: "单位" },

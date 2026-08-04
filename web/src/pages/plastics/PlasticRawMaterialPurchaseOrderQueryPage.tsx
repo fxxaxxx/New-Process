@@ -176,7 +176,7 @@ export default function PlasticRawMaterialPurchaseOrderQueryPage() {
                 loading={loading}
                 dataSource={summary}
                 columns={summaryColumns}
-                scroll={{ x: "max-content" }}
+                scroll={{ x: "max-content", y: "calc(100vh - 340px)" }}
                 pagination={{ pageSize: 50, showTotal: t => `共 ${t} 条` }}
                 summary={() => (
                   <Table.Summary fixed>
@@ -199,7 +199,7 @@ export default function PlasticRawMaterialPurchaseOrderQueryPage() {
                 loading={loading}
                 dataSource={detail}
                 columns={detailColumns}
-                scroll={{ x: "max-content" }}
+                scroll={{ x: "max-content", y: "calc(100vh - 340px)" }}
                 pagination={{ pageSize: 50, showTotal: t => `共 ${t} 条` }}
                 summary={() => (
                   <Table.Summary fixed>

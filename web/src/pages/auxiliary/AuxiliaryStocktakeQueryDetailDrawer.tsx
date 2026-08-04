@@ -103,7 +103,7 @@ export default function AuxiliaryStocktakeQueryDetailDrawer({
             pagination={false}
             dataSource={lines}
             columns={columns}
-            scroll={{ x: "max-content" }}
+            scroll={{ x: "max-content", y: 380 }}
           />
         </>
       )}

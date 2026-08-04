@@ -19,14 +19,19 @@ export default function IssueOverQueryPage() {
     if (!canOpen) return;
     setLoading(true);
     try { setRows(await productionReportApi.issueOver(kw)); }
-    catch { message.error("加载 领料超数查询 失败"); }
+    catch { message.error("加载 领料超数/欠领查询 失败"); }
     finally { setLoading(false); }
   }, [canOpen]);
 
   useEffect(() => { load(""); }, [load]);
 
-  const 超数Cell = (v?: number | null) =>
-    <span style={{ color: "#cf1322", fontWeight: 600 }}>{num(v)}</span>;
+  // 差异=已领−需求：负=欠领(橙)，正=超领(红)
+  const 差异Cell = (v?: number | null) => {
+    if (v === null || v === undefined || v === 0) return <span>{num(v)}</span>;
+    return (
+      <span style={{ color: v < 0 ? "#fa8c16" : "#cf1322", fontWeight: 600 }}>{num(v)}</span>
+    );
+  };
 
   const columns = [
     { title: "制单日期", dataIndex: "制单日期", width: 110, render: d10 },
@@ -40,7 +45,7 @@ export default function IssueOverQueryPage() {
     { title: "单位", dataIndex: "单位", width: 70 },
     { title: "需求数量", dataIndex: "需求数量", width: 100, align: "right" as const, render: num },
     { title: "已领数量", dataIndex: "已领数量", width: 110, align: "right" as const, render: num },
-    { title: "超数", dataIndex: "超数", width: 100, align: "right" as const, render: 超数Cell },
+    { title: "差异", dataIndex: "差异", width: 100, align: "right" as const, render: 差异Cell },
   ];
 
   if (!canOpen) {
@@ -52,7 +57,10 @@ export default function IssueOverQueryPage() {
   }
 
   return (
-    <Card title="领料超数查询" variant="borderless">
+    <Card
+      title="领料超数/欠领查询" variant="borderless"
+      extra={<span style={{ color: "#8c8c8c", fontSize: 13 }}>差异=已领−需求：<span style={{ color: "#fa8c16" }}>负数=欠领</span>，<span style={{ color: "#cf1322" }}>正数=超领</span></span>}
+    >
       <Space wrap style={{ marginBottom: 16 }}>
         <Input.Search
           placeholder="生产单号 / 款号 / 物料编号 / 物料名称" allowClear style={{ width: 320 }}
@@ -61,7 +69,7 @@ export default function IssueOverQueryPage() {
       </Space>
       <Table
         size="small" rowKey={(_, i) => `i-${i}`} loading={loading}
-        dataSource={rows} columns={columns} scroll={{ x: 1400 }}
+        dataSource={rows} columns={columns} scroll={{ x: 1400, y: "calc(100vh - 300px)" }}
         pagination={{ pageSize: 50, showSizeChanger: false, showTotal: (t) => `共 ${t} 条` }}
       />
     </Card>

@@ -10,7 +10,7 @@ import { can, hidePrice } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
 
 const MENU = "原料退仓单";
-const today = () => new Date().toLocaleDateString("zh-CN");
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }; // ISO 格式：后端 DateTime 反序列化要求
 const currentUser = () => localStorage.getItem("erp_user") ?? "";
 
 export default function PlasticRawMaterialReturnPage() {
@@ -184,7 +184,7 @@ export default function PlasticRawMaterialReturnPage() {
         onClose={() => setSupOpen(false)} />
 
       <Modal open={receiptOpen} title="选择已审核原料入仓单调入明细" footer={null} width={640} onCancel={() => setReceiptOpen(false)}>
-        <Table rowKey="id" size="small" dataSource={receipts} columns={receiptColumns} pagination={{ pageSize: 8 }} />
+        <Table rowKey="id" size="small" dataSource={receipts} columns={receiptColumns} pagination={{ pageSize: 8 }} scroll={{ x: "max-content", y: 380 }} />
       </Modal>
     </Card>
   );

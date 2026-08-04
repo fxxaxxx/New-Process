@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { Card, Input, Table, Tag, message } from "antd";
+import { Button, Card, Input, Space, Table, Tag, message } from "antd";
+import { PlusOutlined } from "@ant-design/icons";
 import { purchaseOrderApi, type PurchaseOrderHeader } from "../../api/purchaseOrders";
 import { can, hidePrice } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
@@ -22,6 +23,7 @@ export default function PurchaseOrderListPage() {
   const [loading, setLoading] = useState(false);
 
   const [viewing, setViewing] = useState<string | undefined>(undefined);
+  const [creating, setCreating] = useState(false);
 
   const load = useCallback(async (p: number, kw: string) => {
     if (!canOpen) return;
@@ -69,14 +71,19 @@ export default function PurchaseOrderListPage() {
   return (
     <Card title="采购订单" variant="borderless"
       extra={
-        <Input.Search
-          placeholder="单号 / 供应商 / 生产单号" allowClear style={{ width: 260 }}
-          onSearch={onSearch}
-        />
+        <Space>
+          {can(perms, MENU, "保存") && (
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>新建</Button>
+          )}
+          <Input.Search
+            placeholder="单号 / 供应商 / 生产单号" allowClear style={{ width: 260 }}
+            onSearch={onSearch}
+          />
+        </Space>
       }>
       <Table
         size="middle" rowKey="ID" loading={loading} dataSource={rows}
-        columns={columns} scroll={{ x: true }}
+        columns={columns} scroll={{ x: "max-content", y: "calc(100vh - 300px)" }}
         pagination={{
           current: page, pageSize: PAGE_SIZE, total, showSizeChanger: false,
           onChange: setPage,
@@ -86,9 +93,9 @@ export default function PurchaseOrderListPage() {
       />
 
       <PurchaseOrderDrawer
-        open={!!viewing}
+        open={creating || !!viewing}
         单号={viewing}
-        onClose={() => setViewing(undefined)}
+        onClose={() => { setCreating(false); setViewing(undefined); }}
         onSaved={() => load(page, keyword)}
       />
     </Card>

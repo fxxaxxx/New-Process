@@ -48,6 +48,13 @@ export default function PlasticProcessOrderMakePage() {
     { title: "颜色", dataIndex: "颜色", width: 80 },
     { title: "色粉号", dataIndex: "色粉号", width: 100 },
     { title: "加工内容", dataIndex: "加工内容", width: 120 },
+    { title: "二次加工类别", dataIndex: "二次加工类别", width: 100, render: (v?: string) => v ?? "" },
+    {
+      title: "加工次序", dataIndex: "加工次序", width: 90, render: (v?: string) => v ?? "",
+      filters: [{ text: "第一次", value: "第一次" }, { text: "第二次", value: "第二次" }],
+      onFilter: (v, r) => (r.加工次序 ?? "") === v,
+    },
+    { title: "加工字母", dataIndex: "加工字母", width: 80, render: (v?: string) => v ?? "" },
     { title: "用料名称", dataIndex: "用料名称", width: 120 },
     { title: "单位", dataIndex: "单位", width: 60 },
     { title: "用量", dataIndex: "用量", width: 90, align: "right" as const },
@@ -64,6 +71,7 @@ export default function PlasticProcessOrderMakePage() {
     { title: "生产单号", key: "生产单号" }, { title: "款号", key: "款号" }, { title: "塑胶货号", key: "塑胶货号" },
     { title: "工模编号", key: "工模编号" }, { title: "物料编号", key: "物料编号" }, { title: "物料名称", key: "物料名称" },
     { title: "颜色", key: "颜色" }, { title: "色粉号", key: "色粉号" }, { title: "加工内容", key: "加工内容" },
+    { title: "二次加工类别", key: "二次加工类别" }, { title: "加工次序", key: "加工次序" }, { title: "加工字母", key: "加工字母" },
     { title: "用料名称", key: "用料名称" }, { title: "单位", key: "单位" },
     { title: "用量", key: "用量" }, { title: "计划数量", key: "计划数量" }, { title: "订购数量", key: "订购数量" },
     ...(priceHidden ? [] : [{ title: "加工单价", key: "加工单价" }, { title: "金额", key: "金额" }]),
@@ -89,7 +97,7 @@ export default function PlasticProcessOrderMakePage() {
         <span style={{ color: "#888" }}>共 {rows.length} 条</span>
       </Space>
       <Table rowKey={(_, i) => String(i)} size="small" loading={loading} dataSource={rows} columns={columns}
-        scroll={{ x: "max-content" }} pagination={{ pageSize: 50, showTotal: t => `共 ${t} 条` }} />
+        scroll={{ x: "max-content", y: "calc(100vh - 300px)" }} pagination={{ pageSize: 50, showTotal: t => `共 ${t} 条` }} />
     </Card>
   );
 }

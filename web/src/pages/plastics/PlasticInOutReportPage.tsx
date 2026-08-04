@@ -76,7 +76,7 @@ export default function PlasticInOutReportPage() {
         <Button onClick={() => printTable("塑胶进出库统计表", exportCols, asRecords())}>打印</Button>
       </Space>
       <Table rowKey={(_, i) => String(i)} size="small" loading={loading} dataSource={rows} columns={columns}
-        scroll={{ x: "max-content" }} pagination={{ pageSize: 50, showTotal: t => `共 ${t} 条` }}
+        scroll={{ x: "max-content", y: "calc(100vh - 300px)" }} pagination={{ pageSize: 50, showTotal: t => `共 ${t} 条` }}
         summary={() => (
           <Table.Summary fixed>
             <Table.Summary.Row>

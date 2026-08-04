@@ -38,6 +38,7 @@ export default function PieceworkSummaryPage() {
           options={orders.map(o => ({ value: String(o.生产单号), label: `${o.生产单号} ${o.款式 ?? ""}` }))} />
       }>
       <Table rowKey={(r) => `${r.员工号}|${r.工序号}`} size="middle" dataSource={rows} columns={columns}
+        scroll={{ x: "max-content", y: "calc(100vh - 300px)" }}
         pagination={{ pageSize: 20, showTotal: t => `共 ${t} 条` }} />
     </Card>
   );

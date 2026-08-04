@@ -120,7 +120,7 @@ export default function PlasticRawMaterialProgressDetailPage() {
         loading={loading}
         dataSource={rows}
         columns={columns}
-        scroll={{ x: "max-content" }}
+        scroll={{ x: "max-content", y: "calc(100vh - 300px)" }}
         pagination={{ pageSize: 50, showTotal: t => `共 ${t} 条` }}
         summary={() => (
           <Table.Summary fixed>

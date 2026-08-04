@@ -19,22 +19,23 @@ const M = (label: string, path?: string, perm?: string): MenuLeaf => ({ label, p
 export const MENU_TREE: MenuGroup[] = [
   // ① 基本设置
   { key: "g-base", label: "基本设置", children: [
-    M("基本资料"),
-    M("功能设置"),
-    M("仓库位置设置"),
-    M("备份数据"),
-    M("还原数据"),
+    M("基本资料", "/system/company-profile", "基本资料"),
+    M("功能设置", "/system/feature-settings", "功能设置"),
+    M("仓库位置设置", "/system/warehouse-locations", "仓库位置设置"),
+    M("备份数据", "/system/backup", "备份数据"),
+    M("还原数据", "/system/restore"),
     M("塑胶原料资料表", "/plastic-raw-material-master", "塑胶原料资料表"),
-    M("啤机机型啤工表"),
+    M("啤机机型啤工表", "/system/injection-machine-rates", "啤机机型啤工表"),
     M("供应商资料", "/master/供应商资料", "供应商资料"),
     M("客户资料", "/master/客户资料", "客户资料"),
     M("款号总表", "/master/款号资料", "款号资料"),
-    M("部门人事", "/master/部门信息", "部门信息"),
-    M("用户修改密码"),
+    M("部门人事", "/hr/department-personnel", "部门信息"),
+    M("调价", "/master/调价", "调价"),
+    M("用户修改密码", "/change-password"),
     M("系统用户", "/admin/accounts", "账号管理"),
     M("用户权限", "/admin/accounts", "账号管理"),
-    M("网上升级"),
-    M("退出软件"),
+    M("网上升级", "/system/upgrade"),
+    M("退出软件", "/logout"),
   ]},
   // ② 生产管理
   { key: "g-prod", label: "生产管理", children: [
@@ -52,14 +53,14 @@ export const MENU_TREE: MenuGroup[] = [
     M("领料超数查询", "/issue-over-query", "生产制单"),
     M("制单用量查询", "/material-usage-query", "生产制单"),
     M("采购分析明细查询", "/purchase-analysis-query", "生产制单"),
-    M("采购分析表"),
-    M("成品余料统计表"),
-    M("合同余料统计表"),
+    M("采购领料分析表", "/purchase-issue-analysis", "生产制单"),
+    M("成品余料统计表", "/finished-leftover", "生产制单"),
+    M("合同余料统计表", "/contract-leftover", "生产制单"),
   ]},
   // ④ 采购管理
   { key: "g-purchase", label: "采购管理", children: [
     M("采购物料分析", "/purchase-material-analysis", "生产制单"),
-    M("采购物料设置"),
+    M("采购物料设置", "/purchase-material-settings", "采购物料设置"),
     M("BOM订单制作", "/material-order-make", "生产制单"),
     M("采购订单", "/purchase-orders", "采购订单"),
     M("订单进度表", "/order-progress", "采购订单"),
@@ -68,7 +69,7 @@ export const MENU_TREE: MenuGroup[] = [
   // ⑤ 仓库管理
   { key: "g-wh", label: "仓库管理", children: [
     M("物料资料", "/material-master", "物料资料"),
-    M("来料标签单"),
+    M("来料标签单", "/material-label-orders", "来料标签单"),
     M("采购入仓单", "/materials/purchase-receipts", "采购入仓单"),
     M("采购退仓单", "/materials/purchase-returns", "采购退仓单"),
     M("领料单", "/materials/material-issues", "领料单"),
@@ -81,7 +82,7 @@ export const MENU_TREE: MenuGroup[] = [
     M("库存统计表", "/material-inventory", "物料库存"),
     M("库存月报表", "/month-end", "库存月结"),
     M("订购单查询", "/purchase-order-query", "采购订单"),
-    M("来料标签查询", "/material-label-query", "采购入仓单"),
+    M("来料标签查询", "/material-label-query", "来料标签查询"),
     M("采购入仓查询", "/purchase-receipt-query", "采购入仓单"),
     M("采购退仓查询", "/purchase-return-query", "采购退仓单"),
     M("领料单查询", "/material-issue-query", "领料单"),
@@ -91,18 +92,18 @@ export const MENU_TREE: MenuGroup[] = [
   ]},
   // ⑦ 塑胶采购
   { key: "g-plastic-pur", label: "塑胶采购", children: [
-    M("塑胶采购分析", "/plastic-material-analysis", "塑胶物料单"), M("塑胶物料设置"), M("塑胶订单制作", "/plastic-order-make", "塑胶订单制作"), M("塑胶采购订单", "/plastic-purchase-orders", "塑胶采购订单"),
-    M("塑胶进度表", "/plastic-purchase-progress", "塑胶进度表"), M("塑胶进度明细表"), M("塑胶物料进出汇总"),
+    M("塑胶采购分析", "/plastic-material-analysis", "塑胶物料单"), M("塑胶物料设置", "/plastic-material-settings", "塑胶物料设置"), M("塑胶订单制作", "/plastic-order-make", "塑胶订单制作"), M("塑胶采购订单", "/plastic-purchase-orders", "塑胶采购订单"),
+    M("塑胶进度表", "/plastic-purchase-progress", "塑胶进度表"), M("塑胶进度明细表", "/plastic-purchase-progress-detail", "塑胶进度明细表"), M("塑胶物料进出汇总", "/plastic-in-out-summary", "塑胶物料进出汇总"),
   ]},
   // ⑧ 塑胶仓库
   { key: "g-plastic-wh", label: "塑胶仓库", children: [
-    M("工模表"), M("塑胶物料资料", "/plastic-material-master", "塑胶物料资料"), M("塑胶共用物料表", "/plastic-common-materials", "塑胶共用物料表"), M("塑胶标签单"),
+    M("工模表", "/plastic-molds", "工模表"), M("塑胶物料资料", "/plastic-material-master", "塑胶物料资料"), M("塑胶共用物料表", "/plastic-common-materials", "塑胶共用物料表"), M("塑胶标签单", "/plastic-label-orders", "塑胶标签单"),
     M("塑胶入仓单", "/plastic-receipts", "塑胶入仓单"), M("塑胶退仓单", "/plastic-warehouse-returns", "塑胶退仓单"), M("塑胶领料单", "/plastic-issues", "塑胶领料单"), M("塑胶退料单", "/plastic-returns", "塑胶退料单"),
     M("塑胶报废单", "/plastic-scraps", "塑胶报废单"), M("塑胶盘点单", "/plastic-stocktakes", "塑胶盘点单"),
   ]},
   // ⑨ 塑胶报表
   { key: "g-plastic-rpt", label: "塑胶报表", children: [
-    M("塑胶库存统计表", "/plastic-inventory", "塑胶库存"), M("塑胶库存月报表"), M("塑胶进出库统计表", "/plastic-in-out", "塑胶进出库统计表"), M("塑胶类型客户统计", "/plastic-customer-type-stats", "塑胶类型客户统计"),
+    M("塑胶库存统计表", "/plastic-inventory", "塑胶库存"), M("塑胶库存月报表", "/plastic-monthly-report", "塑胶库存月报表"), M("塑胶进出库统计表", "/plastic-in-out", "塑胶进出库统计表"), M("塑胶类型客户统计", "/plastic-customer-type-stats", "塑胶类型客户统计"),
     M("原料本月库存汇总", "/plastic-raw-material-summary", "原料本月库存汇总"), M("塑胶分析明细查询", "/plastic-analysis-detail", "塑胶分析明细查询"), M("塑胶订购单查询", "/plastic-order-query", "塑胶订购单查询"), M("塑胶标签查询", "/plastic-label-query", "塑胶标签查询"),
     M("塑胶入仓查询", "/plastic-receipt-query", "塑胶入仓查询"), M("塑胶退仓查询", "/plastic-warehouse-return-query", "塑胶退仓查询"), M("塑胶领料查询", "/plastic-issue-query", "塑胶领料查询"), M("塑胶退料查询", "/plastic-return-query", "塑胶退料查询"),
     M("塑胶报废查询", "/plastic-scrap-query", "塑胶报废查询"), M("塑胶盘点查询", "/plastic-stocktake-query", "塑胶盘点查询"),
@@ -119,12 +120,12 @@ export const MENU_TREE: MenuGroup[] = [
     M("采购加工明细表", "/plastic-process-purchase-detail", "采购加工明细表"),
     M("加工领料进度表", "/plastic-process-issue-progress", "加工领料进度表"),
     M("物料发外欠数表", "/plastic-process-shortage", "物料发外欠数表"),
-    M("生产加工缺料表"),
+    M("生产加工缺料表", "/process-shortage", "生产制单"),
   ]},
   // ⑪ 原料仓库
   { key: "g-raw", label: "原料仓库", children: [
-    M("原料资料"), M("原料生产需求表", "/plastic-raw-material-demand", "原料生产需求表"), M("原料采购分析表", "/plastic-raw-material-purchase-analysis", "原料采购分析表"), M("原料采购订单", "/plastic-raw-material-purchase-order", "原料采购订单"),
-    M("原料采购进度表"), M("原料出库进度表"), M("原料入仓单", "/plastic-raw-material-receipt", "原料入仓单"), M("原料退仓单", "/plastic-raw-material-return", "原料退仓单"),
+    M("原料资料", "/plastic-raw-material-master", "塑胶原料资料表"), M("原料生产需求表", "/plastic-raw-material-demand", "原料生产需求表"), M("原料采购分析表", "/plastic-raw-material-purchase-analysis", "原料采购分析表"), M("原料采购订单", "/plastic-raw-material-purchase-order", "原料采购订单"),
+    M("原料采购进度表", "/plastic-raw-material-purchase-progress"), M("原料出库进度表", "/plastic-raw-material-issue-progress"), M("原料入仓单", "/plastic-raw-material-receipt", "原料入仓单"), M("原料退仓单", "/plastic-raw-material-return", "原料退仓单"),
     M("原料出库表", "/plastic-raw-material-stock-issue", "原料出库表"), M("原料退库表", "/plastic-raw-material-stock-return", "原料退库表"), M("原料盘点单", "/plastic-raw-material-stocktake", "原料盘点单"),
   ]},
   // ⑫ 原料报表
@@ -137,7 +138,7 @@ export const MENU_TREE: MenuGroup[] = [
   { key: "g-assembly", label: "外发装配", children: [
     M("装配物料设置", "/assembly-material-setup", "款号资料"), M("装配物料汇总表", "/assembly-material-summary", "款号资料"), M("装配加工采购单", "/assembly-purchase-orders", "款号资料"), M("装配采购查询", "/assembly-purchase-query", "款号资料"),
     M("装配采购进度表", "/assembly-purchase-progress", "款号资料"), M("装配物料跟踪表", "/assembly-material-tracking", "款号资料"), M("加工厂库存汇总表", "/assembly-factory-inventory", "款号资料"), M("装配需领明细表", "/assembly-required-material-detail", "款号资料"),
-    M("加工厂分类月报表", "/assembly-factory-category-monthly", "款号资料"), M("加工厂分类明细表"),
+    M("加工厂分类月报表", "/assembly-factory-category-monthly", "款号资料"), M("加工厂分类明细表", "/assembly-factory-category-detail", "款号资料"),
   ]},
   // ⑭ 辅料仓库
   { key: "g-aux", label: "辅料仓库", children: [

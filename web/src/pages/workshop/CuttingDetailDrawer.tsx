@@ -32,6 +32,7 @@ export default function CuttingDetailDrawer({ 裁床单号, onClose }: { 裁床�
               { key: "memo", label: "备注", children: h?.备注 ?? "-" },
             ]} />
           <Table size="small" rowKey="id" pagination={false} dataSource={detail.明细}
+            scroll={{ x: "max-content", y: 380 }}
             columns={[
               { title: "扎号", dataIndex: "扎号" }, { title: "缸号", dataIndex: "缸号" },
               { title: "颜色", dataIndex: "颜色" }, { title: "尺码", dataIndex: "尺码" },

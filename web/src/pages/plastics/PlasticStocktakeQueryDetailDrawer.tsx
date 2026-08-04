@@ -32,7 +32,7 @@ export default function PlasticStocktakeQueryDetailDrawer({ open, 单号, onClos
           <Descriptions.Item label="审核">{head.审核 === "1" ? <Tag color="green">已审核</Tag> : <Tag>未审核</Tag>}</Descriptions.Item>
         </Descriptions>
       )}
-      <Table rowKey={(_, i) => String(i)} size="small" dataSource={lines} columns={cols} pagination={false} scroll={{ x: "max-content" }} />
+      <Table rowKey={(_, i) => String(i)} size="small" dataSource={lines} columns={cols} pagination={false} scroll={{ x: "max-content", y: 380 }} />
     </Drawer>
   );
 }

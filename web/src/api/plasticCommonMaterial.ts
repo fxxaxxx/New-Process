@@ -22,6 +22,18 @@ export interface PlasticCommonMaterialRow {
   调整审核?: string;
   备注内容?: string;
   工模表备注?: string;
+  出模数?: number | null;
+  水口比例?: number | null;
+  整啤毛重?: number | null;
+  模具日产量?: number | null;
+  啤机机型?: string;
+  啤机价钱?: number | null;
+  胶件啤工价?: number | null;
+  胶料单价?: number | null;
+  原胶料单价?: number | null;
+  加工总单价?: number | null;
+  其它成本?: number | null;
+  二次加工内容?: string;
 }
 
 export interface PlasticCommonQuery {
@@ -30,5 +42,7 @@ export interface PlasticCommonQuery {
 
 export const plasticCommonMaterialApi = {
   list: (q: PlasticCommonQuery) =>
-    api.get<Paged<PlasticCommonMaterialRow>>("/plastic-common-materials", { params: q }).then(r => r.data),
+    api.get<Paged<PlasticCommonMaterialRow>>("/plastic-common-materials", { params: q })
+      // 后端按 camelCase 序列化为 id，这里归一化为 ID（与全项目调用方一致）
+      .then(r => ({ ...r.data, items: r.data.items.map(x => ({ ...x, ID: (x as unknown as { id?: number }).id ?? x.ID })) })),
 };

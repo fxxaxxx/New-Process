@@ -10,7 +10,7 @@ import { can } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
 
 const MENU = "原料出库表";
-const today = () => new Date().toLocaleDateString("zh-CN");
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }; // ISO 格式：后端 DateTime 反序列化要求
 const currentUser = () => localStorage.getItem("erp_user") ?? "";
 
 export default function PlasticRawMaterialStockIssuePage() {
@@ -176,7 +176,7 @@ export default function PlasticRawMaterialStockIssuePage() {
       <EmployeePicker open={empOpen} onPick={姓名 => form.setFieldValue("制单人", 姓名)} onClose={() => setEmpOpen(false)} />
 
       <Modal open={demandOpen} title="选择已审核原料生产需求表调入明细" footer={null} width={680} onCancel={() => setDemandOpen(false)}>
-        <Table rowKey="id" size="small" dataSource={demands} columns={demandColumns} pagination={{ pageSize: 8 }} />
+        <Table rowKey="id" size="small" dataSource={demands} columns={demandColumns} pagination={{ pageSize: 8 }} scroll={{ x: "max-content", y: 380 }} />
       </Modal>
     </Card>
   );

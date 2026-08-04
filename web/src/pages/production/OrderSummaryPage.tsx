@@ -56,7 +56,7 @@ export default function OrderSummaryPage() {
       </Space>
       <Table
         size="small" rowKey={(_, i) => `r-${i}`} loading={loading}
-        dataSource={rows} columns={columns} scroll={{ x: 600 }}
+        dataSource={rows} columns={columns} scroll={{ x: 600, y: "calc(100vh - 300px)" }}
         onRow={(r) => ({ onClick: () => go(r.货号), style: { cursor: "pointer" } })}
         pagination={{ pageSize: 50, showSizeChanger: false, showTotal: (t) => `共 ${t} 条` }}
       />

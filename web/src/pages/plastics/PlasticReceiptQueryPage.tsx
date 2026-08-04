@@ -131,10 +131,10 @@ export default function PlasticReceiptQueryPage() {
         ]} />
       {tab === "detail"
         ? <Table rowKey={(_, i) => String(i)} size="small" loading={loading} dataSource={detail} columns={detailColumns}
-            scroll={{ x: "max-content" }} pagination={{ pageSize: 50, showTotal: t => `共 ${t} 条` }}
+            scroll={{ x: "max-content", y: "calc(100vh - 340px)" }} pagination={{ pageSize: 50, showTotal: t => `共 ${t} 条` }}
             onRow={r => ({ onDoubleClick: () => { if (r.单号) setViewing(r.单号); }, style: { cursor: "pointer" } })} />
         : <Table rowKey={(_, i) => String(i)} size="small" loading={loading} dataSource={summary} columns={summaryColumns}
-            scroll={{ x: "max-content" }} pagination={{ pageSize: 50, showTotal: t => `共 ${t} 条` }} />}
+            scroll={{ x: "max-content", y: "calc(100vh - 340px)" }} pagination={{ pageSize: 50, showTotal: t => `共 ${t} 条` }} />}
       <PlasticReceiptQueryDetailDrawer open={viewing !== undefined} 单号={viewing} onClose={() => setViewing(undefined)} />
     </Card>
   );

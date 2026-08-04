@@ -60,6 +60,29 @@ export function applyAuxiliaryMaterialToLine(
   };
 }
 
+// —— 采购物料设置消费(预填) ——
+
+// 最小订量预填: 行内数量为空/0 且设置有最小订量时, 返回最小订量作为该行数量初值; 否则 null(不动该行)。
+// 仅预填+提示, 不作为硬校验下限(允许低于最小订量的真实下单)。
+export function minOrderPrefill(数量: number | null | undefined, 最小订量?: number | null): number | null {
+  const min = Number(最小订量 ?? 0);
+  if (min <= 0) return null;
+  return Number(数量 ?? 0) > 0 ? null : min;
+}
+
+// 默认供应商解析: 设置里存自由文本(编号或名称), 在供应商资料中精确匹配;
+// 唯一匹配才返回(不匹配/多匹配都不预填, 避免只填名称没编号的半填状态——保存要求供应商编号)。
+export function resolveDefaultSupplier<T extends { 供应商编号?: string; 供应商名称?: string }>(
+  suppliers: T[],
+  默认供应商?: string | null,
+): T | null {
+  const key = (默认供应商 ?? "").trim();
+  if (!key) return null;
+  const hits = suppliers.filter(s =>
+    (s.供应商编号 ?? "").trim() === key || (s.供应商名称 ?? "").trim() === key);
+  return hits.length === 1 ? hits[0] : null;
+}
+
 export function summarizeAuxiliaryPurchaseLines(lines: AuxiliaryPurchaseLine[]) {
   return lines.reduce(
     (acc, line) => {

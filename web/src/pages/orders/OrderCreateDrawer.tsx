@@ -8,6 +8,7 @@ import { matrixToLines, sumMatrix, type QtyMap } from "../../utils/matrix";
 import { hidePrice } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
 import QtyMatrix from "../../components/QtyMatrix";
+import { codeName } from "../../utils/codeName";
 
 const MENU = "成品客户订货单";
 
@@ -98,7 +99,7 @@ export default function OrderCreateDrawer({ open, onClose, onCreated }: {
             <Form.Item name="客户编号" label="客户" rules={[{ required: true, message: "请选择客户" }]}>
               <Select showSearch optionFilterProp="label"
                 options={customers.map(c => ({
-                  value: String(c.客户编号), label: `${c.客户编号} ${c.客户名称 ?? ""}`,
+                  value: String(c.客户编号), label: codeName(String(c.客户编号 ?? ""), c.客户名称 as string | undefined),
                 }))} />
             </Form.Item>
           </Col>

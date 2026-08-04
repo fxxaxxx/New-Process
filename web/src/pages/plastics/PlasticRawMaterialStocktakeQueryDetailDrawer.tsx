@@ -43,7 +43,7 @@ export default function PlasticRawMaterialStocktakeQueryDetailDrawer({ open, 单
           <Descriptions.Item label="备注">{String(head.备注 ?? "")}</Descriptions.Item>
         </Descriptions>
       )}
-      <Table rowKey={(_, i) => String(i)} size="small" dataSource={lines} columns={cols} pagination={false} scroll={{ x: "max-content" }} />
+      <Table rowKey={(_, i) => String(i)} size="small" dataSource={lines} columns={cols} pagination={false} scroll={{ x: "max-content", y: 380 }} />
     </Drawer>
   );
 }

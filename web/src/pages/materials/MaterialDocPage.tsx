@@ -63,7 +63,7 @@ export default function MaterialDocPage({ cfg }: { cfg: MaterialDocCfg }) {
           {can(perms, cfg.menu, "保存") && <Button type="primary" icon={<PlusOutlined />} onClick={() => { setCopyInitial(null); setCreating(true); }}>新建{cfg.title}单</Button>}
         </Space>
       }>
-      <Table rowKey="id" size="middle" dataSource={rows} columns={columns} scroll={{ x: true }}
+      <Table rowKey="id" size="middle" dataSource={rows} columns={columns} scroll={{ x: "max-content", y: "calc(100vh - 300px)" }}
         pagination={{ current: page, pageSize: 10, total, onChange: setPage, showTotal: t => `共 ${t} 条` }} />
       <MaterialDocCreateDrawer cfg={cfg} open={creating} initial={copyInitial ?? undefined}
         onClose={() => { setCreating(false); setCopyInitial(null); }} onCreated={load} />

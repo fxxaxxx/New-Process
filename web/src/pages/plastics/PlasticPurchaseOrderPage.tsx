@@ -11,7 +11,7 @@ import { can } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
 
 const MENU = "塑胶采购订单";
-const today = () => new Date().toLocaleDateString("zh-CN");
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }; // ISO 格式：后端 DateTime 反序列化要求
 const currentUser = () => localStorage.getItem("erp_user") ?? "";
 
 interface MergeRow { 序号: number; 物料编号: string; 物料名称?: string; 数量合计: number }

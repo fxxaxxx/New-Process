@@ -9,9 +9,14 @@ export default function Login() {
   const primary = theme.antd.token?.colorPrimary as string;
 
   const onFinish = async (v: { 用户: string; 密码: string }) => {
-    const r = await login(v.用户, v.密码);
-    if (r.成功) nav("/");
-    else message.error(r.消息 ?? "登录失败");
+    try {
+      const r = await login(v.用户, v.密码);
+      if (r.成功) nav("/");
+      else message.error(r.消息 ?? "登录失败");
+    } catch (e) {
+      const msg = (e as { response?: { data?: { 消息?: string } } })?.response?.data?.消息;
+      message.error(msg ?? "登录失败，请检查网络或稍后再试");
+    }
   };
 
   return (

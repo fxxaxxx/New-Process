@@ -163,7 +163,7 @@ export default function MaterialOrderMakePage() {
       </Space>
       <Table
         size="small" rowKey={rowKey} loading={loading}
-        dataSource={rows} columns={columns} scroll={{ x: 1600 }}
+        dataSource={rows} columns={columns} scroll={{ x: 1600, y: "calc(100vh - 300px)" }}
         rowSelection={{ selectedRowKeys: selectedKeys, onChange: setSelectedKeys }}
         pagination={{ pageSize: 50, showSizeChanger: false, showTotal: (t) => `共 ${t} 条` }}
       />

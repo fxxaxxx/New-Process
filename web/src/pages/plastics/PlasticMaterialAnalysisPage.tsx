@@ -77,7 +77,7 @@ export default function PlasticMaterialAnalysisPage() {
         <Button type="primary" onClick={search}>查询</Button>
       </Space>
       <Table
-        size="small" rowKey="ID" loading={loading} dataSource={rows} columns={columns} scroll={{ x: 1100 }}
+        size="small" rowKey="ID" loading={loading} dataSource={rows} columns={columns} scroll={{ x: 1100, y: "calc(100vh - 300px)" }}
         pagination={{ current: page, pageSize: 50, total, showSizeChanger: false,
           onChange: p => { setPage(p); load(p); }, showTotal: t => `共 ${t} 条` }}
         onRow={r => ({ onClick: () => openDrawer(r.生产单号), style: { cursor: "pointer" } })}

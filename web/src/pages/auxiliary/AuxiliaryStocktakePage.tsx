@@ -44,6 +44,7 @@ import {
   summarizeAuxiliaryStocktakeLines,
   type AuxiliaryStocktakeLine,
 } from "../../utils/auxiliaryIssue";
+import { adjacentDocNo } from "../../utils/docNav";
 
 const API_MENU = "盘点单";
 const currentUser = () => localStorage.getItem("erp_user") || "admin";
@@ -103,6 +104,7 @@ export default function AuxiliaryStocktakePage() {
   const canDelete = can(perms, API_MENU, "删除");
   const canApprove = can(perms, API_MENU, "审核");
   const canUnapprove = can(perms, API_MENU, "反审核");
+  const canPrint = can(perms, API_MENU, "打印");
   const [form] = Form.useForm<HeaderForm>();
   const [lines, setLines] = useState<AuxiliaryStocktakeLine[]>(() => createAuxiliaryStocktakeLines(20));
   const [openedNo, setOpenedNo] = useState<string | null>(null);
@@ -314,6 +316,26 @@ export default function AuxiliaryStocktakePage() {
     }
   };
 
+  // 前单/后单：用列表端点拉辅料仓盘点单，按单号升序定位相邻单（口径见 utils/docNav）
+  const move = async (next: boolean) => {
+    if (!openedNo) return;
+    setSaving(true);
+    try {
+      const result = await materialStocktakeApi.list(1, 1000, AUXILIARY_ISSUE_WAREHOUSE);
+      const target = adjacentDocNo(
+        result.items.filter(row => row.仓库 === AUXILIARY_ISSUE_WAREHOUSE).map(row => row.单号),
+        openedNo,
+        next,
+      );
+      if (!target) message.info(next ? "已经是最后一张单据" : "已经是第一张单据");
+      else await openDoc(target);
+    } catch {
+      message.error("切换单据失败");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const materialColumns: ColumnsType<MaterialRow> = [
     { title: "辅料编号", dataIndex: "物料编号", width: 125 },
     { title: "辅料名称", dataIndex: "物料名称", width: 290 },
@@ -400,12 +422,12 @@ export default function AuxiliaryStocktakePage() {
           </Popconfirm>
           <Button icon={<ReloadOutlined />} onClick={loadMaterials}>刷新</Button>
           <Button onClick={() => lines[0] && openMaterialPicker(lines[0].key)}>资料</Button>
-          <Button disabled>前单</Button>
-          <Button disabled>后单</Button>
+          <Button disabled={!openedNo || saving} onClick={() => void move(false)}>前单</Button>
+          <Button disabled={!openedNo || saving} onClick={() => void move(true)}>后单</Button>
           <Button icon={<CheckOutlined />} disabled={!openedNo || openedAudit === "1" || !canApprove} onClick={approveDoc}>审核</Button>
           <Button disabled={!openedNo || openedAudit !== "1" || !canUnapprove} onClick={unapproveDoc}>反审核</Button>
           <Button icon={<TableOutlined />} disabled>表格设置</Button>
-          <Button icon={<PrinterOutlined />} disabled>打印</Button>
+          <Button icon={<PrinterOutlined />} disabled={!canPrint} onClick={() => window.print()}>打印</Button>
           <Button danger icon={<CloseOutlined />} onClick={() => window.history.back()}>关闭</Button>
         </Space>
       }

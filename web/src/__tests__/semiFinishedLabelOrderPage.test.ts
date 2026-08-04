@@ -47,6 +47,19 @@ const pageMock = vi.hoisted(() => ({
   remove: vi.fn(),
   errors: vi.fn(),
   navigate: vi.fn(),
+  searchParams: new URLSearchParams(),
+  setSearchParams: undefined as unknown as (
+    next: URLSearchParams | ((prev: URLSearchParams) => URLSearchParams),
+  ) => void,
+}));
+pageMock.setSearchParams = (next) => {
+  pageMock.searchParams = typeof next === "function" ? next(pageMock.searchParams) : next;
+};
+
+vi.mock("react-router-dom", () => ({
+  useLocation: () => ({ pathname: "/semi-finished-label-orders" }),
+  useNavigate: () => pageMock.navigate,
+  useSearchParams: () => [pageMock.searchParams, pageMock.setSearchParams],
 }));
 
 vi.mock("../auth/PermissionContext", () => ({
@@ -64,11 +77,6 @@ vi.mock("../api/semiFinishedLabelOrders", () => ({
     remove: pageMock.remove,
   },
 }));
-
-vi.mock("react-router-dom", async () => {
-  const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
-  return { ...actual, useNavigate: () => pageMock.navigate };
-});
 
 vi.mock("../pages/semi/SemiFinishedLabelProductPicker", () => ({
   default: (props: ProductPickerProps) => { pageMock.productPicker = props; return null; },
@@ -344,6 +352,7 @@ beforeEach(async () => {
   pageMock.remove.mockReset();
   pageMock.errors.mockReset();
   pageMock.navigate.mockReset();
+  pageMock.searchParams = new URLSearchParams();
   await mountPage();
 });
 

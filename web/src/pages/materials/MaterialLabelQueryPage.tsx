@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Card, DatePicker, Input, Select, Space, Table, Tabs, message } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
+import { useNavigate } from "react-router-dom";
 import {
   materialLabelApi,
   type MaterialLabelDetailRow,
@@ -9,13 +10,11 @@ import {
 import { materialMasterApi, type MaterialCategoryNode } from "../../api/materialMaster";
 import { ALL_APPROVAL, ALL_CAT as ALL, buildLabelQuery } from "../../utils/materialLabelQuery";
 import { downloadCsv, printTable, type ExportCol } from "../../utils/tableExport";
-import { MATERIAL_DOC_CONFIGS } from "./materialDocConfigs";
-import MaterialDocDetailDrawer from "./MaterialDocDetailDrawer";
 
-const RECEIPT_CFG = MATERIAL_DOC_CONFIGS["purchase-receipts"];
 const thisMonth = (): [Dayjs, Dayjs] => [dayjs().startOf("month"), dayjs().endOf("month")];
 
 export default function MaterialLabelQueryPage() {
+  const navigate = useNavigate();
   const [tab, setTab] = useState<"detail" | "summary">("detail");
   const [cats, setCats] = useState<MaterialCategoryNode[]>([]);
   const [selKey, setSelKey] = useState<string>(ALL);
@@ -26,7 +25,6 @@ export default function MaterialLabelQueryPage() {
   const [detail, setDetail] = useState<MaterialLabelDetailRow[]>([]);
   const [summary, setSummary] = useState<MaterialLabelSummaryRow[]>([]);
   const [loading, setLoading] = useState(false);
-  const [viewing, setViewing] = useState<string | null>(null);
 
   const query = useMemo(() => buildLabelQuery({
     keyword, selKey, 审核情况,
@@ -67,8 +65,7 @@ export default function MaterialLabelQueryPage() {
 
   const detailColumns = [
     { title: "日期", dataIndex: "日期", render: (v?: string) => v?.slice(0, 10) },
-    { title: "单号", dataIndex: "单号", render: num },
-    { title: "款号", dataIndex: "款号" },
+    { title: "电脑单号", dataIndex: "电脑单号", render: num },
     { title: "物料编号", dataIndex: "物料编号", render: num },
     { title: "物料名称", dataIndex: "物料名称" },
     { title: "规格", dataIndex: "规格" },
@@ -76,6 +73,7 @@ export default function MaterialLabelQueryPage() {
     { title: "颜色", dataIndex: "颜色" },
     { title: "单位", dataIndex: "单位" },
     { title: "数量", dataIndex: "数量", align: "right" as const },
+    { title: "标签数", dataIndex: "标签数", align: "right" as const },
     { title: "备注", dataIndex: "备注" },
     { title: "审核", dataIndex: "审核", render: (v?: string) => (v === "1" ? "已审核" : "未审核") },
   ];
@@ -89,14 +87,17 @@ export default function MaterialLabelQueryPage() {
     { title: "单位", dataIndex: "单位" },
     { title: "数量", dataIndex: "数量", align: "right" as const,
       render: (v: number) => <span style={{ fontWeight: 600 }}>{v}</span> },
+    { title: "标签数", dataIndex: "标签数", align: "right" as const,
+      render: (v: number) => <span style={{ fontWeight: 600 }}>{v}</span> },
   ];
 
   const detailExportCols: ExportCol[] = [
     { title: "日期", key: "日期", fmt: v => String(v ?? "").slice(0, 10) },
-    { title: "单号", key: "单号" }, { title: "款号", key: "款号" },
+    { title: "电脑单号", key: "电脑单号" },
     { title: "物料编号", key: "物料编号" }, { title: "物料名称", key: "物料名称" },
     { title: "规格", key: "规格" }, { title: "材料", key: "物料类别" },
     { title: "颜色", key: "颜色" }, { title: "单位", key: "单位" }, { title: "数量", key: "数量" },
+    { title: "标签数", key: "标签数" },
     { title: "备注", key: "备注" },
     { title: "审核", key: "审核", fmt: v => (v === "1" ? "已审核" : "未审核") },
   ];
@@ -104,6 +105,7 @@ export default function MaterialLabelQueryPage() {
     { title: "物料编号", key: "物料编号" }, { title: "物料名称", key: "物料名称" },
     { title: "材料", key: "物料类别" }, { title: "规格", key: "规格" },
     { title: "颜色", key: "颜色" }, { title: "单位", key: "单位" }, { title: "数量", key: "数量" },
+    { title: "标签数", key: "标签数" },
   ];
 
   const exportTarget = () => {
@@ -139,10 +141,11 @@ export default function MaterialLabelQueryPage() {
           <Select value={审核情况} onChange={set审核情况} style={{ width: 120 }}
             options={[ALL_APPROVAL, "已审核", "未审核"].map(v => ({ value: v, label: v }))} />
           <Select value={selKey} onChange={setSelKey} style={{ width: 160 }} options={catOptions} />
-          <Input.Search placeholder="单号/物料编号/名称/规格" allowClear onSearch={setKeyword} style={{ width: 220 }} />
+          <Input.Search placeholder="电脑单号/物料编号/名称/规格" allowClear onSearch={setKeyword} style={{ width: 220 }} />
           <Button type="primary" onClick={load}>查询</Button>
           <Button onClick={onExport}>导出EXCEL</Button>
           <Button onClick={onPrint}>打印</Button>
+          <span style={{ color: "#999" }}>提示：双击明细行可打开来料标签单</span>
         </Space>
         <Tabs activeKey={tab} onChange={k => setTab(k as "detail" | "summary")}
           items={[
@@ -150,10 +153,11 @@ export default function MaterialLabelQueryPage() {
               key: "detail", label: "明细查询",
               children: (
                 <Table rowKey={(_, i) => `d${i}`} size="small" loading={loading}
-                  dataSource={detail} columns={nowrap(detailColumns)} scroll={{ x: "max-content" }}
+                  dataSource={detail} columns={nowrap(detailColumns)} scroll={{ x: "max-content", y: "calc(100vh - 320px)" }}
                   pagination={{ pageSize: 20, showTotal: t => `共 ${t} 条` }}
                   onRow={r => ({
-                    onDoubleClick: () => r.单号 && setViewing(r.单号),
+                    onDoubleClick: () => r.电脑单号 &&
+                      navigate(`/material-label-orders?open=${encodeURIComponent(r.电脑单号)}`),
                     style: { cursor: "pointer" },
                   })} />
               ),
@@ -162,13 +166,12 @@ export default function MaterialLabelQueryPage() {
               key: "summary", label: "汇总查询",
               children: (
                 <Table rowKey={(_, i) => `s${i}`} size="small" loading={loading}
-                  dataSource={summary} columns={nowrap(summaryColumns)} scroll={{ x: "max-content" }}
+                  dataSource={summary} columns={nowrap(summaryColumns)} scroll={{ x: "max-content", y: "calc(100vh - 320px)" }}
                   pagination={{ pageSize: 20, showTotal: t => `共 ${t} 条` }} />
               ),
             },
           ]} />
       </div>
-      <MaterialDocDetailDrawer cfg={RECEIPT_CFG} 单号={viewing} onClose={() => setViewing(null)} />
     </Card>
   );
 }

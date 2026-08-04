@@ -70,7 +70,7 @@ export default function AbsencePage() {
         </Space>
       }>
       <Table rowKey={(r, i) => `${r.id ?? ""}|${i}`} size="middle"
-        dataSource={rows} columns={columns} scroll={{ x: true }}
+        dataSource={rows} columns={columns} scroll={{ x: "max-content", y: "calc(100vh - 300px)" }}
         pagination={{ current: page, pageSize: 20, total, onChange: setPage, showTotal: (t) => `共 ${t} 条` }} />
       <CreateDrawer open={creating} onClose={() => setCreating(false)} onCreated={load} />
     </Card>

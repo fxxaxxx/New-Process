@@ -1,24 +1,43 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Space, Table, Tree, message,
+  AutoComplete, Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Space, Table, Tree, message,
 } from "antd";
-import { PlusOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
+import type { TreeDataNode } from "antd";
+import { PlusOutlined, EditOutlined, DeleteOutlined, UploadOutlined } from "@ant-design/icons";
 import { materialMasterApi, type MaterialRow, type MaterialCategoryNode } from "../../api/materialMaster";
 import { masterApi } from "../../api/master";
 import { can, hidePrice } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
+import { toDocCurrency, useFeatureSettings } from "../../auth/featureSettings";
+import MaterialImportModal from "../../components/MaterialImportModal";
+import { MATERIAL_IMPORT_SPEC } from "../../utils/materialImport";
 
 const MENU = "物料资料";
+const CAT_MENU = "物料类别";
 const ALL = "__ALL__";
 const materials = masterApi("materials");
+const materialCategories = masterApi("material-categories");
+const warehouseLocations = masterApi("warehouse-locations");
+
+// 左树节点（由扁平 MaterialCategoryNode 按 父级 组装；数据结构支持多层，UI 两层够用）
+interface CatInfo {
+  key: string;
+  name: string;          // = 物料资料.物料类别 过滤值
+  code?: string;         // 主数据编号（物料行自带类别无）
+  parent: string | null; // 父节点 key
+  count: number;
+  hasChildren: boolean;
+}
 
 export default function MaterialMasterPage() {
   const perms = usePerms();
   const canOpen = can(perms, MENU, "打开");
   const canSave = can(perms, MENU, "保存");
   const canDelete = can(perms, MENU, "删除");
+  const canCatSave = can(perms, CAT_MENU, "保存");
   const priceHidden = hidePrice(perms, MENU);
   const money = (v?: number | null) => (priceHidden ? "***" : (v ?? ""));
+  const featureSettings = useFeatureSettings();
 
   const [cats, setCats] = useState<MaterialCategoryNode[]>([]);
   const [selKey, setSelKey] = useState<string>(ALL);
@@ -31,8 +50,64 @@ export default function MaterialMasterPage() {
   const [editing, setEditing] = useState<MaterialRow | null>(null); // null=不显示；ID=0 表示新增
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
+  // 双击行选中,工具栏"编辑/删除"作用于选中行
+  const [selRow, setSelRow] = useState<MaterialRow | null>(null);
 
-  const 类别 = selKey === ALL ? undefined : selKey;
+  const [catParent, setCatParent] = useState<string | null | undefined>(undefined); // undefined=不显示；null=顶级
+  const [catName, setCatName] = useState("");
+  const [catSaving, setCatSaving] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  // 仓库位置字典(数据源:仓库位置表);可输入可选择,不强制字典值(兼容存量自由文本)
+  const [locOptions, setLocOptions] = useState<{ value: string; label: string }[]>([]);
+
+  useEffect(() => {
+    warehouseLocations.list(1, 200)
+      .then(r => setLocOptions(r.items
+        .filter(x => typeof x.编号 === "string" && x.编号)
+        .map(x => ({ value: x.编号 as string, label: `${x.编号}${x.名称 ? ` ${x.名称}` : ""}` }))))
+      .catch(() => setLocOptions([])); // 无字典权限等:仍可按自由文本录入
+  }, []);
+
+  // 扁平节点 → key/父子 映射（key：主数据编号，物料自带类别用 ~名称）
+  const { treeData, infoByKey } = useMemo(() => {
+    const infos = new Map<string, CatInfo>();
+    for (const c of cats) {
+      const name = c.类别 ?? "";
+      const key = c.编号 ?? `~${name}`;
+      if (!name || infos.has(key)) continue;
+      infos.set(key, { key, name, code: c.编号 ?? undefined, parent: null, count: c.数量, hasChildren: false });
+    }
+    const childrenOf = new Map<string, CatInfo[]>();
+    const roots: CatInfo[] = [];
+    for (const c of cats) {
+      const key = c.编号 ?? `~${c.类别 ?? ""}`;
+      const info = infos.get(key);
+      if (!info) continue;
+      const parentKey = c.父级 && infos.has(c.父级) ? c.父级 : null;
+      info.parent = parentKey;
+      if (parentKey) {
+        const arr = childrenOf.get(parentKey) ?? [];
+        arr.push(info);
+        childrenOf.set(parentKey, arr);
+        infos.get(parentKey)!.hasChildren = true;
+      } else {
+        roots.push(info);
+      }
+    }
+    const toNode = (info: CatInfo): TreeDataNode => ({
+      title: `${info.name}（${info.count}）`,
+      key: info.key,
+      children: (childrenOf.get(info.key) ?? []).map(toNode),
+    });
+    return {
+      treeData: [{ title: "全部物料", key: ALL, children: roots.map(toNode) }] as TreeDataNode[],
+      infoByKey: infos,
+    };
+  }, [cats]);
+
+  const sel = selKey === ALL ? undefined : infoByKey.get(selKey);
+  const 类别 = sel?.name;
+  const 含子级 = sel?.hasChildren ?? false;
 
   const loadCats = useCallback(async () => {
     try { setCats(await materialMasterApi.categories()); } catch { /* 忽略 */ }
@@ -42,27 +117,25 @@ export default function MaterialMasterPage() {
     if (!canOpen) return;
     setLoading(true);
     try {
-      const r = await materialMasterApi.list(类别, keyword.trim() || undefined, p, 50);
-      setRows(r.items); setTotal(r.total);
+      const r = await materialMasterApi.list(类别, keyword.trim() || undefined, p, 50, undefined, 含子级);
+      setRows(r.items); setTotal(r.total); setSelRow(null);
     } catch { message.error("加载物料失败"); }
     finally { setLoading(false); }
-  }, [canOpen, 类别, keyword]);
+  }, [canOpen, 类别, keyword, 含子级]);
 
   useEffect(() => { if (canOpen) loadCats(); }, [canOpen, loadCats]);
   // 选中分类变化时重查(回到第1页)；关键字由搜索框显式触发，故 loadRows 不入依赖
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { setPage(1); loadRows(1); }, [selKey]);
+  useEffect(() => { setPage(1); loadRows(1); }, [canOpen, selKey, 含子级]);
 
-  const treeData = useMemo(() => [{
-    title: "全部物料", key: ALL,
-    children: cats.map(c => ({ title: `${c.类别}（${c.数量}）`, key: c.类别 ?? "", isLeaf: true })),
-  }], [cats]);
-
-  const openCreate = () => {
+  const openCreate = async () => {
     const init: MaterialRow = { ID: 0, 物料类别: 类别 };
     setEditing(init);
     form.resetFields();
-    form.setFieldsValue(init);
+    // 功能设置消费: 新增物料的货币默认取 系统.默认货币(HKD→HK$ 写法对齐单据沿用习惯)
+    form.setFieldsValue({ ...init, 货币: toDocCurrency(featureSettings.默认货币) });
+    try { form.setFieldsValue({ 物料编号: await materialMasterApi.nextCode(类别) }); }
+    catch { /* 预填失败可手输；留空保存时后端兜底生成 */ }
   };
   const openEdit = async (r: MaterialRow) => {
     try {
@@ -78,12 +151,14 @@ export default function MaterialMasterPage() {
     setSaving(true);
     try {
       if (editing && editing.ID > 0) await materials.update(editing.ID, v);
-      else await materials.create(v);
+      else await materialMasterApi.create(v); // 编号留空由后端自动生成
       message.success("已保存");
       setEditing(null);
       await loadCats();
       await loadRows(page);
-    } catch { message.error("保存失败"); }
+    } catch (e) {
+      message.error((e as { response?: { data?: { 消息?: string } } }).response?.data?.消息 ?? "保存失败");
+    }
     finally { setSaving(false); }
   };
 
@@ -94,6 +169,24 @@ export default function MaterialMasterPage() {
       await loadCats();
       await loadRows(page);
     } catch { message.error("删除失败"); }
+  };
+
+  // 新增同级类别：与当前选中类别同一父级；新增子类别：挂到当前选中类别下（全部物料=顶级）
+  const openSiblingCat = () => { setCatName(""); setCatParent(sel?.parent ?? null); };
+  const openChildCat = () => { setCatName(""); setCatParent(sel ? (sel.code ?? sel.name) : null); };
+
+  const submitCat = async () => {
+    const name = catName.trim();
+    if (!name) return;
+    setCatSaving(true);
+    try {
+      // 编号 与 名称 同值：父级引用（类别列）指向父类别编号，物料资料.物料类别 用名称过滤
+      await materialCategories.create({ 编号: name, 名称: name, 类别: catParent ?? undefined });
+      message.success("类别已保存");
+      setCatParent(undefined);
+      await loadCats();
+    } catch { message.error("类别保存失败"); }
+    finally { setCatSaving(false); }
   };
 
   const columns = [
@@ -109,19 +202,6 @@ export default function MaterialMasterPage() {
     { title: "最低库存", dataIndex: "最低库存", width: 90, align: "right" as const, render: (v?: number | null) => v ?? "" },
     { title: "供应商", dataIndex: "供应商名称", width: 140 },
     { title: "备注", dataIndex: "备注", width: 160 },
-    {
-      title: "操作", width: 120, fixed: "right" as const,
-      render: (_: unknown, r: MaterialRow) => (
-        <Space size="small">
-          {canSave && <a onClick={() => openEdit(r)}><EditOutlined /></a>}
-          {canDelete && (
-            <Popconfirm title="确认删除该物料?" onConfirm={() => del(r)}>
-              <a style={{ color: "#cf1322" }}><DeleteOutlined /></a>
-            </Popconfirm>
-          )}
-        </Space>
-      ),
-    },
   ];
 
   if (!canOpen) {
@@ -134,7 +214,13 @@ export default function MaterialMasterPage() {
 
   return (
     <Card title="物料资料" variant="borderless" styles={{ body: { display: "flex", gap: 12 } }}>
-      <div style={{ width: 220, flex: "0 0 220px", borderRight: "1px solid #f0f0f0", paddingRight: 8 }}>
+      <div style={{ width: 240, flex: "0 0 240px", borderRight: "1px solid #f0f0f0", paddingRight: 8 }}>
+        {canCatSave && (
+          <Space size={4} style={{ marginBottom: 4 }} wrap>
+            <Button size="small" disabled={!sel} onClick={openSiblingCat}>新增同级类别</Button>
+            <Button size="small" onClick={openChildCat}>新增子类别</Button>
+          </Space>
+        )}
         <Tree
           treeData={treeData}
           selectedKeys={[selKey]}
@@ -150,10 +236,25 @@ export default function MaterialMasterPage() {
             onSearch={() => { setPage(1); loadRows(1); }}
           />
           {canSave && <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增</Button>}
+          {canSave && <Button icon={<UploadOutlined />} onClick={() => setImportOpen(true)}>导入表格</Button>}
+          {canSave && (
+            <Button icon={<EditOutlined />} disabled={!selRow} onClick={() => selRow && openEdit(selRow)}>编辑</Button>
+          )}
+          {canDelete && (
+            <Popconfirm title={`确认删除${selRow ? ` ${selRow.物料编号} ${selRow.物料名称 ?? ""}` : ""}?`} onConfirm={() => selRow && del(selRow)}>
+              <Button danger icon={<DeleteOutlined />} disabled={!selRow}>删除</Button>
+            </Popconfirm>
+          )}
+          {!selRow && <span style={{ color: "#999", fontSize: 12 }}>双击行选中后可编辑/删除</span>}
+          {selRow && <span style={{ color: "#1677ff", fontSize: 12 }}>已选中：{selRow.物料编号} {selRow.物料名称}</span>}
         </Space>
         <Table
           size="small" rowKey="ID" loading={loading} dataSource={rows} columns={columns}
-          scroll={{ x: true }}
+          scroll={{ x: "max-content", y: "calc(100vh - 300px)" }}
+          onRow={r => ({
+            onDoubleClick: () => setSelRow(r),
+            style: selRow?.ID === r.ID ? { background: "#e6f4ff", cursor: "pointer" } : { cursor: "pointer" },
+          })}
           pagination={{
             current: page, pageSize: 50, total, showSizeChanger: false,
             onChange: p => { setPage(p); loadRows(p); }, showTotal: t => `共 ${t} 条`,
@@ -167,14 +268,21 @@ export default function MaterialMasterPage() {
         confirmLoading={saving} destroyOnClose
       >
         <Form form={form} layout="vertical">
-          <Form.Item name="物料编号" label="物料编号" rules={[{ required: true, message: "请输入物料编号" }]}>
-            <Input />
+          <Form.Item name="物料编号" label="物料编号（留空则保存时自动生成）">
+            <Input placeholder="自动生成，可修改" />
           </Form.Item>
           <Form.Item name="物料名称" label="物料名称"><Input /></Form.Item>
           <Form.Item name="物料类别" label="类别"><Input /></Form.Item>
           <Form.Item name="规格" label="规格"><Input /></Form.Item>
           <Form.Item name="颜色" label="颜色"><Input /></Form.Item>
           <Form.Item name="单位" label="单位"><Input /></Form.Item>
+          <Form.Item name="仓库位置" label="仓库位置（可从字典选择，也可自由输入）">
+            <AutoComplete
+              allowClear options={locOptions}
+              filterOption={(input, opt) =>
+                (opt?.label ?? "").toLowerCase().includes(input.toLowerCase())}
+            />
+          </Form.Item>
           {!priceHidden && (
             <>
               <Form.Item name="单价" label="单价"><InputNumber min={0} style={{ width: "100%" }} /></Form.Item>
@@ -187,6 +295,24 @@ export default function MaterialMasterPage() {
           <Form.Item name="货币" hidden><Input /></Form.Item>
         </Form>
       </Modal>
+
+      <Modal
+        title={catParent ? `新增子类别（上级：${catParent}）` : "新增类别（顶级）"}
+        open={catParent !== undefined} onCancel={() => setCatParent(undefined)} onOk={submitCat}
+        confirmLoading={catSaving} destroyOnClose okButtonProps={{ disabled: !catName.trim() }}
+      >
+        <Input
+          placeholder="类别名称" value={catName} maxLength={20}
+          onChange={e => setCatName(e.target.value)} onPressEnter={submitCat}
+        />
+      </Modal>
+
+      <MaterialImportModal
+        open={importOpen} title="导入物料表格" spec={MATERIAL_IMPORT_SPEC}
+        onImport={rows => materialMasterApi.importRows(rows)}
+        onClose={() => setImportOpen(false)}
+        onDone={() => { void loadCats(); void loadRows(1); setPage(1); }}
+      />
     </Card>
   );
 }

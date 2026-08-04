@@ -99,7 +99,7 @@ export default function BomMaterialQueryPage() {
       </Space>
       <Table
         size="small" rowKey={(_, i) => `r-${i}`} loading={loading}
-        dataSource={rows} columns={columns} scroll={{ x: 1100 }}
+        dataSource={rows} columns={columns} scroll={{ x: 1100, y: "calc(100vh - 300px)" }}
         pagination={{ pageSize: 50, showSizeChanger: false, showTotal: (t) => `共 ${t} 条` }}
       />
 

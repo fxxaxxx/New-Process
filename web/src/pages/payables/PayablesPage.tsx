@@ -52,6 +52,7 @@ function SupplierSummaryTab() {
         <Input.Search placeholder="供应商编号(留空查全部)" allowClear onSearch={set编号} style={{ width: 220 }} />
       </Space>
       <Table rowKey={r => String(r.供应商编号 ?? r.供应商名称)} size="middle" dataSource={rows} columns={columns}
+        scroll={{ x: "max-content", y: "calc(100vh - 340px)" }}
         pagination={{ pageSize: 20, showTotal: t => `共 ${t} 条` }} />
     </>
   );
@@ -79,6 +80,7 @@ function FactorySummaryTab() {
         <Input.Search placeholder="加工厂编号(留空查全部)" allowClear onSearch={set编号} style={{ width: 220 }} />
       </Space>
       <Table rowKey={r => String(r.加工厂编号 ?? r.加工厂名称)} size="middle" dataSource={rows} columns={columns}
+        scroll={{ x: "max-content", y: "calc(100vh - 340px)" }}
         pagination={{ pageSize: 20, showTotal: t => `共 ${t} 条` }} />
     </>
   );
@@ -113,6 +115,7 @@ function SupplierSettlementTab() {
         <Button type="primary" onClick={load}>查询</Button>
       </Space>
       <Table rowKey={r => String(r.入仓单号)} size="middle" dataSource={rows} columns={columns}
+        scroll={{ x: "max-content", y: "calc(100vh - 340px)" }}
         pagination={{ pageSize: 20, showTotal: t => `共 ${t} 条` }} />
     </>
   );
@@ -147,6 +150,7 @@ function FactorySettlementTab() {
         <Button type="primary" onClick={load}>查询</Button>
       </Space>
       <Table rowKey={r => String(r.发外单号)} size="middle" dataSource={rows} columns={columns}
+        scroll={{ x: "max-content", y: "calc(100vh - 340px)" }}
         pagination={{ pageSize: 20, showTotal: t => `共 ${t} 条` }} />
     </>
   );
@@ -181,6 +185,7 @@ function SupplierAgingTab() {
         <Button type="primary" onClick={load}>查询</Button>
       </Space>
       <Table rowKey={r => String(r.供应商编号 ?? r.供应商名称)} size="middle" dataSource={rows} columns={columns}
+        scroll={{ x: "max-content", y: "calc(100vh - 340px)" }}
         pagination={{ pageSize: 20, showTotal: t => `共 ${t} 条` }} />
     </>
   );
@@ -215,6 +220,7 @@ function FactoryAgingTab() {
         <Button type="primary" onClick={load}>查询</Button>
       </Space>
       <Table rowKey={r => String(r.加工厂编号 ?? r.加工厂名称)} size="middle" dataSource={rows} columns={columns}
+        scroll={{ x: "max-content", y: "calc(100vh - 340px)" }}
         pagination={{ pageSize: 20, showTotal: t => `共 ${t} 条` }} />
     </>
   );

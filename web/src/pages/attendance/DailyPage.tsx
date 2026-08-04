@@ -96,7 +96,7 @@ export default function DailyPage() {
           </Space>
         }>
         <Table rowKey={(r, i) => `${r.工号 ?? ""}|${r.日期 ?? ""}|${i}`} size="middle" loading={loading}
-          dataSource={rows} columns={columns} scroll={{ x: true }}
+          dataSource={rows} columns={columns} scroll={{ x: "max-content", y: "calc(100vh - 340px)" }}
           pagination={{ pageSize: 20, showTotal: (t) => `共 ${t} 条` }} />
       </Card>
     </Space>

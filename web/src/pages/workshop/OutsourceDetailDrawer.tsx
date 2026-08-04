@@ -29,6 +29,7 @@ export default function OutsourceDetailDrawer({ 单号, onClose }: { 单号: str
               { key: "memo", label: "备注", children: h?.备注 ?? "-" },
             ]} />
           <Table size="small" rowKey="id" pagination={false} dataSource={detail.明细}
+            scroll={{ x: "max-content", y: 380 }}
             columns={[
               { title: "款号", dataIndex: "款号" }, { title: "加工项目", dataIndex: "加工项目" },
               { title: "颜色", dataIndex: "颜色" }, { title: "尺码", dataIndex: "尺码" },

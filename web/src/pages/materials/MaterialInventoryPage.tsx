@@ -55,7 +55,7 @@ export default function MaterialInventoryPage() {
           <Input.Search placeholder="物料编号/名称" allowClear onSearch={setKeyword} style={{ width: 220 }} />
         </Space>
         <Table rowKey={r => `${r.物料编号}|${r.仓库}`} size="small" dataSource={rows} columns={columns}
-          scroll={{ x: true }} pagination={{ pageSize: 20, showTotal: t => `共 ${t} 条` }} />
+          scroll={{ x: "max-content", y: "calc(100vh - 300px)" }} pagination={{ pageSize: 20, showTotal: t => `共 ${t} 条` }} />
       </div>
     </Card>
   );

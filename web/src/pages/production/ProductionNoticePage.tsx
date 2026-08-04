@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Button, Card, Checkbox, Col, DatePicker, Form, Input, InputNumber, Modal,
+  AutoComplete, Button, Card, Checkbox, Col, DatePicker, Form, Input, InputNumber, Modal,
   Popconfirm, Row, Select, Space, Table, Tabs, Tag, message,
 } from "antd";
 import {
@@ -11,8 +11,11 @@ import dayjs, { type Dayjs } from "dayjs";
 import {
   productionApi, type MoLine, type ProductionDetail, type ProductionHeader, type ProductionNoticeCreate,
 } from "../../api/production";
+import { stylesApi } from "../../api/styles";
+import { masterApi } from "../../api/master";
 import { can, hidePrice } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
+import ImageNotesPanel from "../../components/ImageNotesPanel";
 
 const MENU = "生产制单";
 const money = (v?: number | null) => (v == null ? "***" : v);
@@ -85,6 +88,33 @@ export default function ProductionNoticePage() {
   const [openRows, setOpenRows] = useState<ProductionHeader[]>([]);
   const [openKw, setOpenKw] = useState("");
   const [openLoading, setOpenLoading] = useState(false);
+
+  // 货号选择:已做 BOM 物料设置的款号(选中带出 款号名称/BOM款号/客户/默认单价)
+  const [styleOpts, setStyleOpts] = useState<{ value: string; label: string; 款号: string; 款式?: string; 客户编号?: string; 客户名称?: string; 默认单价?: string }[]>([]);
+  useEffect(() => {
+    stylesApi.bomHeaders()
+      .then(r => setStyleOpts(r
+        .filter(s => !!s.款号)
+        .map(s => ({
+          value: s.款号!,
+          label: `${s.款号}${s.款式 ? ` ${s.款式}` : ""}${s.客户名称 ? ` (${s.客户名称})` : ""}`,
+          款号: s.款号!, 款式: s.款式, 客户编号: s.客户编号, 客户名称: s.客户名称, 默认单价: s.默认单价,
+        }))))
+      .catch(() => setStyleOpts([]));
+  }, []);
+
+  // 跟单员选择:部门人事(人事档案),显示 姓名(部门/职称)
+  const [empOpts, setEmpOpts] = useState<{ value: string; label: string }[]>([]);
+  useEffect(() => {
+    masterApi("employees").list(1, 500, "")
+      .then(r => setEmpOpts(r.items
+        .filter(e => typeof e.姓名 === "string" && e.姓名)
+        .map(e => ({
+          value: e.姓名 as string,
+          label: `${e.姓名}${e.部门编号 ? `(${e.部门编号}${e.职称 ? `/${e.职称}` : ""})` : ""}`,
+        }))))
+      .catch(() => setEmpOpts([]));
+  }, []);
 
   const selected = useMemo(
     () => goods.find(g => g.key === selectedKey) ?? null,
@@ -176,8 +206,20 @@ export default function ProductionNoticePage() {
   };
   const removeGoods = (key: number) =>
     setGoods(gs => {
+      const removed = gs.find(g => g.key === key);
       const next = gs.filter(g => g.key !== key);
       if (selectedKey === key) setSelectedKey(next[0]?.key ?? null);
+      // 删除货号行时,其带入的表头信息一并清掉(仅清与该货号选项一致的值,手改过的不动)
+      if (removed?.货号) {
+        const st = styleOpts.find(o => o.value === removed.货号);
+        const cur = form.getFieldsValue(["客户编号", "客户名称", "默认单价", "客户款号"]);
+        const patch: Record<string, undefined> = {};
+        if (st && cur.客户编号 === (st.客户编号 ?? undefined)) patch.客户编号 = undefined;
+        if (st && cur.客户名称 === (st.客户名称 ?? undefined)) patch.客户名称 = undefined;
+        if (st && cur.默认单价 === (st.默认单价 ?? undefined)) patch.默认单价 = undefined;
+        if (cur.客户款号 === removed.货号) patch.客户款号 = undefined;
+        if (Object.keys(patch).length) form.setFieldsValue(patch);
+      }
       return next;
     });
 
@@ -302,7 +344,7 @@ export default function ProductionNoticePage() {
       {isView && 审核 === "1" && can(perms, MENU, "反审核") && (
         <Button icon={<CloseOutlined />} onClick={() => act(() => productionApi.unapprove(生产单号), "已反审核", "reload")}>反审核</Button>
       )}
-      <Button icon={<PrinterOutlined />} onClick={() => message.info("打印开发中")}>打印</Button>
+      <Button icon={<PrinterOutlined />} onClick={() => window.print()}>打印</Button>
     </Space>
   );
 
@@ -310,14 +352,42 @@ export default function ProductionNoticePage() {
   const goodsColumns = [
     { title: "序号", width: 56, render: (_: unknown, __: GoodsRow, i: number) => i + 1 },
     {
-      title: "货号", dataIndex: "货号", width: 140,
+      title: "货号", dataIndex: "货号", width: 200,
       render: (v: string, r: GoodsRow) =>
-        editable ? <Input value={v} onChange={e => patchGoods(r.key, { 货号: e.target.value })} placeholder="货号" /> : v,
+        editable ? (
+          <AutoComplete
+            value={v} options={styleOpts} placeholder="选择或输入货号"
+            filterOption={(input, opt) => (opt?.label ?? "").toLowerCase().includes(input.toLowerCase())}
+            onChange={val => patchGoods(r.key, { 货号: val })}
+            onSelect={val => {
+              const st = styleOpts.find(o => o.value === val);
+              patchGoods(r.key, {
+                货号: val,
+                款号名称: st?.款式 ?? r.款号名称,
+                BOM款号: r.BOM款号 || val,
+                分析: true, // 旧系统:选货号后分析默认打勾
+              });
+              // 选中已设 BOM 的款号:单头信息回填到生产通知单表头(客户款号=货号,与旧系统一致)
+              if (st) form.setFieldsValue({
+                客户编号: st.客户编号 ?? undefined,
+                客户名称: st.客户名称 ?? undefined,
+                默认单价: st.默认单价 ?? undefined,
+                客户款号: val,
+              });
+            }}
+          />
+        ) : v,
     },
     {
-      title: "BOM款号", dataIndex: "BOM款号", width: 150,
+      title: "BOM款号", dataIndex: "BOM款号", width: 200,
       render: (v: string, r: GoodsRow) =>
-        editable ? <Input value={v} onChange={e => patchGoods(r.key, { BOM款号: e.target.value })} placeholder="BOM款号" /> : v,
+        editable ? (
+          <AutoComplete
+            value={v} options={styleOpts} placeholder="选择或输入BOM款号"
+            filterOption={(input, opt) => (opt?.label ?? "").toLowerCase().includes(input.toLowerCase())}
+            onChange={val => patchGoods(r.key, { BOM款号: val })}
+          />
+        ) : v,
     },
     {
       title: "款号名称", dataIndex: "款号名称",
@@ -522,7 +592,7 @@ export default function ProductionNoticePage() {
           ),
         },
         { key: "mo", label: "MO单录入", children: moTab },
-        { key: "img", label: "图片备注", children: <div style={{ padding: 24, color: "#999" }}>功能开发中</div> },
+        { key: "img", label: "图片备注", children: <ImageNotesPanel 模块="生产单" 单号={生产单号} canEdit={can(perms, MENU, "保存")} emptyHint="请先打开一个生产通知单" /> },
       ]}
     />
   );
@@ -568,7 +638,15 @@ export default function ProductionNoticePage() {
           <Col span={6}><Form.Item name="下单日期" label="下单日期"><DatePicker style={{ width: "100%" }} disabled={isView} /></Form.Item></Col>
         </Row>
         <Row gutter={12}>
-          <Col span={6}><Form.Item name="跟单员" label="跟单员"><Input disabled={isView} /></Form.Item></Col>
+          <Col span={6}>
+            <Form.Item name="跟单员" label="跟单员">
+              <AutoComplete
+                disabled={isView} placeholder="选择或输入(部门人事)"
+                options={empOpts}
+                filterOption={(input, opt) => (opt?.label ?? "").toLowerCase().includes(input.toLowerCase())}
+              />
+            </Form.Item>
+          </Col>
           <Col span={6}><Form.Item name="默认单价" label="默认单价"><Input disabled={isView} placeholder="HK LCL" /></Form.Item></Col>
           <Col span={6}><Form.Item label="制单人"><Input value={loaded?.单头?.制单人 ?? currentUser} disabled /></Form.Item></Col>
           <Col span={6}><Form.Item name="合同号" label="合同号"><Input disabled={isView} /></Form.Item></Col>
@@ -592,7 +670,7 @@ export default function ProductionNoticePage() {
       {tabs}
 
       <Modal
-        title="打开生产单" open={openModal} footer={null} width={760}
+        title="打开生产单" open={openModal} footer={null} width={1200}
         onCancel={() => setOpenModal(false)}
       >
         <Input.Search
@@ -602,17 +680,27 @@ export default function ProductionNoticePage() {
         />
         <Table
           size="small" rowKey="id" loading={openLoading} dataSource={openRows}
-          pagination={false} scroll={{ y: 360 }}
+          pagination={false} scroll={{ x: "max-content", y: 380 }}
           onRow={r => ({ onClick: () => r.生产单号 && loadDoc(r.生产单号), style: { cursor: "pointer" } })}
           columns={[
-            { title: "生产单号", dataIndex: "生产单号", render: (v: string) => <a className="erp-num">{v}</a> },
-            { title: "客户", dataIndex: "客户名称" },
-            { title: "计划数量", dataIndex: "计划数量" },
+            { title: "订单类型", dataIndex: "订单类型", width: 90 },
+            { title: "标识", dataIndex: "标识", width: 64 },
+            { title: "生产单号", dataIndex: "生产单号", width: 150, render: (v: string) => <a className="erp-num">{v}</a> },
+            { title: "款号", dataIndex: "款号", width: 110 },
+            { title: "款式", dataIndex: "款式", width: 150 },
+            { title: "客户款号", dataIndex: "客户款号", width: 100 },
+            { title: "日期", dataIndex: "日期", width: 100, render: (v?: string) => v?.slice(0, 10) },
+            { title: "交货日期", dataIndex: "交货日期", width: 100, render: (v?: string) => v?.slice(0, 10) },
+            { title: "客户编号", dataIndex: "客户编号", width: 90 },
+            { title: "客户名称", dataIndex: "客户名称", width: 110 },
+            { title: "计划数量", dataIndex: "计划数量", width: 90, align: "right" as const },
+            { title: "制单人", dataIndex: "制单人", width: 80 },
+            { title: "跟单员", dataIndex: "跟单员", width: 80 },
+            { title: "备注", dataIndex: "备注", width: 140 },
             {
-              title: "审核", dataIndex: "审核",
+              title: "审核", dataIndex: "审核", width: 90, align: "center" as const,
               render: (v?: string) => v === "1" ? <Tag color="green">已审核</Tag> : <Tag>未审核</Tag>,
             },
-            { title: "交货日期", dataIndex: "交货日期", render: (v?: string) => v?.slice(0, 10) },
           ]}
         />
       </Modal>

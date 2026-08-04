@@ -34,7 +34,7 @@ import dayjs, { type Dayjs } from "dayjs";
 import { materialDocApi, type MaterialDocHeader } from "../../api/materialDocs";
 import { materialMasterApi, type MaterialRow } from "../../api/materialMaster";
 import { masterApi } from "../../api/master";
-import { can } from "../../auth/permissions";
+import { can, hidePrice } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
 import {
   applyAuxiliaryPurchaseReturnMaterialToLine,
@@ -46,6 +46,8 @@ import {
   summarizeAuxiliaryPurchaseReturnLines,
   type AuxiliaryPurchaseReturnLine,
 } from "../../utils/auxiliaryPurchaseReturn";
+import { adjacentDocNo } from "../../utils/docNav";
+import { printMaterialDoc } from "../../utils/printDoc";
 
 const API_MENU = "采购退仓单";
 const returnApi = materialDocApi("purchase-returns");
@@ -113,6 +115,7 @@ export default function AuxiliaryPurchaseReturnPage() {
   const canDelete = can(perms, API_MENU, "删除");
   const canApprove = can(perms, API_MENU, "审核");
   const canUnapprove = can(perms, API_MENU, "反审核");
+  const canPrint = can(perms, API_MENU, "打印");
   const [form] = Form.useForm<HeaderForm>();
   const [lines, setLines] = useState<AuxiliaryPurchaseReturnLine[]>(() => createAuxiliaryPurchaseReturnLines(20));
   const [openedNo, setOpenedNo] = useState<string | null>(null);
@@ -345,6 +348,40 @@ export default function AuxiliaryPurchaseReturnPage() {
     }
   };
 
+  // 前单/后单：用列表端点拉退仓单，按单号升序定位相邻单（口径见 utils/docNav）
+  const move = async (next: boolean) => {
+    if (!openedNo) return;
+    setSaving(true);
+    try {
+      const result = await returnApi.list(1, 1000, "");
+      const target = adjacentDocNo(result.items.map(row => row.单号), openedNo, next);
+      if (!target) message.info(next ? "已经是最后一张单据" : "已经是第一张单据");
+      else await openDoc(target);
+    } catch {
+      message.error("切换单据失败");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // 打印：重新拉取单据明细，用项目已有的 printMaterialDoc 输出（尊重单价保密权限）
+  const doPrint = async () => {
+    if (!openedNo) return;
+    try {
+      const detail = await returnApi.get(openedNo);
+      printMaterialDoc(`辅料退仓单 ${openedNo}`, detail, {
+        hidePrice: hidePrice(perms, API_MENU),
+        headerFields: [
+          { name: "供应商编号", label: "供应商编号" },
+          { name: "供应商名称", label: "供应商名称" },
+          { name: "入仓单号", label: "入仓单号" },
+        ],
+      });
+    } catch {
+      message.error("读取单据失败，无法打印");
+    }
+  };
+
   const copyDoc = () => {
     form.setFieldsValue({ 电脑单号: undefined });
     setOpenedNo(null);
@@ -504,12 +541,12 @@ export default function AuxiliaryPurchaseReturnPage() {
           <Button icon={<CopyOutlined />} disabled={!openedNo} onClick={copyDoc}>复制单</Button>
           <Button icon={<ReloadOutlined />} onClick={loadMaterials}>刷新</Button>
           <Button onClick={() => lines[0] && openMaterialPicker(lines[0].key)}>资料</Button>
-          <Button disabled>前单</Button>
-          <Button disabled>后单</Button>
+          <Button disabled={!openedNo || saving} onClick={() => void move(false)}>前单</Button>
+          <Button disabled={!openedNo || saving} onClick={() => void move(true)}>后单</Button>
           <Button icon={<CheckOutlined />} disabled={!openedNo || openedAudit === "1" || !canApprove} onClick={approveDoc}>审核</Button>
           <Button disabled={!openedNo || openedAudit !== "1" || !canUnapprove} onClick={unapproveDoc}>反审核</Button>
           <Button icon={<TableOutlined />} disabled>表格设置</Button>
-          <Button icon={<PrinterOutlined />} disabled>打印</Button>
+          <Button icon={<PrinterOutlined />} disabled={!openedNo || !canPrint} onClick={() => void doPrint()}>打印</Button>
           <Button danger icon={<CloseOutlined />} onClick={() => window.history.back()}>关闭</Button>
         </Space>
       }

@@ -92,7 +92,8 @@ export default function FinishedStocktakePage() {
           </Space>
         </div>
       )}
-      <Table rowKey="id" size="middle" dataSource={rows} columns={listColumns} pagination={{ pageSize: 10 }} />
+      <Table rowKey="id" size="middle" dataSource={rows} columns={listColumns} pagination={{ pageSize: 10 }}
+        scroll={{ x: "max-content", y: "calc(100vh - 300px)" }} />
     </Card>
   );
 }

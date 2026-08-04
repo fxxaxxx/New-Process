@@ -111,7 +111,7 @@ export default function PlasticCustomerTypeStatsPage() {
         <Button onClick={() => printTable("塑胶类型客户统计", exportCols, exportRows)}>打印</Button>
       </Space>
       <Table rowKey="客户" size="small" loading={loading} dataSource={pivot} columns={columns}
-        scroll={{ x: "max-content" }} pagination={{ pageSize: 50, showTotal: t => `共 ${t} 客户` }}
+        scroll={{ x: "max-content", y: "calc(100vh - 300px)" }} pagination={{ pageSize: 50, showTotal: t => `共 ${t} 客户` }}
         summary={() => {
           let idx = 0;
           const cells = [<Table.Summary.Cell key="lbl" index={idx++}><b>总合计</b></Table.Summary.Cell>];

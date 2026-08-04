@@ -135,13 +135,13 @@ export default function PayrollRunPage() {
         </Space>
       }>
       <Table rowKey={(r) => r.工资表编号 ?? ""} size="middle" loading={loading}
-        dataSource={rows} columns={columns} scroll={{ x: true }}
+        dataSource={rows} columns={columns} scroll={{ x: "max-content", y: "calc(100vh - 300px)" }}
         pagination={{ pageSize: 20, showTotal: (t) => `共 ${t} 条` }} />
 
       <Drawer title="工资表明细" width="80%" open={detailOpen} onClose={() => setDetailOpen(false)}>
         <Table rowKey={(r) => String((r as Record<string, unknown>).编号 ?? "")} size="small"
           loading={detailLoading} dataSource={detail?.明细 ?? []} columns={detailColumns}
-          scroll={{ x: true }}
+          scroll={{ x: "max-content", y: 380 }}
           pagination={{ pageSize: 50, showTotal: (t) => `共 ${t} 条` }} />
       </Drawer>
     </Card>

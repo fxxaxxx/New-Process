@@ -90,7 +90,8 @@ export default function MonthEnd() {
       <div style={{ marginBottom: 12, color: "#888" }}>已结月份：{periods.join("、") || "（无）"}</div>
       <Table rowKey={(r, i) => `${r.仓库}|${r.款号 ?? r.物料编号}|${r.色号 ?? ""}|${r.颜色 ?? ""}|${r.尺码 ?? ""}|${i}`}
         size="middle" dataSource={rows} columns={columns}
-        pagination={{ pageSize: 20, showTotal: (t) => `共 ${t} 条` }} />
+        pagination={{ pageSize: 20, showTotal: (t) => `共 ${t} 条` }}
+        scroll={{ x: "max-content", y: "calc(100vh - 320px)" }} />
     </Card>
   );
 }

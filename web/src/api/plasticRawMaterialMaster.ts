@@ -16,5 +16,7 @@ export const plasticRawMaterialMasterApi = {
   categories: () =>
     api.get<PlasticRawMaterialCategoryNode[]>("/plastic-raw-material-master/categories").then(r => r.data),
   list: (类别?: string, keyword?: string, page = 1, size = 50, onlyStock?: boolean) =>
-    api.get<Paged<PlasticRawMaterialRow>>("/plastic-raw-material-master", { params: { 类别, keyword, page, size, onlyStock } }).then(r => r.data),
+    api.get<Paged<PlasticRawMaterialRow>>("/plastic-raw-material-master", { params: { 类别, keyword, page, size, onlyStock } })
+      // 后端按 camelCase 序列化为 id，这里归一化为 ID（与全项目调用方一致）
+      .then(r => ({ ...r.data, items: r.data.items.map(x => ({ ...x, ID: (x as unknown as { id?: number }).id ?? x.ID })) })),
 };

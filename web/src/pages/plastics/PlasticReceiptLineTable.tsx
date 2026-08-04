@@ -8,11 +8,13 @@ import type { ProductionTrackingRow } from "../../api/productionReports";
 import type { PSDLine } from "../../api/plasticSupplierDoc";
 
 // 加工入仓单明细可编辑行(保真列序:订单单号|生产单号|款号|物料编号|工模编号|物料名称|颜色|塑胶货号|单位|数量|单价|金额|备注)。
-export default function PlasticReceiptLineTable({ value, onChange, readOnly, hidePrice }: {
+// onMaterialPicked: 选中物料后的额外回调(父页用于按塑胶物料设置预填表头默认仓库)。
+export default function PlasticReceiptLineTable({ value, onChange, readOnly, hidePrice, onMaterialPicked }: {
   value: PSDLine[];
   onChange: Dispatch<SetStateAction<PSDLine[]>>;
   readOnly?: boolean;
   hidePrice?: boolean;
+  onMaterialPicked?: (row: PlasticMaterialRow) => void;
 }) {
   const setLine = (i: number, patch: Partial<PSDLine>) =>
     onChange(prev => prev.map((l, j) => (j === i ? { ...l, ...patch } : l)));
@@ -26,6 +28,7 @@ export default function PlasticReceiptLineTable({ value, onChange, readOnly, hid
       规格: row.规格 ?? undefined, 颜色: row.颜色 ?? undefined,
       仓位号: row.仓位号 ?? undefined, 单位: row.单位 ?? undefined,
     });
+    onMaterialPicked?.(row);
   };
   const fillFromProduction = (row: ProductionTrackingRow) => {
     if (prodPickFor === null) return;

@@ -63,7 +63,8 @@ export default function SalesShipmentPage() {
           {can(perms, MENU, "保存") && <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>新建出货单</Button>}
         </Space>
       }>
-      <Table rowKey="id" size="middle" dataSource={rows} columns={columns} scroll={{ x: true }}
+      <Table rowKey="id" size="middle" dataSource={rows} columns={columns}
+        scroll={{ x: "max-content", y: "calc(100vh - 300px)" }}
         pagination={{ current: page, pageSize: 10, total, onChange: setPage, showTotal: t => `共 ${t} 条` }} />
       <CreateDrawer open={creating} showPrice={showPrice} onClose={() => setCreating(false)} onCreated={load} />
       <DetailDrawer 单号={viewing} showPrice={showPrice} onClose={() => setViewing(null)} />
@@ -163,6 +164,7 @@ function DetailDrawer({ 单号, showPrice, onClose }: { 单号: string | null; s
               { key: "memo", label: "备注", children: h?.备注 ?? "-" },
             ]} />
           <Table size="small" rowKey="id" pagination={false} dataSource={detail.明细}
+            scroll={{ x: "max-content", y: 380 }}
             columns={[
               { title: "物料编号", dataIndex: "物料编号" }, { title: "物料名称", dataIndex: "物料名称" },
               { title: "规格", dataIndex: "规格" }, { title: "颜色", dataIndex: "颜色" },

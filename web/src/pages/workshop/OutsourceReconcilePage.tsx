@@ -41,6 +41,7 @@ export default function OutsourceReconcilePage() {
           options={dispatched.map(o => ({ value: String(o.单号), label: `${o.单号} ${o.加工厂名称 ?? ""}` }))} />
       }>
       <Table rowKey={(r) => `${r.款号}|${r.加工项目}`} size="middle" dataSource={rows} columns={columns}
+        scroll={{ x: "max-content", y: "calc(100vh - 300px)" }}
         pagination={{ pageSize: 20, showTotal: t => `共 ${t} 条` }} />
     </Card>
   );

@@ -136,7 +136,7 @@ export default function AuxiliaryPurchaseAnalysisPage() {
         loading={loading}
         dataSource={rows}
         columns={columns}
-        scroll={{ x: 1400 }}
+        scroll={{ x: 1400, y: "calc(100vh - 300px)" }}
         pagination={{ pageSize: 50, showTotal: t => `共 ${t} 条` }}
       />
     </Card>

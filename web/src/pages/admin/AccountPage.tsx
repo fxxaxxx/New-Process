@@ -113,7 +113,7 @@ export default function AccountPage() {
         </Space>
       }>
       <Table rowKey={(r) => r.用户 ?? ""} size="middle" loading={loading}
-        dataSource={rows} columns={columns} scroll={{ x: true }}
+        dataSource={rows} columns={columns} scroll={{ x: "max-content", y: "calc(100vh - 300px)" }}
         pagination={{ pageSize: 20, showTotal: (t) => `共 ${t} 条` }} />
 
       <Modal title="注册账号" open={regOpen} onOk={register} onCancel={() => setRegOpen(false)} destroyOnClose>
@@ -200,7 +200,7 @@ function PermDrawer({ 用户, onClose, canSave }: {
             },
           },
         ]}
-        scroll={{ x: true }} />
+        scroll={{ x: "max-content", y: 380 }} />
     ),
   }));
 

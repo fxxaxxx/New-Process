@@ -128,7 +128,8 @@ export default function PieceworkPage() {
           </Space>
         </div>
       )}
-      <Table rowKey="id" size="middle" dataSource={rows} columns={listColumns} pagination={{ pageSize: 15 }} />
+      <Table rowKey="id" size="middle" dataSource={rows} columns={listColumns}
+        scroll={{ x: "max-content", y: "calc(100vh - 300px)" }} pagination={{ pageSize: 15 }} />
     </Card>
   );
 }

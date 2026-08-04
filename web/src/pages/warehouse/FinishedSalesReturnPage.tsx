@@ -56,7 +56,7 @@ export default function FinishedSalesReturnPage() {
           {can(perms, MENU, "保存") && <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>新建退货单</Button>}
         </Space>
       }>
-      <Table rowKey="id" size="middle" dataSource={rows} columns={columns} scroll={{ x: true }}
+      <Table rowKey="id" size="middle" dataSource={rows} columns={columns} scroll={{ x: "max-content", y: "calc(100vh - 300px)" }}
         pagination={{ current: page, pageSize: 10, total, onChange: setPage, showTotal: t => `共 ${t} 条` }} />
       <FinishedSalesReturnCreateDrawer open={creating} onClose={() => setCreating(false)} onCreated={load} />
     </Card>

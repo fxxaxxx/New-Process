@@ -24,6 +24,7 @@ export default function MasterDataPage({ cfg }: { cfg: MasterCfg }) {
   const [page, setPage] = useState(1);
   const [keyword, setKeyword] = useState("");
   const [editing, setEditing] = useState<Row | null>(null);
+  const [selRow, setSelRow] = useState<Row | null>(null);
   const [form] = Form.useForm();
 
   const priceHidden = hidePrice(perms, cfg.menu);
@@ -32,39 +33,41 @@ export default function MasterDataPage({ cfg }: { cfg: MasterCfg }) {
   const load = useCallback(async () => {
     const r = await api.list(page, 10, keyword);
     setRows(r.items as Row[]); setTotal(r.total);
+    setSelRow(null);
   }, [page, keyword, cfg.resource]);
 
   useEffect(() => { load(); }, [load]);
 
-  const columns = [
-    ...fields.map(f => {
-      const isTag = /类别|类型/.test(f.name);
-      const mono = !isTag && /编号|号|价|手机/.test(f.name);
-      let render: ((v: unknown) => ReactNode) | undefined;
-      if (isTag) render = (v: unknown) => (v == null || v === "") ? null : <Tag color={tagColor(String(v))} style={{ borderRadius: 6 }}>{String(v)}</Tag>;
-      else if (mono) render = (v: unknown) => <span className="erp-num">{v == null ? "" : String(v)}</span>;
-      return { title: f.label, dataIndex: f.name, key: f.name, render };
-    }),
-    {
-      title: "操作", key: "_op", render: (_: unknown, row: Row) => (
-        <Space>
-          {cfg.detailLink && cfg.detailLink(row) && (
-            <a onClick={() => nav(cfg.detailLink!(row)!)}>明细</a>
-          )}
-          <a onClick={() => { setEditing(row); form.setFieldsValue(row); }}>编辑</a>
-          <Popconfirm title="确认删除?" onConfirm={async () => { await api.remove(row.id); message.success("已删除"); load(); }}>
-            <a>删除</a>
-          </Popconfirm>
-        </Space>
-      ),
-    },
-  ];
+  // 选中行展示/删除提示用的主键字段:编号 > 名称 > 常见业务编号/名称 > id
+  const rowLabel = (r: Row | null) => {
+    if (!r) return "";
+    const v = r.编号 ?? r.名称 ?? r.客户编号 ?? r.客户名称 ?? r.物料编号 ?? r.供应商编号
+      ?? r.加工厂编号 ?? r.加工厂名称 ?? r.键 ?? r.id;
+    return String(v);
+  };
+
+  const openEdit = (row: Row) => { setEditing(row); form.setFieldsValue(row); };
+  const onDelete = async (row: Row) => {
+    await api.remove(row.id);
+    message.success("已删除");
+    setSelRow(null);
+    load();
+  };
+
+  const columns = fields.map(f => {
+    const isTag = /类别|类型/.test(f.name);
+    const mono = !isTag && /编号|号|价|手机/.test(f.name);
+    let render: ((v: unknown) => ReactNode) | undefined;
+    if (isTag) render = (v: unknown) => (v == null || v === "") ? null : <Tag color={tagColor(String(v))} style={{ borderRadius: 6 }}>{String(v)}</Tag>;
+    else if (mono) render = (v: unknown) => <span className="erp-num">{v == null ? "" : String(v)}</span>;
+    return { title: f.label, dataIndex: f.name, key: f.name, render };
+  });
 
   const onSave = async () => {
     const v = await form.validateFields();
     if (editing && editing.id) await api.update(editing.id, v);
     else await api.create(v);
-    message.success("已保存"); setEditing(null); form.resetFields(); load();
+    message.success("已保存"); setEditing(null); form.resetFields(); setSelRow(null); load();
   };
 
   return (
@@ -78,10 +81,28 @@ export default function MasterDataPage({ cfg }: { cfg: MasterCfg }) {
           <Button type="primary" onClick={() => { setEditing({ id: 0 } as Row); form.resetFields(); }}>
             新增
           </Button>
+          {cfg.detailLink && (
+            <Button
+              disabled={!selRow || !cfg.detailLink(selRow)}
+              onClick={() => selRow && nav(cfg.detailLink!(selRow!)!)}
+            >明细</Button>
+          )}
+          <Button disabled={!selRow} onClick={() => selRow && openEdit(selRow)}>编辑</Button>
+          <Popconfirm title={`确认删除${selRow ? ` [${rowLabel(selRow)}]` : ""}?`} onConfirm={() => selRow && onDelete(selRow)}>
+            <Button danger disabled={!selRow}>删除</Button>
+          </Popconfirm>
+          <span style={{ color: selRow ? "#1677ff" : "#999", fontSize: 12 }}>
+            {selRow ? `已选中:${rowLabel(selRow)}` : "双击行选中后可编辑/删除"}
+          </span>
         </Space>
       }
     >
       <Table rowKey="id" size="middle" dataSource={rows} columns={columns}
+        scroll={{ x: "max-content", y: "calc(100vh - 300px)" }}
+        onRow={(r: Row) => ({
+          onDoubleClick: () => setSelRow(r),
+          style: { cursor: "pointer", ...(selRow?.id === r.id ? { background: "#e6f4ff" } : {}) },
+        })}
         pagination={{ current: page, pageSize: 10, total, onChange: setPage, showTotal: t => `共 ${t} 条` }} />
       <Modal open={!!editing} title={(editing && editing.id ? "编辑" : "新增") + cfg.title}
         onOk={onSave} onCancel={() => { setEditing(null); form.resetFields(); }} destroyOnHidden>

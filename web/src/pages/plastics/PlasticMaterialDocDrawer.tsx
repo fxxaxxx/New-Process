@@ -158,7 +158,7 @@ export default function PlasticMaterialDocDrawer({ open, 生产单号, 单号, o
               <Descriptions.Item label="金额">{money(h.金额)}</Descriptions.Item>
               <Descriptions.Item label="操作员">{h.操作员}</Descriptions.Item>
             </Descriptions>
-            <Table size="small" rowKey="ID" pagination={false} scroll={{ x: true }} dataSource={detail?.明细 ?? []} columns={viewColumns} />
+            <Table size="small" rowKey="ID" pagination={false} scroll={{ x: "max-content", y: 380 }} dataSource={detail?.明细 ?? []} columns={viewColumns} />
           </Space>
         )
       ) : (

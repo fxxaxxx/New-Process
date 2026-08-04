@@ -64,7 +64,8 @@ export default function PurchasePaymentPage() {
           {can(perms, MENU, "保存") && <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>新建付款单</Button>}
         </Space>
       }>
-      <Table rowKey="id" size="middle" dataSource={rows} columns={columns} scroll={{ x: true }}
+      <Table rowKey="id" size="middle" dataSource={rows} columns={columns}
+        scroll={{ x: "max-content", y: "calc(100vh - 300px)" }}
         pagination={{ current: page, pageSize: 10, total, onChange: setPage, showTotal: t => `共 ${t} 条` }} />
       <CreateDrawer open={creating} showAmount={showAmount} onClose={() => setCreating(false)} onCreated={load} />
       <DetailDrawer 单号={viewing} showAmount={showAmount} onClose={() => setViewing(null)} />
@@ -172,6 +173,7 @@ function CreateDrawer({ open, showAmount, onClose, onCreated }: {
       <Modal title="待付入仓单" width={760} open={pickerOpen}
         onCancel={() => setPickerOpen(false)} onOk={confirmPicker} okText="带出">
         <Table size="small" rowKey={r => String(r.入仓单号)} pagination={false} dataSource={unpaid}
+          scroll={{ x: "max-content", y: 380 }}
           rowSelection={{ selectedRowKeys: selectedKeys, onChange: setSelectedKeys }}
           columns={[
             { title: "入仓单号", dataIndex: "入仓单号", render: (v: string) => <span className="erp-num">{v}</span> },
@@ -209,6 +211,7 @@ function DetailDrawer({ 单号, showAmount, onClose }: { 单号: string | null; 
               { key: "memo", label: "备注", children: h?.备注 ?? "-" },
             ]} />
           <Table size="small" rowKey="id" pagination={false} dataSource={detail.明细}
+            scroll={{ x: "max-content", y: 380 }}
             columns={[
               { title: "供应商编号", dataIndex: "供应商编号" }, { title: "供应商名称", dataIndex: "供应商名称" },
               ...(showAmount ? [

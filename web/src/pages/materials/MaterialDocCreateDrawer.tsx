@@ -9,7 +9,11 @@ import type { DocFieldCfg, MaterialDocCfg } from "./materialDocConfigs";
 import MaterialLineTable from "./MaterialLineTable";
 import EmployeePicker from "./EmployeePicker";
 
-const today = () => new Date().toLocaleDateString("zh-CN");
+// 后端 DateTime 反序列化要求 ISO 格式（zh-CN 的 2026/7/29 会 400）
+const today = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
 const currentUser = () => localStorage.getItem("erp_user") ?? "";
 
 export default function MaterialDocCreateDrawer({ cfg, open, onClose, onCreated, initial }: {

@@ -23,6 +23,7 @@ export default function RosterPage() {
   const [rows, setRows] = useState<RosterRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const [selRow, setSelRow] = useState<RosterRow | null>(null);
 
   const load = useCallback(async () => {
     if (!开始 || !结束) { message.error("请选择开始与结束日期"); return; }
@@ -31,6 +32,7 @@ export default function RosterPage() {
       setRows(await rosterApi.list(
         开始.format("YYYY-MM-DD"), 结束.format("YYYY-MM-DD"), 部门编号 || undefined,
       ));
+      setSelRow(null);
     } catch (e) { message.error(errMsg(e, "加载排班失败")); }
     finally { setLoading(false); }
   }, [开始, 结束, 部门编号]);
@@ -48,15 +50,12 @@ export default function RosterPage() {
     { title: "姓名", dataIndex: "姓名" },
     { title: "日期", dataIndex: "日期", render: (v?: string) => (v ? dayjs(v).format("YYYY-MM-DD") : "") },
     { title: "班次", dataIndex: "班次" },
-    ...(can(perms, MENU, "删除") ? [{
-      title: "操作", key: "_op", width: 100,
-      render: (_: unknown, row: RosterRow) => (
-        <Popconfirm title="确认删除该排班?" onConfirm={() => remove(row.工号!, row.日期!)}>
-          <a>删除</a>
-        </Popconfirm>
-      ),
-    }] : []),
   ];
+
+  // 选中行提示文字:工号 + 格式化日期
+  const selLabel = selRow
+    ? `${selRow.工号 ?? ""} ${selRow.日期 ? dayjs(selRow.日期).format("YYYY-MM-DD") : ""}`.trim()
+    : "";
 
   return (
     <Card title="排班" variant="borderless"
@@ -70,10 +69,27 @@ export default function RosterPage() {
           {can(perms, MENU, "保存") && (
             <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>批量排班</Button>
           )}
+          {can(perms, MENU, "删除") && (
+            <Popconfirm
+              title={`确认删除该排班${selRow ? ` [${selLabel}]` : ""}?`}
+              onConfirm={() => selRow && remove(selRow.工号!, selRow.日期!)}>
+              <Button danger disabled={!selRow}>删除</Button>
+            </Popconfirm>
+          )}
+          <span style={{ color: selRow ? "#1677ff" : "#999", fontSize: 12 }}>
+            {selRow ? `已选中:${selLabel}` : "双击行选中后可删除"}
+          </span>
         </Space>
       }>
       <Table rowKey={(r, i) => `${r.工号 ?? ""}|${r.日期 ?? ""}|${i}`} size="middle" loading={loading}
-        dataSource={rows} columns={columns} scroll={{ x: true }}
+        dataSource={rows} columns={columns} scroll={{ x: "max-content", y: "calc(100vh - 300px)" }}
+        onRow={(r: RosterRow) => ({
+          onDoubleClick: () => setSelRow(r),
+          style: {
+            cursor: "pointer",
+            ...(selRow && selRow.工号 === r.工号 && selRow.日期 === r.日期 ? { background: "#e6f4ff" } : {}),
+          },
+        })}
         pagination={{ pageSize: 20, showTotal: (t) => `共 ${t} 条` }} />
       <AssignDrawer open={open} onClose={() => setOpen(false)} onSaved={load} />
     </Card>

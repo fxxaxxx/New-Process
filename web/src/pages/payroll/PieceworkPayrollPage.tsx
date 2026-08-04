@@ -37,7 +37,7 @@ export default function PieceworkPayrollPage() {
         </Space>
       }>
       <Table rowKey={(r, i) => `${r.编号 ?? ""}|${r.部门编号 ?? ""}|${i}`} size="middle"
-        dataSource={rows} columns={columns}
+        dataSource={rows} columns={columns} scroll={{ x: "max-content", y: "calc(100vh - 300px)" }}
         pagination={{ pageSize: 20, showTotal: (t) => `共 ${t} 条` }} />
     </Card>
   );

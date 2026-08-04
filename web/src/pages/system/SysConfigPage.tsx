@@ -21,10 +21,11 @@ export default function SysConfigPage() {
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);   // 键; "" = 新建
   const [open, setOpen] = useState(false);
+  const [selRow, setSelRow] = useState<SysConfigRow | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    try { setRows(await sysConfigApi.list(keyword)); }
+    try { setRows(await sysConfigApi.list(keyword)); setSelRow(null); }
     catch { message.error("加载系统参数失败"); }
     finally { setLoading(false); }
   }, [keyword]);
@@ -46,19 +47,6 @@ export default function SysConfigPage() {
       render: (v: boolean) => (v ? <Tag color="orange">是</Tag> : <Tag>否</Tag>),
     },
     { title: "备注", dataIndex: "备注" },
-    ...((can(perms, MENU, "保存") || can(perms, MENU, "删除")) ? [{
-      title: "操作", key: "_op", width: 140,
-      render: (_: unknown, row: SysConfigRow) => (
-        <Space>
-          {can(perms, MENU, "保存") && <a onClick={() => openEdit(row.键!)}>编辑</a>}
-          {can(perms, MENU, "删除") && (
-            <Popconfirm title="确认删除该系统参数?" onConfirm={() => remove(row.键!)}>
-              <a>删除</a>
-            </Popconfirm>
-          )}
-        </Space>
-      ),
-    }] : []),
   ];
 
   return (
@@ -70,10 +58,27 @@ export default function SysConfigPage() {
           {can(perms, MENU, "保存") && (
             <Button type="primary" icon={<PlusOutlined />} onClick={openNew}>新建</Button>
           )}
+          {can(perms, MENU, "保存") && (
+            <Button disabled={!selRow} onClick={() => selRow && openEdit(selRow.键!)}>编辑</Button>
+          )}
+          {can(perms, MENU, "删除") && (
+            <Popconfirm
+              title={`确认删除该系统参数${selRow ? ` [${selRow.键}]` : ""}?`}
+              onConfirm={() => selRow && remove(selRow.键!)}>
+              <Button danger disabled={!selRow}>删除</Button>
+            </Popconfirm>
+          )}
+          <span style={{ color: selRow ? "#1677ff" : "#999", fontSize: 12 }}>
+            {selRow ? `已选中:${selRow.键}` : "双击行选中后可编辑/删除"}
+          </span>
         </Space>
       }>
       <Table rowKey={(r) => r.键 ?? ""} size="middle" loading={loading}
-        dataSource={rows} columns={columns} scroll={{ x: true }}
+        dataSource={rows} columns={columns} scroll={{ x: "max-content", y: "calc(100vh - 300px)" }}
+        onRow={(r: SysConfigRow) => ({
+          onDoubleClick: () => setSelRow(r),
+          style: { cursor: "pointer", ...(selRow && selRow.键 === r.键 ? { background: "#e6f4ff" } : {}) },
+        })}
         pagination={{ pageSize: 20, showTotal: (t) => `共 ${t} 条` }} />
       <EditDrawer open={open} 键={editing} onClose={() => setOpen(false)} onSaved={load} />
     </Card>

@@ -3,6 +3,9 @@ import { Button, Card, Col, Form, Input, Popconfirm, Row, Space, Statistic, Tabl
 import { SearchOutlined } from "@ant-design/icons";
 import { plasticSupplierDocApi, type PSDHeader, type PSDLine } from "../../api/plasticSupplierDoc";
 import { plasticDocApi } from "../../api/plasticDocs";
+import { plasticMaterialSettingsApi } from "../../api/plasticMaterialSettings";
+import type { PlasticMaterialRow } from "../../api/plasticMaterialMaster";
+import { prefillDefaultWarehouse } from "../../utils/plasticSettings";
 import SupplierPicker from "./SupplierPicker";
 import PlasticReceiptPicker from "./PlasticReceiptPicker";
 import PlasticReceiptLineTable from "./PlasticReceiptLineTable";
@@ -10,7 +13,7 @@ import type { PlasticReceiptFormCfg } from "./PlasticReceiptFormConfigs";
 import { can, hidePrice } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
 
-const today = () => new Date().toLocaleDateString("zh-CN");
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }; // ISO 格式：后端 DateTime 反序列化要求
 const currentUser = () => localStorage.getItem("erp_user") ?? "";
 
 export default function PlasticReceiptFormPage({ cfg }: { cfg: PlasticReceiptFormCfg }) {
@@ -26,6 +29,16 @@ export default function PlasticReceiptFormPage({ cfg }: { cfg: PlasticReceiptFor
   const [supplierOpen, setSupplierOpen] = useState(false);
   const [receiptOpen, setReceiptOpen] = useState(false);
   const readOnly = opened !== null;
+
+  // 塑胶物料设置消费: 选物料后表头仓库为空时按设置的默认仓库预填(不覆盖已填)。
+  const handleMaterialPicked = useCallback((row: PlasticMaterialRow) => {
+    const code = (row.物料编号 ?? "").trim();
+    if (!code) return;
+    void plasticMaterialSettingsApi.lookup(code).then(s => {
+      const wh = prefillDefaultWarehouse(form.getFieldValue("仓库") as string | undefined, s?.默认仓库);
+      if (wh) form.setFieldValue("仓库", wh);
+    }).catch(() => { /* 未设置/不可达则不预填 */ });
+  }, [form]);
 
   const loadRows = useCallback(async () => {
     try { setRows((await docApi.list(1, 50, "")).items); }
@@ -151,7 +164,7 @@ export default function PlasticReceiptFormPage({ cfg }: { cfg: PlasticReceiptFor
         </Row>
       </Form>
 
-      <PlasticReceiptLineTable value={lines} onChange={setLines} readOnly={readOnly} hidePrice={priceHidden} />
+      <PlasticReceiptLineTable value={lines} onChange={setLines} readOnly={readOnly} hidePrice={priceHidden} onMaterialPicked={handleMaterialPicked} />
 
       <Space style={{ marginTop: 16 }} size={32}>
         <Statistic title="数量合计" value={数量合计} />

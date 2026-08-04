@@ -3,7 +3,7 @@ import {
   Button, Card, Form, Input, Modal, Popconfirm, Select, Space, Table, Tree, message,
 } from "antd";
 import {
-  CloseOutlined, DeleteOutlined, EditOutlined, ExportOutlined, PlusOutlined,
+  CloseOutlined, ExportOutlined, PlusOutlined,
   PrinterOutlined, SearchOutlined, SettingOutlined, ToolOutlined,
 } from "@ant-design/icons";
 import { materialMasterApi, type MaterialCategoryNode } from "../../api/materialMaster";
@@ -56,6 +56,7 @@ export default function AuxiliaryMaterialMasterPage() {
   const [loading, setLoading] = useState(false);
 
   const [editing, setEditing] = useState<AuxiliaryMaterialRow | null>(null);
+  const [selRow, setSelRow] = useState<AuxiliaryMaterialRow | null>(null);
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
 
@@ -76,6 +77,7 @@ export default function AuxiliaryMaterialMasterPage() {
       const r = await materialMasterApi.list(q.类别, q.keyword, q.page, q.size);
       setRows(r.items.map(toAuxiliaryMaterialRow));
       setTotal(r.total);
+      setSelRow(null);
     } catch {
       message.error("加载辅料资料失败");
     } finally {
@@ -153,6 +155,7 @@ export default function AuxiliaryMaterialMasterPage() {
       else await materials.create(values);
       message.success("已保存");
       setEditing(null);
+      setSelRow(null);
       await loadCats();
       await loadRows(page);
     } catch {
@@ -166,6 +169,7 @@ export default function AuxiliaryMaterialMasterPage() {
     try {
       await materials.remove(r.ID);
       message.success("已删除");
+      setSelRow(null);
       await loadCats();
       await loadRows(page);
     } catch {
@@ -182,19 +186,6 @@ export default function AuxiliaryMaterialMasterPage() {
     { title: "单位", dataIndex: "单位", width: 80 },
     { title: "备注", dataIndex: "备注", width: 220 },
     { title: "仓库位置", dataIndex: "仓库位置", width: 160 },
-    {
-      title: "操作", width: 110, fixed: "right" as const,
-      render: (_: unknown, r: AuxiliaryMaterialRow) => (
-        <Space size="small">
-          {canSave && <a onClick={() => openEdit(r)}><EditOutlined /></a>}
-          {canDelete && (
-            <Popconfirm title="确认删除该辅料?" onConfirm={() => del(r)}>
-              <a style={{ color: "#cf1322" }}><DeleteOutlined /></a>
-            </Popconfirm>
-          )}
-        </Space>
-      ),
-    },
   ];
 
   if (!canOpen) {
@@ -272,6 +263,15 @@ export default function AuxiliaryMaterialMasterPage() {
           <Button icon={<ExportOutlined />} onClick={() => downloadCsv("辅料资料.csv", exportCols, sortedRows as unknown as Record<string, unknown>[])}>导出EXCEL</Button>
           <Button icon={<PrinterOutlined />} onClick={() => printTable("辅料资料", exportCols, sortedRows as unknown as Record<string, unknown>[])}>打印</Button>
           {canSave && <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增</Button>}
+          {canSave && <Button disabled={!selRow} onClick={() => selRow && void openEdit(selRow)}>编辑</Button>}
+          {canDelete && (
+            <Popconfirm title={`确认删除该辅料${selRow ? ` [${selRow.辅料编号 ?? ""}]` : ""}?`} onConfirm={() => selRow && void del(selRow)}>
+              <Button danger disabled={!selRow}>删除</Button>
+            </Popconfirm>
+          )}
+          <span style={{ color: selRow ? "#1677ff" : "#999", fontSize: 12 }}>
+            {selRow ? `已选中:${selRow.辅料编号 ?? selRow.ID}` : "双击行选中后可编辑/删除"}
+          </span>
           <Button danger icon={<CloseOutlined />} onClick={() => window.history.back()}>关闭</Button>
         </Space>
 
@@ -281,8 +281,11 @@ export default function AuxiliaryMaterialMasterPage() {
           loading={loading}
           dataSource={sortedRows}
           columns={tableColumns}
-          scroll={{ x: 1350 }}
-          onRow={r => ({ onDoubleClick: () => { if (canSave) openEdit(r); } })}
+          scroll={{ x: 1350, y: "calc(100vh - 300px)" }}
+          onRow={(r: AuxiliaryMaterialRow) => ({
+            onDoubleClick: () => setSelRow(r),
+            style: { cursor: "pointer", ...(selRow && selRow.ID === r.ID ? { background: "#e6f4ff" } : {}) },
+          })}
           pagination={{
             current: page,
             pageSize,

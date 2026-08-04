@@ -48,6 +48,7 @@ function SummaryTab() {
         <Input.Search placeholder="客户编号(留空查全部)" allowClear onSearch={set客户编号} style={{ width: 220 }} />
       </Space>
       <Table rowKey={r => String(r.客户编号 ?? r.客户名称)} size="middle" dataSource={rows} columns={columns}
+        scroll={{ x: "max-content", y: "calc(100vh - 340px)" }}
         pagination={{ pageSize: 20, showTotal: t => `共 ${t} 条` }} />
     </>
   );
@@ -88,6 +89,7 @@ function SettlementTab() {
         <Button type="primary" onClick={load}>查询</Button>
       </Space>
       <Table rowKey={r => String(r.出货单号)} size="middle" dataSource={rows} columns={columns}
+        scroll={{ x: "max-content", y: "calc(100vh - 340px)" }}
         pagination={{ pageSize: 20, showTotal: t => `共 ${t} 条` }} />
     </>
   );
@@ -127,6 +129,7 @@ function AgingTab() {
         <Button type="primary" onClick={load}>查询</Button>
       </Space>
       <Table rowKey={r => String(r.客户编号 ?? r.客户名称)} size="middle" dataSource={rows} columns={columns}
+        scroll={{ x: "max-content", y: "calc(100vh - 340px)" }}
         pagination={{ pageSize: 20, showTotal: t => `共 ${t} 条` }} />
     </>
   );

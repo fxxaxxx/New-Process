@@ -5,6 +5,28 @@ import Login from "./pages/Login";
 import MainLayout from "./pages/MainLayout";
 import MasterRouter from "./pages/master/MasterRouter";
 import Dashboard from "./pages/Dashboard";
+import ChangePasswordPage from "./pages/ChangePasswordPage";
+import CompanyProfilePage from "./pages/system/CompanyProfilePage";
+import FeatureSettingsPage from "./pages/system/FeatureSettingsPage";
+import WarehouseLocationPage from "./pages/system/WarehouseLocationPage";
+import InjectionMachineRatePage from "./pages/system/InjectionMachineRatePage";
+import BackupPage from "./pages/system/BackupPage";
+import RestorePage from "./pages/system/RestorePage";
+import UpgradePage from "./pages/system/UpgradePage";
+import LogoutPage from "./pages/system/LogoutPage";
+import FinishedLeftoverPage from "./pages/production/FinishedLeftoverPage";
+import ContractLeftoverPage from "./pages/production/ContractLeftoverPage";
+import ProcessShortagePage from "./pages/assembly/ProcessShortagePage";
+import FactoryCategoryDetailPage from "./pages/assembly/FactoryCategoryDetailPage";
+import PlasticMonthlyReportPage from "./pages/plastics/PlasticMonthlyReportPage";
+import PlasticInOutSummaryPage from "./pages/plastics/PlasticInOutSummaryPage";
+import PlasticPurchaseProgressDetailPage from "./pages/plastics/PlasticPurchaseProgressDetailPage";
+import PlasticRawMaterialPurchaseProgressPage from "./pages/plastics/PlasticRawMaterialPurchaseProgressPage";
+import PlasticRawMaterialIssueProgressPage from "./pages/plastics/PlasticRawMaterialIssueProgressPage";
+import PlasticLabelOrderPage from "./pages/plastics/PlasticLabelOrderPage";
+import PlasticMaterialSettingsPage from "./pages/plastics/PlasticMaterialSettingsPage";
+import MaterialLabelOrderPage from "./pages/materials/MaterialLabelOrderPage";
+import PurchaseMaterialSettingsPage from "./pages/production/PurchaseMaterialSettingsPage";
 import StyleDetailPage from "./pages/styles/StyleDetailPage";
 import BomSetupPage from "./pages/styles/BomSetupPage";
 import SemiFinishedCommonMaterialsPage from "./pages/semi/SemiFinishedCommonMaterialsPage";
@@ -29,6 +51,7 @@ import PurchaseOverQueryPage from "./pages/production/PurchaseOverQueryPage";
 import IssueOverQueryPage from "./pages/production/IssueOverQueryPage";
 import MaterialUsageQueryPage from "./pages/production/MaterialUsageQueryPage";
 import PurchaseAnalysisQueryPage from "./pages/production/PurchaseAnalysisQueryPage";
+import PurchaseIssueAnalysisPage from "./pages/production/PurchaseIssueAnalysisPage";
 import PurchaseMaterialAnalysisPage from "./pages/production/PurchaseMaterialAnalysisPage";
 import MaterialOrderMakePage from "./pages/production/MaterialOrderMakePage";
 import PurchaseOrderListPage from "./pages/production/PurchaseOrderListPage";
@@ -60,6 +83,7 @@ import AuxiliaryStocktakePage from "./pages/auxiliary/AuxiliaryStocktakePage";
 import PlasticMaterialMasterPage from "./pages/plastics/PlasticMaterialMasterPage";
 import PlasticRawMaterialMasterPage from "./pages/plastics/PlasticRawMaterialMasterPage";
 import PlasticCommonMaterialPage from "./pages/plastics/PlasticCommonMaterialPage";
+import PlasticMoldPage from "./pages/plastics/PlasticMoldPage";
 import PlasticMaterialAnalysisPage from "./pages/plastics/PlasticMaterialAnalysisPage";
 import PlasticInventoryPage from "./pages/plastics/PlasticInventoryPage";
 import PlasticInOutReportPage from "./pages/plastics/PlasticInOutReportPage";
@@ -167,6 +191,7 @@ import ShiftPage from "./pages/attendance/ShiftPage";
 import RosterPage from "./pages/attendance/RosterPage";
 import DailyPage from "./pages/attendance/DailyPage";
 import SysConfigPage from "./pages/system/SysConfigPage";
+import DepartmentPersonnelPage from "./pages/system/DepartmentPersonnelPage";
 import AccountPage from "./pages/admin/AccountPage";
 import PlaceholderPage from "./pages/PlaceholderPage";
 
@@ -203,6 +228,7 @@ export default function App() {
           <Route path="issue-over-query" element={<IssueOverQueryPage />} />
           <Route path="material-usage-query" element={<MaterialUsageQueryPage />} />
           <Route path="purchase-analysis-query" element={<PurchaseAnalysisQueryPage />} />
+          <Route path="purchase-issue-analysis" element={<PurchaseIssueAnalysisPage />} />
           <Route path="purchase-material-analysis" element={<PurchaseMaterialAnalysisPage />} />
           <Route path="material-order-make" element={<MaterialOrderMakePage />} />
           <Route path="purchase-orders" element={<PurchaseOrderListPage />} />
@@ -234,6 +260,7 @@ export default function App() {
           <Route path="plastic-material-master" element={<PlasticMaterialMasterPage />} />
           <Route path="plastic-raw-material-master" element={<PlasticRawMaterialMasterPage />} />
           <Route path="plastic-common-materials" element={<PlasticCommonMaterialPage />} />
+          <Route path="plastic-molds" element={<PlasticMoldPage />} />
           <Route path="plastic-material-analysis" element={<PlasticMaterialAnalysisPage />} />
           <Route path="plastic-receipts" element={<PlasticReceiptFormPage cfg={PLASTIC_RECEIPT_FORM_CONFIGS["plastic-receipts"]} />} />
           <Route path="plastic-issues" element={<PlasticIssueFormPage />} />
@@ -341,7 +368,30 @@ export default function App() {
           <Route path="attendance/rosters" element={<RosterPage />} />
           <Route path="attendance/daily" element={<DailyPage />} />
           <Route path="sys-config" element={<SysConfigPage />} />
+          <Route path="hr/department-personnel" element={<DepartmentPersonnelPage />} />
           <Route path="admin/accounts" element={<AccountPage />} />
+          <Route path="change-password" element={<ChangePasswordPage />} />
+          <Route path="system/company-profile" element={<CompanyProfilePage />} />
+          <Route path="system/feature-settings" element={<FeatureSettingsPage />} />
+          <Route path="system/warehouse-locations" element={<WarehouseLocationPage />} />
+          <Route path="system/injection-machine-rates" element={<InjectionMachineRatePage />} />
+          <Route path="system/backup" element={<BackupPage />} />
+          <Route path="system/restore" element={<RestorePage />} />
+          <Route path="system/upgrade" element={<UpgradePage />} />
+          <Route path="logout" element={<LogoutPage />} />
+          <Route path="finished-leftover" element={<FinishedLeftoverPage />} />
+          <Route path="contract-leftover" element={<ContractLeftoverPage />} />
+          <Route path="process-shortage" element={<ProcessShortagePage />} />
+          <Route path="assembly-factory-category-detail" element={<FactoryCategoryDetailPage />} />
+          <Route path="plastic-monthly-report" element={<PlasticMonthlyReportPage />} />
+          <Route path="plastic-in-out-summary" element={<PlasticInOutSummaryPage />} />
+          <Route path="plastic-purchase-progress-detail" element={<PlasticPurchaseProgressDetailPage />} />
+          <Route path="plastic-raw-material-purchase-progress" element={<PlasticRawMaterialPurchaseProgressPage />} />
+          <Route path="plastic-raw-material-issue-progress" element={<PlasticRawMaterialIssueProgressPage />} />
+          <Route path="plastic-label-orders" element={<PlasticLabelOrderPage />} />
+          <Route path="plastic-material-settings" element={<PlasticMaterialSettingsPage />} />
+          <Route path="material-label-orders" element={<MaterialLabelOrderPage />} />
+          <Route path="purchase-material-settings" element={<PurchaseMaterialSettingsPage />} />
           <Route path="_todo/:name" element={<PlaceholderPage />} />
         </Route>
       </Routes>

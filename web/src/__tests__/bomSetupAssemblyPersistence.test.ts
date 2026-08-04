@@ -46,12 +46,15 @@ vi.mock("react-router-dom", () => ({
 vi.mock("@ant-design/icons", () => ({
   CheckOutlined: () => null,
   CloseOutlined: () => null,
+  CopyOutlined: () => null,
   DeleteOutlined: () => null,
   FileAddOutlined: () => null,
   FolderOpenOutlined: () => null,
+  ImportOutlined: () => null,
   PlusOutlined: () => null,
   PrinterOutlined: () => null,
   SaveOutlined: () => null,
+  UploadOutlined: () => null,
 }));
 
 let activeForm: {
@@ -75,6 +78,7 @@ vi.mock("antd", () => {
     return createElement("input", { value: props.value == null ? "" : String(props.value), disabled: props.disabled, onChange: props.onChange });
   };
   Input.Search = Input;
+  Input.TextArea = Input;
   const InputNumber = (props: Record<string, unknown>) => {
     pageMock.inputNumbers.push(props);
     return createElement("input", { value: props.value == null ? "" : String(props.value), disabled: props.disabled, onChange: props.onChange });
@@ -88,6 +92,10 @@ vi.mock("antd", () => {
   const Space = ({ children }: { children?: ReactNode }) => createElement("div", null, children);
   const Result = ({ title, subTitle }: { title?: ReactNode; subTitle?: ReactNode }) => createElement("main", null, title, subTitle);
   const Popconfirm = ({ children }: { children?: ReactNode }) => createElement("span", null, children);
+  const Radio = Object.assign(
+    ({ children }: { children?: ReactNode }) => createElement("label", null, children),
+    { Group: ({ children }: { children?: ReactNode }) => createElement("div", null, children) },
+  );
   const Modal = ({ open, children }: { open?: boolean; children?: ReactNode }) => open ? createElement("aside", null, children) : null;
   const Tabs = ({ items }: { items?: { children?: ReactNode }[] }) => createElement("div", null, items?.map((item, i) => createElement("section", { key: i }, item.children)));
   const Table = (props: { dataSource?: Record<string, unknown>[]; columns?: Record<string, unknown>[]; onRow?: (row: Record<string, unknown>) => { onClick?: () => void } }) => {
@@ -145,7 +153,13 @@ vi.mock("antd", () => {
       },
     },
   );
-  return { Button, Card, Checkbox, Col, DatePicker, Form, Input, InputNumber, Modal, Popconfirm, Result, Row, Select, Space, Table, Tabs, Tag: ({ children }: { children?: ReactNode }) => createElement("span", null, children), message: { error: vi.fn(), success: vi.fn(), warning: vi.fn(), info: vi.fn() } };
+  const Empty = ({ description }: { description?: ReactNode }) => createElement("div", null, description);
+  const Image = Object.assign(
+    (props: Record<string, unknown>) => createElement("img", { src: props.src as string, alt: props.alt as string }),
+    { PreviewGroup: ({ children }: { children?: ReactNode }) => createElement("div", null, children) },
+  );
+  const Upload = ({ children }: { children?: ReactNode }) => createElement("span", null, children);
+  return { Button, Card, Checkbox, Col, DatePicker, Empty, Form, Image, Input, InputNumber, Modal, Popconfirm, Radio, Result, Row, Select, Space, Table, Tabs, Tag: ({ children }: { children?: ReactNode }) => createElement("span", null, children), Upload, AutoComplete: Select, message: { error: vi.fn(), success: vi.fn(), warning: vi.fn(), info: vi.fn() } };
 });
 
 class TestNode {
@@ -375,6 +389,22 @@ describe("装配物料设置持久化行为", () => {
     const quoteTable = [...pageMock.tables].reverse().find(table => table.columns.some(column => column.dataIndex === "单价"));
     expect(quoteTable?.dataSource).toHaveLength(1);
     expect(quoteTable?.dataSource[0]).toMatchObject({ ID: 7, 名称: "新供应商", 编号: "SUP-2", 备注: "保留元数据" });
+  });
+
+  it("hydrates in-house quote rows, disables partner picking and saves them without a partner", async () => {
+    pageMock.materials.mockReset().mockResolvedValue(full("STYLE-1", {
+      报价: [{ ID: 9, 物料编号: null, 物料名称: null, 合作方类型: "本厂", 合作方编号: null, 合作方名称: null, 报价日期: "2026-07-13", 货币: "HK$", 单价: 1.5, 港币价: 1.5, 对比相差: 0, 相差比例: 0, 是否默认: false, 顺序: 1, 备注: null }],
+    }));
+    await mount();
+
+    const partnerSearch = [...pageMock.inputs].reverse().find(input => input["data-role"] === "quote-partner");
+    expect(partnerSearch?.disabled).toBe(true);
+
+    await act(async () => { latestButton("保存").onClick?.(); });
+    await settle();
+
+    const body = pageMock.saveMaterials.mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(body.报价).toMatchObject([{ ID: 9, 合作方类型: "本厂", 合作方编号: null, 合作方名称: null }]);
   });
 
   it("ignores a stale document response when a newer load completes first", async () => {

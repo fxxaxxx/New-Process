@@ -240,7 +240,7 @@ export default function SemiFinishedCommonMaterialsPage() {
         loading={loading}
         dataSource={rows}
         columns={columns}
-        scroll={{ x: "max-content" }}
+        scroll={{ x: "max-content", y: "calc(100vh - 320px)" }}
         rowClassName={row => row.产品货号 === selectedKey ? "erp-row-selected" : ""}
         onRow={row => ({
           onClick: () => setSelectedKey(row.产品货号),

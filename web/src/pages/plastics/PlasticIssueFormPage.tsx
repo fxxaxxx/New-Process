@@ -3,13 +3,16 @@ import { Button, Card, Checkbox, Col, Form, Input, InputNumber, Popconfirm, Row,
 import { SearchOutlined } from "@ant-design/icons";
 import { plasticIssueApi, type PIHeader, type PILine } from "../../api/plasticIssue";
 import { plasticInventoryApi } from "../../api/plasticInventory";
+import { plasticMaterialSettingsApi } from "../../api/plasticMaterialSettings";
+import type { PlasticMaterialRow } from "../../api/plasticMaterialMaster";
+import { prefillDefaultWarehouse } from "../../utils/plasticSettings";
 import EmployeePicker from "../materials/EmployeePicker";
 import PlasticIssueLineTable from "./PlasticIssueLineTable";
 import { can } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
 
 const MENU = "塑胶领料单";
-const today = () => new Date().toLocaleDateString("zh-CN");
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }; // ISO 格式：后端 DateTime 反序列化要求
 const currentUser = () => localStorage.getItem("erp_user") ?? "";
 
 export default function PlasticIssueFormPage() {
@@ -24,6 +27,16 @@ export default function PlasticIssueFormPage() {
   const [mergePrint, setMergePrint] = useState(true);
   const [stock, setStock] = useState<Record<string, number>>({});
   const readOnly = opened !== null;
+
+  // 塑胶物料设置消费: 选物料后表头仓库为空时按设置的默认仓库预填(不覆盖已填)。
+  const handleMaterialPicked = useCallback((row: PlasticMaterialRow) => {
+    const code = (row.物料编号 ?? "").trim();
+    if (!code) return;
+    void plasticMaterialSettingsApi.lookup(code).then(s => {
+      const wh = prefillDefaultWarehouse(form.getFieldValue("仓库") as string | undefined, s?.默认仓库);
+      if (wh) form.setFieldValue("仓库", wh);
+    }).catch(() => { /* 未设置/不可达则不预填 */ });
+  }, [form]);
 
   const loadRows = useCallback(async () => {
     try { setRows((await plasticIssueApi.list(1, 50, "")).items); }
@@ -155,7 +168,7 @@ export default function PlasticIssueFormPage() {
 
       <Row gutter={12}>
         <Col span={17}>
-          <PlasticIssueLineTable value={lines} onChange={setLines} readOnly={readOnly} />
+          <PlasticIssueLineTable value={lines} onChange={setLines} readOnly={readOnly} onMaterialPicked={handleMaterialPicked} />
         </Col>
         <Col span={7}>
           <Table size="small" pagination={false} rowKey="物料编号"

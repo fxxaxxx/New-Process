@@ -110,7 +110,7 @@ export default function AssemblyPurchaseQueryDetailDrawer({
             dataSource={products}
             columns={productColumns}
             pagination={false}
-            scroll={{ x: "max-content" }}
+            scroll={{ x: "max-content", y: 380 }}
           />
 
           <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 12, alignItems: "start" }}>
