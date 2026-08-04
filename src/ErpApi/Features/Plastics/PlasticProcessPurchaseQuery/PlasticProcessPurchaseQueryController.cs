@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using ErpApi.Engines.Authorization;
+using ErpApi.Infrastructure;
 using ErpApi.Features.Plastics.PlasticProcessPurchaseOrder;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -19,6 +20,7 @@ public sealed class PlasticProcessPurchaseQueryController(
     public async Task<IActionResult> Detail(DateTime 起, DateTime 止, string? keyword = null,
         [FromQuery(Name = "审核情况")] string? 审核情况 = null, [FromQuery(Name = "物料类别")] string? 物料类别 = null)
     {
+        (起, 止) = QueryDateDefaults.Normalize(起, 止);
         if (!await perms.HasAsync(CurrentUser, Menu, PermissionAction.打开)) return Forbid();
         var rows = await svc.QueryDetailAsync(起, 止, keyword, 审核情况, 物料类别);
         if (!await CanPrice()) foreach (var r in rows) { r.单价 = null; r.金额 = null; }
@@ -29,6 +31,7 @@ public sealed class PlasticProcessPurchaseQueryController(
     public async Task<IActionResult> Summary(DateTime 起, DateTime 止, string? keyword = null,
         [FromQuery(Name = "审核情况")] string? 审核情况 = null, [FromQuery(Name = "物料类别")] string? 物料类别 = null)
     {
+        (起, 止) = QueryDateDefaults.Normalize(起, 止);
         if (!await perms.HasAsync(CurrentUser, Menu, PermissionAction.打开)) return Forbid();
         var rows = await svc.QuerySummaryAsync(起, 止, keyword, 审核情况, 物料类别);
         if (!await CanPrice()) foreach (var r in rows) { r.总金额 = null; }

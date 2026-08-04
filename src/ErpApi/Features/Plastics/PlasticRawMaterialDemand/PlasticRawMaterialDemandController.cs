@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using ErpApi.Engines.Authorization;
 using ErpApi.Engines.Posting;
+using ErpApi.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 namespace ErpApi.Features.Plastics.PlasticRawMaterialDemand;
@@ -37,6 +38,7 @@ public sealed class PlasticRawMaterialDemandController(
     [HttpGet("summary")]
     public async Task<IActionResult> Summary(DateTime 起, DateTime 止, string? keyword = null, string? 领料备注 = null, string? 审核情况 = null)
     {
+        (起, 止) = QueryDateDefaults.Normalize(起, 止);
         if (!await AllowSummaryAsync()) return Forbid();
         return Ok(await svc.SummaryAsync(起, 止, keyword, 领料备注, 审核情况));
     }

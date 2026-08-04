@@ -1,6 +1,7 @@
 using Dapper;
 using ErpApi.Data;
 using ErpApi.Data.Entities;
+using ErpApi.Engines.Bom;
 using ErpApi.Infrastructure.Db;
 using Microsoft.EntityFrameworkCore;
 namespace ErpApi.Features.Styles;
@@ -44,7 +45,7 @@ FROM [款号物料明细表]
 WHERE [款号]=@款号
 ORDER BY CASE WHEN TRY_CONVERT(int,[顺序]) IS NULL THEN 1 ELSE 0 END,
          TRY_CONVERT(int,[顺序]), [ID];
-SELECT TOP (1) [产品编号],[单位],[备注]
+SELECT TOP (1) [产品编号],[单位],[备注],[日期],[客户编号],[客户名称],[默认单价],[类型],[操作员],[审核]
 FROM [款号物料总表]
 WHERE [款号]=@款号
 ORDER BY [ID] DESC;
@@ -67,7 +68,10 @@ ORDER BY [顺序],[ID];", new { 款号 });
         var 扩展 = await multi.ReadFirstOrDefaultAsync<AssemblyMaterialExtensionDto>();
         var quotes = (await multi.ReadAsync<AssemblyMaterialQuoteDto>()).AsList();
         IReadOnlyList<AssemblyMaterialQuoteDto>? 报价 = quotes.Count == 0 ? null : quotes;
-        return new StyleMaterialsViewDto(款号, style.款式, 物料, 扩展, 报价);
+        var 单头 = header is null ? null : new BomHeaderViewDto(
+            header.日期, header.客户编号, header.客户名称, header.单位,
+            header.默认单价, header.类型, header.操作员, header.审核, header.备注);
+        return new StyleMaterialsViewDto(款号, style.款式, 物料, 扩展, 报价, 单头);
     }
 
     // 整组替换颜色集（先删后插；ID 列无自增，写成排序号保证顺序稳定）
@@ -91,7 +95,8 @@ VALUES(@款号,@款式,@颜色编号,@颜色名称,@ID)",
     }
 
     // 整组替换 BOM、装配扩展和报价；三部分共用一个 Dapper 事务。
-    public async Task ReplaceMaterialsAsync(string 款号, BomSaveDto dto, bool canEditPrices = true)
+    // 返回保存警告（不阻止保存）：明细直接物料与所调入半成品的组成物料重复（会重复扣料）、半成品循环引用等。
+    public async Task<IReadOnlyList<string>> ReplaceMaterialsAsync(string 款号, BomSaveDto dto, bool canEditPrices = true, string? 操作员 = null)
     {
         using var c = factory.Create();
         await c.OpenAsync();
@@ -108,6 +113,41 @@ FROM [半成品共用物料设置] WITH (UPDLOCK, HOLDLOCK)
 WHERE [产品货号]=@款号;", new { 款号 }, tx);
             if (audited)
                 throw new InvalidOperationException($"款号 [{款号}] 已审核，不能保存，请先反审核。");
+
+            // 物料编号列宽防御（物料资料.物料编号 = nvarchar(20)，不加宽，见 db/56_widen_material_code.sql 评估）：
+            // 半成品款号可超过 20 字，调入 BOM 后塞不进 物料编号 列；即便截断写入，半成品行判定
+            // （编号 ∈ 半成品共用物料设置.产品货号）也会失效，多层级展开按普通物料错算。超长半成品款号直接拒绝调入。
+            var 明细行 = dto.明细 ?? [];
+            if (明细行.Any(m => (m.物料编号?.Trim().Length ?? 0) > 20))
+            {
+                var semiSet = new HashSet<string>(
+                    await c.QueryAsync<string>("SELECT [产品货号] FROM [半成品共用物料设置]", transaction: tx),
+                    StringComparer.OrdinalIgnoreCase);
+                foreach (var m in 明细行)
+                {
+                    var code = m.物料编号?.Trim();
+                    if (code is { Length: > 20 } && semiSet.Contains(code))
+                        throw new InvalidOperationException(
+                            $"半成品款号 [{code}] 超过物料编号长度上限 20 字，无法调入 BOM；请将该半成品款号改短至 20 字以内后再调入。");
+                }
+            }
+
+            // FK_133 已放开(db/68,允许混合 来料+塑胶 BOM):应用层兜底——物料编号须存在于 物料资料 或 塑胶物料资料
+            var codes = 明细行.Select(m => m.物料编号?.Trim())
+                .Where(x => !string.IsNullOrEmpty(x))
+                .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            if (codes.Length > 0)
+            {
+                var known = new HashSet<string>(await c.QueryAsync<string>(@"
+SELECT [物料编号] FROM [物料资料] WHERE [物料编号] IN @codes
+UNION ALL
+SELECT [物料编号] FROM [塑胶物料资料] WHERE [物料编号] IN @codes;",
+                    new { codes }, tx), StringComparer.OrdinalIgnoreCase);
+                var missing = codes.Where(x => !known.Contains(x!)).ToList();
+                if (missing.Count > 0)
+                    throw new InvalidOperationException(
+                        $"物料编号不存在(物料资料/塑胶物料资料)：{string.Join("、", missing)}");
+            }
 
             var saveDto = dto;
             if (!canEditPrices && (dto.扩展 is not null || dto.报价 is not null))
@@ -156,8 +196,30 @@ VALUES(@款号,@款式,@顺序,@客户编号,@客户名称,@日期,@物料编号
                     }, tx);
             }
 
+            // 台头(款号物料总表)upsert:旧版表头字段 客户/日期/单位/默认单价/类型;审核 新建='0'(分析口径不变),更新不动 审核/操作员
+            await c.ExecuteAsync(@"
+MERGE [款号物料总表] AS t
+USING (SELECT @款号 AS [款号]) s ON t.[款号]=s.[款号]
+WHEN MATCHED THEN UPDATE SET
+    [日期]=@日期,[客户编号]=@客户编号,[客户名称]=@客户名称,[款式]=@款式,
+    [单位]=@单位,[默认单价]=@默认单价,[类型]=@类型
+WHEN NOT MATCHED THEN
+    INSERT([日期],[客户编号],[客户名称],[款号],[款式],[单位],[默认单价],[类型],[审核],[操作员])
+    VALUES(@日期,@客户编号,@客户名称,@款号,@款式,@单位,@默认单价,@类型,'0',@操作员);",
+                new { 款号, 款式, saveDto.客户编号, saveDto.客户名称, saveDto.日期,
+                      saveDto.单位, saveDto.默认单价, saveDto.类型, 操作员 }, tx);
+
             if (saveDto.扩展 is not null)
-                await UpsertExtensionAsync(c, tx, 款号, saveDto.扩展);
+            {
+                // 库存单价HK 为空（null/0 视为未手工填写）时自动计算：优先工程BOM单价字段，兜底 BOM 明细 Σ(用量×物料单价)。
+                var extension = saveDto.扩展;
+                if (extension.库存单价HK is null or 0m)
+                    extension = extension with
+                    {
+                        库存单价HK = await ComputeInventoryPriceAsync(c, tx, 款号, extension.类别)
+                    };
+                await UpsertExtensionAsync(c, tx, 款号, extension);
+            }
 
             if (saveDto.报价 is not null)
             {
@@ -176,13 +238,77 @@ VALUES(@产品货号,@物料编号,@物料名称,@合作方类型,@合作方编�
                         }, tx);
             }
 
+            // 保存警告（同事务读取刚写入的明细）：既调半成品又直接列其组成物料 → 重复扣料风险。
+            var 警告 = await CollectHierarchyWarningsAsync(c, tx, materials);
+
             tx.Commit();
+            return 警告;
         }
         catch
         {
             try { tx.Rollback(); } catch { }
             throw;
         }
+    }
+
+    // 复制单：把源款号的 BOM 明细（及装配扩展/报价，若有）整组复制到目标款号。
+    // 目标已审核、目标已有 BOM 且未指定覆盖、或源无 BOM 时拒绝；写入复用 ReplaceMaterialsAsync 整组替换语义。
+    // 注：检查与写入非同一事务（同本服务只读聚合的项目级权衡），ReplaceMaterialsAsync 内部仍事务化。
+    public async Task CopyMaterialsAsync(string 源款号, string 目标款号, bool 覆盖)
+    {
+        目标款号 = 目标款号.Trim();
+        if (string.Equals(源款号, 目标款号, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("目标款号不能与源款号相同。");
+
+        var view = await GetMaterialsViewAsync(源款号);
+        if (view is null) throw new InvalidOperationException($"款号 [{源款号}] 不存在。");
+        if (view.物料.Count == 0)
+            throw new InvalidOperationException($"款号 [{源款号}] 没有 BOM 物料明细，无法复制。");
+
+        using var c = factory.Create();
+        await c.OpenAsync();
+        var targetExists = await c.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM [款号总表] WHERE [款号]=@款号", new { 款号 = 目标款号 });
+        if (targetExists == 0) throw new InvalidOperationException($"款号 [{目标款号}] 不存在。");
+        var targetAudited = await c.ExecuteScalarAsync<bool>(@"
+SELECT CAST(ISNULL([调整审核],0) AS bit)
+FROM [半成品共用物料设置]
+WHERE [产品货号]=@款号;", new { 款号 = 目标款号 });
+        if (targetAudited)
+            throw new InvalidOperationException($"款号 [{目标款号}] 已审核，不能复制覆盖，请先反审核。");
+        var targetBomCount = await c.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM [款号物料明细表] WHERE [款号]=@款号", new { 款号 = 目标款号 });
+        if (targetBomCount > 0 && !覆盖)
+            throw new InvalidOperationException($"款号 [{目标款号}] 已有 BOM 物料明细；确认覆盖请使用 覆盖=true。");
+
+        var first = view.物料[0];
+        var dto = new BomSaveDto(
+            first.客户编号, first.客户名称, first.日期,
+            view.扩展?.单位 ?? first.单位,
+            view.物料.Select(m => new StyleMaterialDto(
+                m.物料编号, m.物料名称, m.物料类别, m.规格, m.颜色,
+                m.单位, m.使用数量, m.工模编号, m.备注)).ToList(),
+            view.扩展,
+            view.报价?.ToList() ?? []);
+        await ReplaceMaterialsAsync(目标款号, dto);
+    }
+
+    // BOM 台头审核(款号物料总表.审核 翻转;区别于装配审核 半成品共用物料设置.调整审核)。
+    // 需领/采购分析只统计 审核='1' 的台头。
+    public async Task BomSetAuditAsync(string 款号, bool audited, string user)
+    {
+        using var c = factory.Create();
+        await c.OpenAsync();
+        using var tx = c.BeginTransaction();
+        var cur = await c.ExecuteScalarAsync<string?>(
+            "SELECT ISNULL([审核],'0') FROM [款号物料总表] WITH (UPDLOCK, HOLDLOCK) WHERE [款号]=@款号",
+            new { 款号 }, tx);
+        if (cur is null) throw new InvalidOperationException($"款号 [{款号}] 还没有 BOM 台头，请先保存 BOM。");
+        if (audited && cur == "1") throw new InvalidOperationException($"款号 [{款号}] 的 BOM 已审核，请勿重复审核。");
+        if (!audited && cur != "1") throw new InvalidOperationException($"款号 [{款号}] 的 BOM 未审核，无需反审核。");
+        await c.ExecuteAsync("UPDATE [款号物料总表] SET [审核]=@审核 WHERE [款号]=@款号",
+            new { 审核 = audited ? "1" : "0", 款号 }, tx);
+        tx.Commit();
     }
 
     public async Task SetAuditAsync(string 款号, bool audited, string user)
@@ -231,12 +357,76 @@ WHEN NOT MATCHED AND @调整审核=1 THEN
         }
     }
 
+    // 已设置的半成品/成品款号选项：BOM 明细可调入下级半成品（半成品共用物料设置.产品货号 即半成品判定集）
+    public async Task<IReadOnlyList<SemiOptionDto>> ListSemiOptionsAsync()
+    {
+        using var c = factory.Create();
+        return (await c.QueryAsync<SemiOptionDto>(@"
+SELECT s.[产品货号] AS [款号],
+       COALESCE(NULLIF(LTRIM(RTRIM(s.[产品装配名称])),N''), t.[款式]) AS [款式],
+       s.[类别], s.[需求用量], s.[单位]
+FROM [半成品共用物料设置] s
+OUTER APPLY (SELECT TOP (1) [款式] FROM [款号总表] h WHERE h.[款号]=s.[产品货号] ORDER BY h.[ID] DESC) t
+ORDER BY s.[产品货号]")).AsList();
+    }
+
+    // 保存警告：本 BOM 直接物料与所调入半成品的(递归)组成物料重复（重复扣料），以及半成品循环/超层级。
+    // 半成品行判定与生产展开一致：编号存在于 半成品共用物料设置.产品货号。
+    private static async Task<IReadOnlyList<string>> CollectHierarchyWarningsAsync(
+        System.Data.IDbConnection c, System.Data.IDbTransaction tx, IReadOnlyList<StyleMaterialDto> materials)
+    {
+        if (materials.Count == 0) return [];
+        var semiSet = new HashSet<string>(
+            await c.QueryAsync<string>("SELECT [产品货号] FROM [半成品共用物料设置]", transaction: tx),
+            StringComparer.OrdinalIgnoreCase);
+        var cache = new Dictionary<string, IReadOnlyList<SemiBomLine>>(StringComparer.OrdinalIgnoreCase);
+        IReadOnlyList<SemiBomLine> LinesOf(string k)
+        {
+            if (!cache.TryGetValue(k, out var lines))
+                cache[k] = lines = c.Query<SemiBomLine>(
+                    "SELECT [物料编号] AS [编号], [使用数量] AS [用量] FROM [款号物料明细表] WHERE [款号]=@款号",
+                    new { 款号 = k }, tx).AsList();
+            return lines;
+        }
+        return SemiBomExpander.FindDuplicateMaterialWarnings(
+            materials.Select(m => new SemiBomLine(m.物料编号, m.使用数量)).ToList(),
+            LinesOf, semiSet.Contains);
+    }
+
     private static void ValidateQuotes(IReadOnlyList<AssemblyMaterialQuoteDto>? quotes)
     {
         if (quotes is null) return;
         foreach (var quote in quotes)
-            if (quote.合作方类型 is not ("加工厂" or "供应商"))
-                throw new InvalidOperationException("报价合作方类型必须是加工厂或供应商。");
+        {
+            if (quote.合作方类型 is not ("本厂" or "加工厂" or "供应商"))
+                throw new InvalidOperationException("报价合作方类型必须是本厂、加工厂或供应商。");
+            if (quote.合作方类型 == "本厂"
+                && (!string.IsNullOrWhiteSpace(quote.合作方编号) || !string.IsNullOrWhiteSpace(quote.合作方名称)))
+                throw new InvalidOperationException("本厂报价行不能选择合作方（合作方编号/名称必须为空）。");
+        }
+        if (quotes.Count(q => q.合作方类型 == "本厂") > 1)
+            throw new InvalidOperationException("每个款号至多一行本厂报价。");
+    }
+
+    // 库存单价HK 自动计算口径：类别=成品 → 款号总表.[出厂价]；其余（半成品类/未设类别）→ [装彩盒单价]；
+    // 主档单价为空则按 BOM 明细 Σ(使用数量 × 物料资料.单价) 兜底（无 priced 物料时返回 null）。
+    private static async Task<decimal?> ComputeInventoryPriceAsync(
+        System.Data.IDbConnection c, System.Data.IDbTransaction tx, string 款号, string? 类别)
+    {
+        var column = 类别 == "成品" ? "出厂价" : "装彩盒单价";
+        var masterPrice = await c.ExecuteScalarAsync<decimal?>($@"
+SELECT TOP (1) [{column}] FROM [款号总表]
+WHERE [款号]=@款号 AND [{column}] IS NOT NULL
+ORDER BY [ID] DESC;", new { 款号 }, tx);
+        if (masterPrice is not null) return masterPrice;
+        return await c.ExecuteScalarAsync<decimal?>(@"
+SELECT SUM(d.[使用数量] * m.[单价])
+FROM [款号物料明细表] d
+LEFT JOIN (
+    SELECT [物料编号], MAX([单价]) AS [单价]
+    FROM [物料资料] GROUP BY [物料编号]
+) m ON m.[物料编号]=d.[物料编号]
+WHERE d.[款号]=@款号;", new { 款号 }, tx);
     }
 
     private static Task<int> UpsertExtensionAsync(
@@ -273,6 +463,13 @@ WHEN NOT MATCHED THEN
         public string? 产品编号 { get; set; }
         public string? 单位 { get; set; }
         public string? 备注 { get; set; }
+        public DateTime? 日期 { get; set; }
+        public string? 客户编号 { get; set; }
+        public string? 客户名称 { get; set; }
+        public string? 默认单价 { get; set; }
+        public string? 类型 { get; set; }
+        public string? 操作员 { get; set; }
+        public string? 审核 { get; set; }
     }
 
     // 整组替换尺码集（顺序即穿着顺序 S/M/L/XL，用 ID 列保序）
@@ -292,5 +489,19 @@ WHEN NOT MATCHED THEN
 INSERT INTO [款号尺码表]([款号],[款式],[尺码],[ID]) VALUES(@款号,@款式,@尺码,@ID)",
                 new { 款号, 款式, 尺码 = sizes[i], ID = (long)(i + 1) }, tx);
         tx.Commit();
+    }
+
+    // 生产通知单 货号选择:已做 BOM 物料设置的款号(款号物料总表)及单头信息
+    public async Task<IReadOnlyList<BomHeaderOptionDto>> ListBomHeadersAsync(string? keyword)
+    {
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<BomHeaderOptionDto>(@"
+SELECT [款号],[款式],[客户编号],[客户名称],[单位],[默认单价],[类型]
+FROM [款号物料总表]
+WHERE [款号] IS NOT NULL AND LTRIM(RTRIM([款号]))<>''
+  AND (@kw IS NULL OR [款号] LIKE @kw OR [款式] LIKE @kw OR [客户名称] LIKE @kw)
+ORDER BY [款号];", new { kw });
+        return rows.AsList();
     }
 }

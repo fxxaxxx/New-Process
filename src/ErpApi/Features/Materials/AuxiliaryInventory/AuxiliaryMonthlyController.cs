@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using ErpApi.Engines.Authorization;
 using ErpApi.Engines.Inventory;
+using ErpApi.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -22,6 +23,7 @@ public sealed class AuxiliaryMonthlyController(
     [HttpGet]
     public async Task<IActionResult> List([FromQuery] DateTime 起, [FromQuery] DateTime 止, string? keyword = null)
     {
+        (起, 止) = QueryDateDefaults.Normalize(起, 止);
         if (!await perms.HasAsync(CurrentUser, Menu, PermissionAction.打开)) return Forbid();
         var rows = await inventory.MonthlyAsync(起, 止, Warehouse, Category, keyword);
         return Ok(rows);

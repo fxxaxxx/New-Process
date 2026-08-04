@@ -1,4 +1,5 @@
 using ErpApi.Engines.Authorization;
+using ErpApi.Infrastructure.Db;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -6,8 +7,14 @@ namespace ErpApi.Features.Auth;
 
 [ApiController]
 [Route("api/[controller]")]
-public sealed class AuthController(AuthService auth, IPermissionService perm) : ControllerBase
+public sealed class AuthController(
+    AuthService auth, IPermissionService perm,
+    IAuditLogger audit, ISqlConnectionFactory factory) : ControllerBase
 {
+    private string CurrentUser => User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub") ?? "";
+    private async Task AuditAsync(string table, string behavior, string record)
+    { using var c = factory.Create(); await c.OpenAsync(); await audit.WriteAsync(table, behavior, CurrentUser, record, c); }
+
     [HttpPost("login")]
     [AllowAnonymous]
     public async Task<ActionResult<LoginResult>> Login([FromBody] LoginRequest req)
@@ -22,5 +29,16 @@ public sealed class AuthController(AuthService auth, IPermissionService perm) : 
     {
         var name = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub")!;
         return Ok(await perm.GetByUserAsync(name));
+    }
+
+    // 用户自助修改密码：任何登录用户均可改自己的密码（无权限位要求）
+    [HttpPost("change-password")]
+    [Authorize]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest req)
+    {
+        var r = await auth.ChangePasswordAsync(CurrentUser, req.原密码, req.新密码);
+        if (!r.成功) return BadRequest(new { r.消息 });
+        await AuditAsync("sysfileuser", "修改密码", $"用户={CurrentUser}");
+        return Ok(new { 消息 = "密码修改成功" });
     }
 }

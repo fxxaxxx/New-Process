@@ -1,6 +1,5 @@
 using System.Security.Claims;
 using ErpApi.Engines.Authorization;
-using ErpApi.Engines.Posting;
 using ErpApi.Features.MonthEnd;
 using ErpApi.Infrastructure.Db;
 using Microsoft.AspNetCore.Authorization;
@@ -8,12 +7,12 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 namespace ErpApi.Features.Materials.MaterialStocktake;
 
-// 物料盘点 REST。审核/反审核仅翻单头审核位——盘点明细单无审核列，库存引擎按单头JOIN过滤审核。盘点无单价保密。
+// 物料盘点 REST。审核/反审核走 MaterialStocktakeService 自建事务：翻单头审核位 + 回写/还原 物料资料.库存(采购分析扣数联动)。库存引擎按单头JOIN过滤审核。盘点无单价保密。
 [ApiController]
 [Authorize]
 [Route("api/material-stocktakes")]
 public sealed class MaterialStocktakeController(
-    MaterialStocktakeService svc, IPostingEngine posting, IPermissionService perms,
+    MaterialStocktakeService svc, IPermissionService perms,
     IAuditLogger audit, ISqlConnectionFactory factory, PeriodLockService periodLock) : ControllerBase
 {
     private const string Menu = "盘点单";
@@ -106,7 +105,7 @@ public sealed class MaterialStocktakeController(
         if (!await AllowAsync(PermissionAction.审核)) return Forbid();
         try { await periodLock.EnsureHeaderOpenAsync(口径, Table, 单号); }
         catch (PeriodLockedException ex) { return Conflict(new { 消息 = ex.Message }); }
-        if (!await posting.ApproveAsync(Table, 单号, CurrentUser))
+        if (!await svc.ApproveAsync(单号, CurrentUser))
             return Conflict(new { 消息 = "审核失败：单不存在或已审核。" });
         return NoContent();
     }
@@ -117,7 +116,7 @@ public sealed class MaterialStocktakeController(
         if (!await AllowAsync(PermissionAction.反审核)) return Forbid();
         try { await periodLock.EnsureHeaderOpenAsync(口径, Table, 单号); }
         catch (PeriodLockedException ex) { return Conflict(new { 消息 = ex.Message }); }
-        if (!await posting.UnapproveAsync(Table, 单号, CurrentUser))
+        if (!await svc.UnapproveAsync(单号, CurrentUser))
             return Conflict(new { 消息 = "反审核失败：单不存在或未审核。" });
         return NoContent();
     }

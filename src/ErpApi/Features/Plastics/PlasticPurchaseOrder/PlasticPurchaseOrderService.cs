@@ -56,7 +56,8 @@ VALUES(@单号,@生产单号,@款号,@物料编号,@物料名称,@模具编号,@
     public async Task<PagedResult<PlasticPurchaseOrderHeaderDto>> ListAsync(int page, int size, string? keyword)
     {
         if (page < 1) page = 1;
-        if (size < 1 || size > 200) size = 20;
+        if (size < 1) size = 20;
+        if (size > 1000) size = 1000;
         var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
         using var c = factory.Create();
         using var multi = await c.QueryMultipleAsync(@"
@@ -130,6 +131,45 @@ WHERE (@sup IS NULL OR o.[供应商编号] LIKE @sup OR o.[供应商名称] LIKE
   AND (@kw IS NULL OR d.[生产单号] LIKE @kw OR d.[款号] LIKE @kw OR d.[物料编号] LIKE @kw OR d.[物料名称] LIKE @kw)
   AND (@onlyOwed = 0 OR (d.[数量] - ISNULL(rk.[入仓数量], 0)) > 0)
 ORDER BY o.[单号] DESC, d.[ID]", new { sup, 起, 止 = 止Excl, kw, onlyOwed = onlyOwed ? 1 : 0 });
+        return rows.AsList();
+    }
+
+    // 塑胶进度明细表:进度表明细行 + 最近入仓单号/日期 + 完成情况(镜像 PlasticProcessPurchaseOrderService.PurchaseDetailAsync)。
+    // 入仓聚合口径同 ProgressAsync(生产单号+物料编号+颜色,仅审核='1')。
+    public async Task<IReadOnlyList<PlasticPurchaseProgressDetailRow>> ProgressDetailAsync(
+        string? 供应商, DateTime? 起, DateTime? 止, string? keyword, string? 完成情况)
+    {
+        var sup = string.IsNullOrWhiteSpace(供应商) ? null : $"%{供应商.Trim()}%";
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        var 止Excl = 止?.Date.AddDays(1);
+        var done = 完成情况 switch { "已完成" => 1, "未完成" => 0, _ => -1 };
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<PlasticPurchaseProgressDetailRow>(@"
+SELECT o.[日期] AS 订购日期, o.[交货日期], o.[单号] AS 采购单号, d.[生产单号], d.[款号],
+       d.[物料编号], d.[物料名称], d.[模具编号], d.[颜色], m.[单位],
+       d.[数量] AS 订购数量,
+       ISNULL(rk.[入仓数量], 0) AS 入仓数量,
+       d.[数量] - ISNULL(rk.[入仓数量], 0) AS 欠数,
+       rk.[入仓日期], rk.[入仓单号],
+       CASE WHEN d.[数量] - ISNULL(rk.[入仓数量], 0) <= 0 THEN N'已完成' ELSE N'未完成' END AS 完成情况,
+       o.[供应商名称], o.[审核]
+FROM [塑胶采购订单明细] d
+JOIN [塑胶采购订单] o ON o.[单号] = d.[单号]
+LEFT JOIN (SELECT [物料编号], MAX([单位]) AS 单位 FROM [塑胶物料资料] GROUP BY [物料编号]) m ON m.[物料编号] = d.[物料编号]
+LEFT JOIN (
+    SELECT r.[生产单号], r.[物料编号], ISNULL(r.[颜色],'') AS 颜色键,
+           SUM(r.[数量]) AS 入仓数量, MAX(r.[单号]) AS 入仓单号, MAX(h.[日期]) AS 入仓日期
+    FROM [塑胶入仓明细单] r
+    JOIN [塑胶入仓单] h ON h.[单号] = r.[单号]
+    WHERE ISNULL(h.[审核],'0') = '1'
+    GROUP BY r.[生产单号], r.[物料编号], ISNULL(r.[颜色],'')
+) rk ON rk.[生产单号] = d.[生产单号] AND rk.[物料编号] = d.[物料编号] AND rk.[颜色键] = ISNULL(d.[颜色],'')
+WHERE (@sup IS NULL OR o.[供应商编号] LIKE @sup OR o.[供应商名称] LIKE @sup)
+  AND (@起 IS NULL OR o.[日期] >= @起)
+  AND (@止 IS NULL OR o.[日期] < @止)
+  AND (@kw IS NULL OR d.[生产单号] LIKE @kw OR d.[款号] LIKE @kw OR d.[物料编号] LIKE @kw OR d.[物料名称] LIKE @kw)
+  AND (@done = -1 OR (@done = 1 AND (d.[数量] - ISNULL(rk.[入仓数量],0)) <= 0) OR (@done = 0 AND (d.[数量] - ISNULL(rk.[入仓数量],0)) > 0))
+ORDER BY o.[单号] DESC, d.[ID]", new { sup, 起, 止 = 止Excl, kw, done });
         return rows.AsList();
     }
 }

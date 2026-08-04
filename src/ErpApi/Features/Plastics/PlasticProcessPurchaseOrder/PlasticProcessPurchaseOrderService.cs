@@ -17,13 +17,16 @@ public sealed class PlasticProcessPurchaseOrderService(ISqlConnectionFactory fac
         using var c = factory.Create();
         var rows = await c.QueryAsync<PlasticProcessPurchaseOrderBasisRow>(@"
 SELECT g.[生产单号], pm.[款号], p.[工模编号] AS 模具编号, p.[物料编号], p.[物料名称],
-       p.[用料名称], p.[颜色], p.[加工内容], p.[加工单价] AS 单价
+       p.[用料名称], p.[颜色], p.[加工内容], p.[二次加工内容], p.[加工单价] AS 单价
 FROM [塑胶共用物料表] p
 JOIN [生产制单货号] g ON g.[货号] = p.[塑胶货号]
 LEFT JOIN [生产制单] pm ON pm.[生产单号] = g.[生产单号]
 WHERE g.[生产单号] = @生产单号
 ORDER BY p.[ID]", new { 生产单号 });
-        return rows.AsList();
+        var list = rows.AsList();
+        foreach (var r in list)
+            r.二次加工类别 = SecondProcessCategory.推导后缀(r.加工内容, r.二次加工内容);
+        return list;
     }
 
     public async Task<string> CreateAsync(PlasticProcessPurchaseOrderCreateDto dto, string user)
@@ -46,10 +49,10 @@ VALUES(@单号,@日期,@交货日期,@加工厂编号,@加工厂名称,@客户�
 
         foreach (var l in dto.明细)
             await c.ExecuteAsync(@"
-INSERT INTO [塑胶加工采购单明细]([单号],[生产单号],[款号],[模具编号],[物料编号],[物料名称],[用料名称],[颜色],[加工内容],[数量],[单价],[金额],[备注])
-VALUES(@单号,@生产单号,@款号,@模具编号,@物料编号,@物料名称,@用料名称,@颜色,@加工内容,@数量,@单价,@金额,@备注)",
+INSERT INTO [塑胶加工采购单明细]([单号],[生产单号],[款号],[模具编号],[物料编号],[物料名称],[用料名称],[颜色],[加工内容],[加工次序],[加工字母],[数量],[单价],[金额],[备注])
+VALUES(@单号,@生产单号,@款号,@模具编号,@物料编号,@物料名称,@用料名称,@颜色,@加工内容,@加工次序,@加工字母,@数量,@单价,@金额,@备注)",
                 new { 单号, l.生产单号, l.款号, l.模具编号, l.物料编号, l.物料名称, l.用料名称, l.颜色,
-                      l.加工内容, l.数量, l.单价, 金额 = l.数量 * (l.单价 ?? 0m), l.备注 }, tx);
+                      l.加工内容, l.加工次序, l.加工字母, l.数量, l.单价, 金额 = l.数量 * (l.单价 ?? 0m), l.备注 }, tx);
 
         tx.Commit();
         return 单号;
@@ -58,7 +61,8 @@ VALUES(@单号,@生产单号,@款号,@模具编号,@物料编号,@物料名称,@
     public async Task<PagedResult<PlasticProcessPurchaseOrderHeaderDto>> ListAsync(int page, int size, string? keyword)
     {
         if (page < 1) page = 1;
-        if (size < 1 || size > 200) size = 20;
+        if (size < 1) size = 20;
+        if (size > 1000) size = 1000;
         var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
         using var c = factory.Create();
         using var multi = await c.QueryMultipleAsync(@"
@@ -77,7 +81,7 @@ ORDER BY [ID] DESC OFFSET (@page-1)*@size ROWS FETCH NEXT @size ROWS ONLY;", new
         using var multi = await c.QueryMultipleAsync(@"
 SELECT [ID],[单号],[日期],[交货日期],[加工厂编号],[加工厂名称],[客户名称],[收货仓库],[收货人],[数量],[金额],[操作员],[审核],[审核人],[备注]
 FROM [塑胶加工采购单] WHERE [单号]=@单号;
-SELECT [ID],[生产单号],[款号],[模具编号],[物料编号],[物料名称],[用料名称],[颜色],[加工内容],[数量],[单价],[金额],[备注]
+SELECT [ID],[生产单号],[款号],[模具编号],[物料编号],[物料名称],[用料名称],[颜色],[加工内容],[加工次序],[加工字母],[数量],[单价],[金额],[备注]
 FROM [塑胶加工采购单明细] WHERE [单号]=@单号 ORDER BY [ID];", new { 单号 });
         var header = await multi.ReadFirstOrDefaultAsync<PlasticProcessPurchaseOrderHeaderDto>();
         if (header is null) return null;

@@ -16,7 +16,8 @@ public sealed class PlasticMaterialDocService(ISqlConnectionFactory factory, IDo
     public async Task<PagedResult<PlasticOrderRow>> OrdersAsync(DateTime? 起, DateTime? 止, string? keyword, int page, int size)
     {
         if (page < 1) page = 1;
-        if (size < 1 || size > 200) size = 20;
+        if (size < 1) size = 20;
+        if (size > 1000) size = 1000;
         var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
         var 止Excl = 止?.Date.AddDays(1);
         using var c = factory.Create();
@@ -262,7 +263,7 @@ ORDER BY g.[生产单号], p.[物料编号]", new { qi, qe, kw });
         using var c = factory.Create();
         var rows = await c.QueryAsync<PlasticProcessOrderMakeRow>(@"
 SELECT pm.[日期] AS 单据日期, g.[生产单号], pm.[款号], g.[货号] AS 塑胶货号, p.[工模编号], p.[物料编号], p.[物料名称], p.[颜色],
-       p.[色粉号], p.[加工内容], p.[用料名称], m.[单位], p.[用量], pm.[计划数量],
+       p.[色粉号], p.[加工内容], p.[二次加工内容], p.[用料名称], m.[单位], p.[用量], pm.[计划数量],
        p.[用量]*ISNULL(pm.[计划数量],0) AS 订购数量, p.[加工单价],
        p.[用量]*ISNULL(pm.[计划数量],0)*ISNULL(p.[加工单价],0) AS 金额
 FROM [生产制单货号] g
@@ -273,7 +274,28 @@ WHERE pm.[日期] >= @qi AND pm.[日期] < @qe
   AND p.[调整审核] = '1'
   AND (@kw IS NULL OR g.[生产单号] LIKE @kw OR pm.[款号] LIKE @kw OR p.[物料编号] LIKE @kw OR p.[物料名称] LIKE @kw OR g.[货号] LIKE @kw)
 ORDER BY g.[生产单号], p.[物料编号]", new { qi, qe, kw });
-        return rows.AsList();
+        // 二次加工(旧说明书):带两个字母后缀编号的物料在加工订单制作里出现两次加工类别的数据,
+        // 第一次加工(编号+A/B母)与第二次加工(编号+D/F/H)各一行,便于按加工次序分给不同供应商下单。
+        var list = new List<PlasticProcessOrderMakeRow>();
+        foreach (var r in rows)
+        {
+            var 类别 = SecondProcessCategory.推导后缀(r.加工内容, r.二次加工内容);
+            if (类别 is null) { list.Add(r); continue; }
+            r.二次加工类别 = 类别;
+            r.加工次序 = "第一次";
+            r.加工字母 = SecondProcessCategory.加工字母(类别, r.加工内容);
+            list.Add(r);
+            list.Add(new PlasticProcessOrderMakeRow
+            {
+                单据日期 = r.单据日期, 生产单号 = r.生产单号, 款号 = r.款号, 塑胶货号 = r.塑胶货号,
+                工模编号 = r.工模编号, 物料编号 = r.物料编号, 物料名称 = r.物料名称, 颜色 = r.颜色,
+                色粉号 = r.色粉号, 加工内容 = r.二次加工内容, 二次加工内容 = r.二次加工内容,
+                二次加工类别 = 类别, 加工次序 = "第二次", 加工字母 = SecondProcessCategory.加工字母(类别, r.二次加工内容),
+                用料名称 = r.用料名称, 单位 = r.单位, 用量 = r.用量, 计划数量 = r.计划数量,
+                订购数量 = r.订购数量, 加工单价 = r.加工单价, 金额 = r.金额,
+            });
+        }
+        return list;
     }
 
     // 删除:仅未审核可删;FK 顺序 明细→头。

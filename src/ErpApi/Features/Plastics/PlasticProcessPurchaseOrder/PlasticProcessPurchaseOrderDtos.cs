@@ -30,6 +30,8 @@ public sealed class PlasticProcessPurchaseOrderLineDto
     public string? 用料名称 { get; set; }
     public string? 颜色 { get; set; }
     public string? 加工内容 { get; set; }
+    public string? 加工次序 { get; set; }   // 二次加工: 第一次/第二次
+    public string? 加工字母 { get; set; }   // 二次加工类别字母(B/D/A/F/H)
     public decimal 数量 { get; set; }
     public decimal? 单价 { get; set; }
     public decimal? 金额 { get; set; }
@@ -52,6 +54,8 @@ public sealed class PlasticProcessPurchaseOrderCreateLineDto
     public string? 用料名称 { get; set; }
     public string? 颜色 { get; set; }
     public string? 加工内容 { get; set; }
+    public string? 加工次序 { get; set; }
+    public string? 加工字母 { get; set; }
     public decimal 数量 { get; set; }
     public decimal? 单价 { get; set; }
     public string? 备注 { get; set; }
@@ -79,6 +83,8 @@ public sealed class PlasticProcessPurchaseOrderBasisRow
     public string? 用料名称 { get; set; }
     public string? 颜色 { get; set; }
     public string? 加工内容 { get; set; }
+    public string? 二次加工内容 { get; set; }
+    public string? 二次加工类别 { get; set; }  // BD/AF/AH,由 加工内容+二次加工内容 推导
     public decimal? 单价 { get; set; }
 }
 

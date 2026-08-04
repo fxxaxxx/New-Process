@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using ErpApi.Engines.Authorization;
+using ErpApi.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 namespace ErpApi.Engines.Inventory;
@@ -16,6 +17,7 @@ public sealed class PlasticRawMaterialMonthlyController(
     [HttpGet]
     public async Task<IActionResult> List(DateTime 起, DateTime 止, string? 物料类别 = null, string? keyword = null)
     {
+        (起, 止) = QueryDateDefaults.Normalize(起, 止);
         if (!await perms.HasAsync(CurrentUser, Menu, PermissionAction.打开)) return Forbid();
         return Ok(await svc.RawMaterialMonthlyAsync(起, 止, 物料类别, keyword));
     }

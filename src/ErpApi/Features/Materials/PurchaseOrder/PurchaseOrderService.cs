@@ -387,33 +387,82 @@ ORDER BY d.[物料编号], d.[规格], d.[颜色];",
         var 单号 = await docNo.NextAsync(DocType, Prefix, now, c, tx);
 
         await c.ExecuteAsync(@"
-INSERT INTO [采购订单]([单号],[日期],[交货日期],[供应商编号],[供应商名称],[仓库],[数量],[金额],[操作员],[审核],[备注],[生产单号])
-VALUES(@单号,@日期,@交货日期,@供应商编号,@供应商名称,@仓库,@数量,@金额,@操作员,'0',@备注,@生产单号)",
+INSERT INTO [采购订单]([单号],[日期],[交货日期],[供应商编号],[供应商名称],[仓库],[数量],[金额],[操作员],[审核],[备注],[生产单号],[收件人],[打印次数])
+VALUES(@单号,@日期,@交货日期,@供应商编号,@供应商名称,@仓库,@数量,@金额,@操作员,'0',@备注,@生产单号,@收件人,0)",
             new { 单号, 日期 = now, dto.交货日期, dto.供应商编号, dto.供应商名称, dto.仓库,
-                  数量 = 数量合计, 金额 = 金额合计, 操作员 = user, dto.备注, dto.生产单号 }, tx);
+                  数量 = 数量合计, 金额 = 金额合计, 操作员 = user, dto.备注, dto.生产单号, dto.收件人 }, tx);
 
         foreach (var l in dto.明细)
             await c.ExecuteAsync(@"
-INSERT INTO [采购明细单]([单号],[生产单号],[日期],[交货日期],[供应商编号],[供应商名称],[仓库],[物料类别],[物料编号],[物料名称],[规格],[颜色],[单位],[数量],[单价],[金额],[预算数量])
-VALUES(@单号,@生产单号,@日期,@交货日期,@供应商编号,@供应商名称,@仓库,@物料类别,@物料编号,@物料名称,@规格,@颜色,@单位,@数量,@单价,@金额,@预算数量)",
-                new { 单号, dto.生产单号, 日期 = now, dto.交货日期, dto.供应商编号, dto.供应商名称, dto.仓库,
-                      l.物料类别, l.物料编号, l.物料名称, l.规格, l.颜色, l.单位,
-                      l.数量, 单价 = l.单价 ?? 0, 金额 = l.数量 * (l.单价 ?? 0), l.预算数量 }, tx);
+INSERT INTO [采购明细单]([单号],[生产单号],[款号],[日期],[交货日期],[供应商编号],[供应商名称],[仓库],[物料类别],[物料编号],[物料名称],[规格],[颜色],[材料],[单位],[数量],[单价],[金额],[预算数量],[备注])
+VALUES(@单号,@生产单号,@款号,@日期,@交货日期,@供应商编号,@供应商名称,@仓库,@物料类别,@物料编号,@物料名称,@规格,@颜色,@材料,@单位,@数量,@单价,@金额,@预算数量,@备注)",
+                new { 单号, 生产单号 = l.生产单号 ?? dto.生产单号, 款号 = l.款号 ?? dto.款号, 日期 = now, dto.交货日期, dto.供应商编号, dto.供应商名称, dto.仓库,
+                      l.物料类别, l.物料编号, l.物料名称, l.规格, l.颜色, l.材料, l.单位,
+                      l.数量, 单价 = l.单价 ?? 0, 金额 = l.数量 * (l.单价 ?? 0), l.预算数量, l.备注 }, tx);
 
         tx.Commit();
         return 单号;
     }
 
+    // 更新:仅未审核可改;单事务 更新单头 + 删旧明细插新明细;数量/金额按明细重算(不信任前端)
+    public async Task<bool> UpdateAsync(string 单号, PurchaseOrderCreateDto dto, string user)
+    {
+        if (dto.明细.Count == 0) throw new ArgumentException("采购订单至少要有一行物料明细");
+        if (string.IsNullOrWhiteSpace(dto.供应商编号)) throw new ArgumentException("采购订单必须指定供应商");
+
+        var 数量合计 = dto.明细.Sum(l => l.数量);
+        var 金额合计 = dto.明细.Sum(l => l.数量 * (l.单价 ?? 0));
+
+        using var c = factory.Create();
+        await c.OpenAsync();
+        using var tx = c.BeginTransaction();
+        var 审核 = await c.ExecuteScalarAsync<string?>(
+            "SELECT ISNULL([审核],'0') FROM [采购订单] WITH (UPDLOCK, HOLDLOCK) WHERE [单号]=@单号", new { 单号 }, tx);
+        if (审核 is null) return false;
+        if (审核 == "1") throw new InvalidOperationException("已审核的采购订单不能修改，请先反审核。");
+
+        await c.ExecuteAsync(@"
+UPDATE [采购订单] SET [交货日期]=@交货日期,[供应商编号]=@供应商编号,[供应商名称]=@供应商名称,
+    [仓库]=@仓库,[数量]=@数量,[金额]=@金额,[备注]=@备注,[生产单号]=@生产单号,[收件人]=@收件人
+WHERE [单号]=@单号",
+            new { 单号, dto.交货日期, dto.供应商编号, dto.供应商名称, dto.仓库,
+                  数量 = 数量合计, 金额 = 金额合计, dto.备注, dto.生产单号, dto.收件人 }, tx);
+
+        await c.ExecuteAsync("DELETE FROM [采购明细单] WHERE [单号]=@单号", new { 单号 }, tx);
+        var 日期 = await c.ExecuteScalarAsync<DateTime?>(
+            "SELECT [日期] FROM [采购订单] WHERE [单号]=@单号", new { 单号 }, tx);
+        foreach (var l in dto.明细)
+            await c.ExecuteAsync(@"
+INSERT INTO [采购明细单]([单号],[生产单号],[款号],[日期],[交货日期],[供应商编号],[供应商名称],[仓库],[物料类别],[物料编号],[物料名称],[规格],[颜色],[材料],[单位],[数量],[单价],[金额],[预算数量],[备注])
+VALUES(@单号,@生产单号,@款号,@日期,@交货日期,@供应商编号,@供应商名称,@仓库,@物料类别,@物料编号,@物料名称,@规格,@颜色,@材料,@单位,@数量,@单价,@金额,@预算数量,@备注)",
+                new { 单号, 生产单号 = l.生产单号 ?? dto.生产单号, 款号 = l.款号 ?? dto.款号, 日期, dto.交货日期, dto.供应商编号, dto.供应商名称, dto.仓库,
+                      l.物料类别, l.物料编号, l.物料名称, l.规格, l.颜色, l.材料, l.单位,
+                      l.数量, 单价 = l.单价 ?? 0, 金额 = l.数量 * (l.单价 ?? 0), l.预算数量, l.备注 }, tx);
+
+        tx.Commit();
+        return true;
+    }
+
+    // 打印:打印次数+1,返回新计数(单不存在返回 null)
+    public async Task<int?> PrintAsync(string 单号)
+    {
+        using var c = factory.Create();
+        return await c.ExecuteScalarAsync<int?>(@"
+UPDATE [采购订单] SET [打印次数]=ISNULL([打印次数],0)+1 WHERE [单号]=@单号;
+SELECT [打印次数] FROM [采购订单] WHERE [单号]=@单号;", new { 单号 });
+    }
+
     public async Task<PagedResult<PurchaseOrderHeaderDto>> ListAsync(int page, int size, string? keyword)
     {
         if (page < 1) page = 1;
-        if (size < 1 || size > 200) size = 20;
+        if (size < 1) size = 20;
+        if (size > 1000) size = 1000;
         var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
         using var c = factory.Create();
         using var multi = await c.QueryMultipleAsync(@"
 SELECT COUNT(*) FROM [采购订单]
 WHERE @kw IS NULL OR [单号] LIKE @kw OR [供应商名称] LIKE @kw OR [生产单号] LIKE @kw;
-SELECT [ID],[单号],[日期],[交货日期],[供应商编号],[供应商名称],[仓库],[数量],[金额],[操作员],[审核],[审核人],[备注],[生产单号]
+SELECT [ID],[单号],[日期],[交货日期],[供应商编号],[供应商名称],[仓库],[数量],[金额],[操作员],[审核],[审核人],[备注],[生产单号],[收件人],[打印次数]
 FROM [采购订单]
 WHERE @kw IS NULL OR [单号] LIKE @kw OR [供应商名称] LIKE @kw OR [生产单号] LIKE @kw
 ORDER BY [ID] DESC OFFSET (@page-1)*@size ROWS FETCH NEXT @size ROWS ONLY;",
@@ -427,9 +476,9 @@ ORDER BY [ID] DESC OFFSET (@page-1)*@size ROWS FETCH NEXT @size ROWS ONLY;",
     {
         using var c = factory.Create();
         using var multi = await c.QueryMultipleAsync(@"
-SELECT [ID],[单号],[日期],[交货日期],[供应商编号],[供应商名称],[仓库],[数量],[金额],[操作员],[审核],[审核人],[备注],[生产单号]
+SELECT [ID],[单号],[日期],[交货日期],[供应商编号],[供应商名称],[仓库],[数量],[金额],[操作员],[审核],[审核人],[备注],[生产单号],[收件人],[打印次数]
 FROM [采购订单] WHERE [单号]=@单号;
-SELECT [ID],[物料编号],[物料名称],[物料类别],[规格],[颜色],[单位],[数量],[单价],[金额],[预算数量]
+SELECT [ID],[物料编号],[物料名称],[物料类别],[规格],[颜色],[材料],[单位],[数量],[单价],[金额],[预算数量],[生产单号],[款号],[备注]
 FROM [采购明细单] WHERE [单号]=@单号 ORDER BY [ID];",
             new { 单号 });
         var header = await multi.ReadFirstOrDefaultAsync<PurchaseOrderHeaderDto>();

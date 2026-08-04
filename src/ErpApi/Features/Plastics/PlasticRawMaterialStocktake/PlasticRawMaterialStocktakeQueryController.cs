@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using ErpApi.Engines.Authorization;
+using ErpApi.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -19,6 +20,7 @@ public sealed class PlasticRawMaterialStocktakeQueryController(
         [FromQuery(Name = "审核情况")] string? 审核情况 = null,
         [FromQuery(Name = "物料类别")] string? 物料类别 = null)
     {
+        (起, 止) = QueryDateDefaults.Normalize(起, 止);
         if (!await perms.HasAsync(CurrentUser, Menu, PermissionAction.打开)) return Forbid();
         return Ok(await svc.StocktakeQuerySummaryAsync(起, 止, keyword, 审核情况, 物料类别));
     }
@@ -28,6 +30,7 @@ public sealed class PlasticRawMaterialStocktakeQueryController(
         [FromQuery(Name = "审核情况")] string? 审核情况 = null,
         [FromQuery(Name = "物料类别")] string? 物料类别 = null)
     {
+        (起, 止) = QueryDateDefaults.Normalize(起, 止);
         if (!await perms.HasAsync(CurrentUser, Menu, PermissionAction.打开)) return Forbid();
         return Ok(await svc.StocktakeQueryDetailAsync(起, 止, keyword, 审核情况, 物料类别));
     }

@@ -9,7 +9,8 @@ public sealed class MasterCrudService<T>(ErpDbContext db) where T : MasterEntity
     public async Task<PagedResult<T>> ListAsync(int page, int size, string? keyword)
     {
         if (page < 1) page = 1;
-        if (size < 1 || size > 200) size = 20;
+        if (size < 1) size = 20;
+        if (size > 1000) size = 1000;
         var q = db.Set<T>().AsQueryable();
         if (!string.IsNullOrWhiteSpace(keyword))
             q = q.Where(KeywordPredicate(keyword.Trim()));

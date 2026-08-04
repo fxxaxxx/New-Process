@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace ErpApi.Features.Production;
 
 // 一行颜色×尺码数量
@@ -81,6 +83,8 @@ public sealed class ProductionGoodsRowDto
     public long ID { get; set; }
     public int? 序号 { get; set; }
     public string? 货号 { get; set; }
+    // STJ camelCase 会把 BOM款号 序列化成 boM款号，前端读 BOM款号，这里固定输出名
+    [JsonPropertyName("BOM款号")]
     public string? BOM款号 { get; set; }
     public string? 款号名称 { get; set; }
     public decimal? 数量 { get; set; }

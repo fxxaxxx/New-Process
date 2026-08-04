@@ -23,7 +23,11 @@ public sealed class PlasticCommonMaterialController(
         if (!await AllowAsync(PermissionAction.打开)) return Forbid();
         var result = await svc.ListAsync(客户, 塑胶货号, 工模编号, keyword, 审核情况, page, size);
         if (!await AllowAsync(PermissionAction.单价))
-            foreach (var r in result.Items) r.加工单价 = null;
+            foreach (var r in result.Items)
+            {
+                r.加工单价 = null; r.啤机价钱 = null; r.胶件啤工价 = null;
+                r.胶料单价 = null; r.原胶料单价 = null; r.加工总单价 = null; r.其它成本 = null;
+            }
         return Ok(result);
     }
 }

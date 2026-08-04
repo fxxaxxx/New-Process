@@ -1,15 +1,18 @@
 using Dapper;
+using ErpApi.Engines.Bom;
 using ErpApi.Engines.DocumentNumber;
 using ErpApi.Engines.Inventory;
 using ErpApi.Features.MasterData;
 using ErpApi.Infrastructure.Db;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Logging;
 namespace ErpApi.Features.Production;
 
 public sealed class ProductionService(
     ISqlConnectionFactory factory,
     IDocumentNumberGenerator docNo,
-    IMaterialInventoryService inventory)
+    IMaterialInventoryService inventory,
+    ILogger<ProductionService>? log = null)
 {
     public const string DocType = "生产制单";
     public const string Prefix = "SC";   // 生产单号 = SC + yyyyMMdd + 3位流水
@@ -125,7 +128,8 @@ WHERE [生产单号]=@生产单号",
     public async Task<PagedResult<ProductionHeaderDto>> ListAsync(int page, int size, string? keyword)
     {
         if (page < 1) page = 1;
-        if (size < 1 || size > 200) size = 20;
+        if (size < 1) size = 20;
+        if (size > 1000) size = 1000;
         var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
 
         using var c = factory.Create();
@@ -202,7 +206,9 @@ FROM [生产BOM物料清单] WHERE [生产单号]=@生产单号 ORDER BY [ID];",
     }
 
     // === 算法4 BOM 物料需求展开/缺料 ===
-    // 需求(总数量) = 款号物料明细表.使用数量 × 计划数量
+    // 需求(总数量) = 款号物料明细表.使用数量 × 计划数量（半成品行沿层级递归替换展开，用量逐层相乘）
+    // 半成品行判定（免加列）：物料编号存在于 半成品共用物料设置.产品货号 即为调入的下级半成品，
+    // 该行不直接产生物料需求，而是用其自身 BOM 递归替换展开（环保护+层级上限见 SemiBomExpander）。
     // 库存数量 = 采购入仓(+) + 退料(+) − 领料(−)，只认已审核单（P3 物料侧落地前自然为 0）
     // 需订数量(缺料) = max(0, 总数量 − 库存数量)
     // 预算单价 = 物料资料.单价；金额 = 总数量 × 预算单价；单头.物料金额 = Σ(金额)
@@ -211,18 +217,38 @@ FROM [生产BOM物料清单] WHERE [生产单号]=@生产单号 ORDER BY [ID];",
         string? 客户款号, string? 合同号, decimal 货号数量, DateTime now)
     {
         // 供应商 LEFT JOIN 供应商资料 校验：FK 要求 生产BOM物料清单.供应商编号 必须存在于供应商资料
-        var rows = (await c.QueryAsync<BomSourceRow>(@"
+        var semiSet = new HashSet<string>(
+            await c.QueryAsync<string>("SELECT [产品货号] FROM [半成品共用物料设置]", transaction: tx),
+            StringComparer.OrdinalIgnoreCase);
+
+        // 逐款号缓存 BOM 行：多层级展开时同一半成品只查一次。
+        // 同步查询：展开器为纯同步递归，且此处与外层写操作顺序使用同一连接/事务，无并发冲突。
+        var bomCache = new Dictionary<string, List<BomSourceRow>>(StringComparer.OrdinalIgnoreCase);
+        List<BomSourceRow> LinesOf(string 款号)
+        {
+            if (bomCache.TryGetValue(款号, out var cached)) return cached;
+            var rows = c.Query<BomSourceRow>(@"
 SELECT b.[物料编号], b.[物料名称], b.[物料类别], b.[规格], b.[颜色], b.[单位], b.[使用数量],
-       m.[单价] AS 预算单价, s.[供应商编号], s.[供应商名称]
+       COALESCE(m.[单价], pm.[单价]) AS 预算单价, s.[供应商编号], s.[供应商名称]
 FROM [款号物料明细表] b
 LEFT JOIN [物料资料] m ON m.[物料编号] = b.[物料编号]
-LEFT JOIN [供应商资料] s ON s.[供应商编号] = m.[供应商编号]
-WHERE b.[款号]=@BOM款号", new { BOM款号 }, tx)).AsList();
+LEFT JOIN [塑胶物料资料] pm ON pm.[物料编号] = b.[物料编号] AND m.[物料编号] IS NULL
+LEFT JOIN [供应商资料] s ON s.[供应商编号] = COALESCE(m.[供应商编号], pm.[供应商编号])
+WHERE b.[款号]=@款号", new { 款号 }, tx).AsList();
+            bomCache[款号] = rows;
+            return rows;
+        }
+
+        var expansion = SemiBomExpander.Expand(
+            BOM款号, LinesOf, b => b.物料编号, b => b.使用数量, semiSet.Contains);
+        foreach (var w in expansion.警告)
+            log?.LogWarning("生产制单 {生产单号} BOM 展开：{警告}", 生产单号, w);
 
         decimal 物料金额合计 = 0;
-        foreach (var b in rows)
+        foreach (var e in expansion.物料)
         {
-            var 总数量 = (b.使用数量 ?? 0) * 货号数量;
+            var b = e.行;
+            var 总数量 = e.累计用量 * 货号数量;
             // 可用库存暂=当前库存(预留/在途扣减逻辑 P3 落地)；
             // N+1 查询此处可接受：制单是一次性写操作,款式物料通常<50行;批量场景再改 IN 批查。
             var 库存数量 = await inventory.StockOfAsync(b.物料编号 ?? "", (c, tx));

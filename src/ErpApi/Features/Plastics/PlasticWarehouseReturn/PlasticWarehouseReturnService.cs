@@ -40,7 +40,8 @@ VALUES(@单号,@日期,@仓库,@生产单号,@款号,@工模编号,@物料编号
     public async Task<PagedResult<PlasticWarehouseReturnHeaderDto>> ListAsync(int page, int size, string? keyword)
     {
         if (page < 1) page = 1;
-        if (size < 1 || size > 200) size = 20;
+        if (size < 1) size = 20;
+        if (size > 1000) size = 1000;
         var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
         using var c = factory.Create();
         using var multi = await c.QueryMultipleAsync(@"

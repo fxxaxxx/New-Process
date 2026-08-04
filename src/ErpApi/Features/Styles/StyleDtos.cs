@@ -21,18 +21,31 @@ public sealed record StyleMaterialDto(
     string? 规格, string? 颜色, string? 单位, decimal? 使用数量,
     string? 工模编号 = null, string? 备注 = null);
 
-// BOM物料设置保存载荷：单头（客户/日期/单位，逐行落库）+ 明细行。
+// BOM物料设置保存载荷：单头（客户/日期/单位，逐行落库）+ 明细行。默认单价/类型 落 款号物料总表。
 public sealed record BomSaveDto(
     string? 客户编号, string? 客户名称, DateTime? 日期, string? 单位,
     List<StyleMaterialDto> 明细,
     AssemblyMaterialExtensionDto? 扩展 = null,
-    List<AssemblyMaterialQuoteDto>? 报价 = null);
+    List<AssemblyMaterialQuoteDto>? 报价 = null,
+    string? 默认单价 = null, string? 类型 = null);
 
-// BOM物料设置轻量载入：款式、物料行、装配扩展和报价。
+// BOM 复制单载荷：目标款号 + 是否覆盖目标已有 BOM。
+public sealed record StyleBomCopyDto(string 目标款号, bool 覆盖 = false);
+
+// BOM 调入下级半成品的可选款号（已在 半成品共用物料设置 中设置的半成品/成品）。
+public sealed record SemiOptionDto(string 款号, string? 款式, string? 类别, decimal? 需求用量, string? 单位);
+
+// BOM 单头视图(款号物料总表 台头行;此前应用层从不写该表,现由保存链路 upsert)
+public sealed record BomHeaderViewDto(
+    DateTime? 日期, string? 客户编号, string? 客户名称, string? 单位,
+    string? 默认单价, string? 类型, string? 操作员, string? 审核, string? 备注);
+
+// BOM物料设置轻量载入：款式、物料行、装配扩展和报价(+台头)。
 public sealed record StyleMaterialsViewDto(
     string 款号, string? 款式, IReadOnlyList<款号物料明细表> 物料,
     AssemblyMaterialExtensionDto? 扩展,
-    IReadOnlyList<AssemblyMaterialQuoteDto>? 报价);
+    IReadOnlyList<AssemblyMaterialQuoteDto>? 报价,
+    BomHeaderViewDto? 单头 = null);
 
 public sealed record StyleFullDto(
     款号总表 主档,
@@ -40,3 +53,8 @@ public sealed record StyleFullDto(
     IReadOnlyList<string> 尺码,
     IReadOnlyList<款号明细表> 工序,
     IReadOnlyList<款号物料明细表> 物料);
+
+// 生产通知单 货号选择:已做 BOM 物料设置的款号及单头信息(选中带出到单据)
+public sealed record BomHeaderOptionDto(
+    string? 款号, string? 款式, string? 客户编号, string? 客户名称,
+    string? 单位, string? 默认单价, string? 类型);

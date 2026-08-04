@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using ErpApi.Engines.Authorization;
+using ErpApi.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -20,6 +21,7 @@ public sealed class PlasticRawMaterialReturnQueryController(
         [FromQuery(Name = "审核情况")] string? 审核情况 = null,
         [FromQuery(Name = "物料类别")] string? 物料类别 = null)
     {
+        (起, 止) = QueryDateDefaults.Normalize(起, 止);
         if (!await perms.HasAsync(CurrentUser, Menu, PermissionAction.打开)) return Forbid();
         var rows = await svc.ReturnQueryDetailAsync(起, 止, keyword, 审核情况, 物料类别);
         if (!await CanPrice())
@@ -32,6 +34,7 @@ public sealed class PlasticRawMaterialReturnQueryController(
         [FromQuery(Name = "审核情况")] string? 审核情况 = null,
         [FromQuery(Name = "物料类别")] string? 物料类别 = null)
     {
+        (起, 止) = QueryDateDefaults.Normalize(起, 止);
         if (!await perms.HasAsync(CurrentUser, Menu, PermissionAction.打开)) return Forbid();
         var rows = await svc.ReturnQuerySummaryAsync(起, 止, keyword, 审核情况, 物料类别);
         if (!await CanPrice())

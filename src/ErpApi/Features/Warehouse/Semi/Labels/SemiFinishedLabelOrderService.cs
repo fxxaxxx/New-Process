@@ -121,7 +121,7 @@ WHERE h.[电脑单号]=@documentNo ORDER BY d.[行号];", new { documentNo }, tx
     public async Task<PagedResult<SemiFinishedLabelOrderListRow>> ListAsync(int page, int size, string? keyword)
     {
         page = Math.Max(page, 1);
-        size = Math.Clamp(size, 1, 200);
+        size = Math.Clamp(size, 1, 1000);
         var match = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
         using var c = factory.Create();
         await c.OpenAsync();
@@ -229,7 +229,7 @@ ORDER BY [日期] DESC,[ID] DESC;", current);
         SemiFinishedLabelProductQuery query)
     {
         var page = Math.Max(query.Page, 1);
-        var size = Math.Clamp(query.Size, 1, 200);
+        var size = Math.Clamp(query.Size, 1, 1000);
         var keyword = string.IsNullOrWhiteSpace(query.Keyword) ? null : query.Keyword.Trim();
         var match = keyword is null || query.Exact ? keyword : $"%{keyword}%";
         var field = query.Field switch
@@ -267,6 +267,8 @@ WITH LatestHeader AS (
         ORDER BY quote.[是否默认] DESC, quote.[顺序], quote.[ID]
     ) q
     WHERE h.rn=1
+      -- 装配类别决定仓别：类别=成品 的款号只进成品入仓单；未设置装配扩展或未填类别的款号保持现状（两边都出现）
+      AND (s.[产品货号] IS NULL OR NULLIF(LTRIM(RTRIM(s.[类别])), N'') IS NULL OR s.[类别]<>N'成品')
 ), Filtered AS (
     SELECT * FROM Base b
     WHERE NULLIF(LTRIM(RTRIM(b.[配件编号])), N'') IS NOT NULL

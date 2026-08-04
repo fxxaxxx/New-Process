@@ -5,6 +5,8 @@ using ErpApi.Engines.Authorization;
 using ErpApi.Infrastructure.Db;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
 namespace ErpApi.Features.MasterData;
 
 [ApiController]
@@ -16,6 +18,15 @@ public abstract class MasterCrudController<T>(
 {
     protected abstract string Menu { get; }
     protected abstract string TableName { get; }
+
+    // 保存前挂钩(可选重写):做录入规范化(如编号大写)与业务校验;返回中文错误信息则 400,null=通过。
+    protected virtual string? ValidateForSave(T entity) => null;
+
+    // 保存前异步挂钩(可选重写):需要查库的校验(如字典存在性)挂这里;默认回落到同步挂钩。
+    protected virtual Task<string?> ValidateForSaveAsync(T entity) => Task.FromResult(ValidateForSave(entity));
+
+    // 供子类异步校验挂钩查库用(基类本身已捕获 factory,不再让子类重复捕获)
+    protected ISqlConnectionFactory Factory => factory;
 
     private string CurrentUser =>
         User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub") ?? "";
@@ -66,6 +77,11 @@ public abstract class MasterCrudController<T>(
     public async Task<IActionResult> Create([FromBody] T entity)
     {
         if (!await AllowAsync(PermissionAction.保存)) return Forbid();
+        // 无"单价"权限者新增:按 [PriceField] 策略剥离价格字段(与 Update 从库回填保护同源,防止借新增写入价格)
+        if (PriceProps.Length > 0 && !await AllowAsync(PermissionAction.单价))
+            foreach (var p in PriceProps) p.SetValue(entity, null);
+        var err = await ValidateForSaveAsync(entity);
+        if (err is not null) return BadRequest(new { 消息 = err });
         var created = await svc.CreateAsync(entity);
         await AuditAsync("新增", $"ID={created.ID}");
         return CreatedAtAction(nameof(Get), new { id = created.ID }, created);
@@ -82,7 +98,17 @@ public abstract class MasterCrudController<T>(
             if (existing is null) return NotFound();
             foreach (var p in PriceProps) p.SetValue(entity, p.GetValue(existing));
         }
-        if (!await svc.UpdateAsync(id, entity)) return NotFound();
+        var err = await ValidateForSaveAsync(entity);
+        if (err is not null) return BadRequest(new { 消息 = err });
+        try
+        {
+            if (!await svc.UpdateAsync(id, entity)) return NotFound();
+        }
+        // 唯一索引兜底(如 工模表 改名撞 UX_工模表_工模编号):EF 把 SqlException 包成 DbUpdateException
+        catch (DbUpdateException ex) when (ex.InnerException is SqlException { Number: 2601 or 2627 })
+        {
+            return Conflict(new { 消息 = "保存失败：编号已存在（唯一性冲突）" });
+        }
         await AuditAsync("修改", $"ID={id}");
         return NoContent();
     }

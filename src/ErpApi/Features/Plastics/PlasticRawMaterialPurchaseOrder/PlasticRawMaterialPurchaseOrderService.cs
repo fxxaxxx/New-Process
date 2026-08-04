@@ -42,7 +42,8 @@ VALUES(@单号,@原料编号,@原料名称,@规格,@单位,@单价类型,@订货
     public async Task<PagedResult<PlasticRawMaterialPurchaseOrderHeaderDto>> ListAsync(int page, int size, string? keyword)
     {
         if (page < 1) page = 1;
-        if (size < 1 || size > 200) size = 20;
+        if (size < 1) size = 20;
+        if (size > 1000) size = 1000;
         var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
         using var c = factory.Create();
         using var multi = await c.QueryMultipleAsync(@"
@@ -190,6 +191,59 @@ WHERE (@kw IS NULL OR o.[单号] LIKE @kw OR o.[供应商名称] LIKE @kw OR d.[
   AND (@onlyNotReceived = 0 OR rk.[入仓单号] IS NULL)
 ORDER BY o.[订购日期] DESC, o.[单号], d.[ID], rk.[入仓日期], rk.[入仓单号];",
             new { qi, qe, kw, onlyReceived, onlyNotReceived });
+        return rows.AsList();
+    }
+
+    // 原料采购进度表:每行一条采购订单明细,入仓按 订单单号+原料编号 关联已审核原料入仓(同 OrderReceiptStatsAsync 口径),
+    // 欠数=订货−入仓,进度=入仓/订货×100(%)。日期过滤列白名单:交货日期 / 否则订购日期(防注入)。
+    public async Task<IReadOnlyList<PlasticRawMaterialPurchaseProgressRow>> ProgressAsync(
+        string? 供应商, DateTime? 起, DateTime? 止, string? keyword, bool onlyOwed, string? 日期类型)
+    {
+        var sup = string.IsNullOrWhiteSpace(供应商) ? null : $"%{供应商.Trim()}%";
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        var qi = 起?.Date;
+        var qe = 止?.Date.AddDays(1);   // 半开区间上界
+        var dateCol = 日期类型 == "交货日期" ? "交货日期" : "订购日期";
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<PlasticRawMaterialPurchaseProgressRow>($@"
+WITH 入仓 AS (
+    SELECT h.[订单单号],
+           d.[原料编号],
+           SUM(ISNULL(d.[数量],0)) AS 入仓数量
+    FROM [原料入仓明细单] d
+    JOIN [原料入仓单] h ON h.[单号] = d.[单号]
+    WHERE ISNULL(h.[审核],'0') = '1'
+    GROUP BY h.[订单单号], d.[原料编号]
+)
+SELECT o.[订购日期],
+       o.[交货日期],
+       o.[单号] AS 采购单号,
+       o.[供应商编号],
+       o.[供应商名称],
+       d.[原料编号],
+       d.[原料名称],
+       d.[规格],
+       d.[单位],
+       d.[单价类型],
+       ISNULL(d.[订货数量],0) AS 订货数量,
+       ISNULL(r.[入仓数量],0) AS 入仓数量,
+       ISNULL(d.[订货数量],0) - ISNULL(r.[入仓数量],0) AS 欠数,
+       CASE WHEN ISNULL(d.[订货数量],0) = 0 THEN NULL
+            ELSE CAST(ISNULL(r.[入仓数量],0) * 100.0 / d.[订货数量] AS decimal(18,2)) END AS 进度,
+       o.[操作员],
+       o.[审核],
+       d.[备注]
+FROM [原料采购订单明细] d
+JOIN [原料采购订单] o ON o.[单号] = d.[单号]
+LEFT JOIN 入仓 r ON r.[订单单号] = o.[单号] AND r.[原料编号] = d.[原料编号]
+WHERE (@sup IS NULL OR o.[供应商编号] LIKE @sup OR o.[供应商名称] LIKE @sup)
+  AND (@qi IS NULL OR o.[{dateCol}] >= @qi)
+  AND (@qe IS NULL OR o.[{dateCol}] < @qe)
+  AND (@kw IS NULL OR o.[单号] LIKE @kw OR o.[供应商编号] LIKE @kw OR o.[供应商名称] LIKE @kw
+       OR d.[原料编号] LIKE @kw OR d.[原料名称] LIKE @kw)
+  AND (@onlyOwed = 0 OR (ISNULL(d.[订货数量],0) - ISNULL(r.[入仓数量],0)) > 0)
+ORDER BY o.[订购日期] DESC, o.[单号], d.[ID];",
+            new { sup, qi, qe, kw, onlyOwed = onlyOwed ? 1 : 0 });
         return rows.AsList();
     }
 

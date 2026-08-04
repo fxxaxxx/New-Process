@@ -99,7 +99,8 @@ VALUES(@no,@date,@wh,@orderNo,@customer,@prodNo,@goodsNo,@name,@mat,@matName,@sp
     public async Task<PagedResult<SemiStockReturnHeaderDto>> ListAsync(int page, int size, string? keyword)
     {
         if (page < 1) page = 1;
-        if (size < 1 || size > 200) size = 20;
+        if (size < 1) size = 20;
+        if (size > 1000) size = 1000;
         var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
         using var c = factory.Create();
         using var multi = await c.QueryMultipleAsync(@"
@@ -143,7 +144,7 @@ FROM [半成品退库明细单] d WHERE d.[单号]=@no ORDER BY d.[ID];", new { 
     public async Task<PagedResult<SemiStockReturnProductRow>> ProductsAsync(SemiStockReturnProductQuery query, bool canSeePrice)
     {
         var page = Math.Max(query.Page, 1);
-        var size = Math.Clamp(query.Size, 1, 200);
+        var size = Math.Clamp(query.Size, 1, 1000);
         var keyword = string.IsNullOrWhiteSpace(query.Keyword) ? null : query.Keyword.Trim();
         var match = keyword is null || query.Exact ? keyword : $"%{keyword}%";
         var field = query.Field switch

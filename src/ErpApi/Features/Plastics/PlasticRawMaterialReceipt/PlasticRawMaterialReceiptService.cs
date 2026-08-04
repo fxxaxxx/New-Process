@@ -42,7 +42,8 @@ VALUES(@单号,@原料编号,@原料名称,@产地,@每包重量,@单价类型,@
     public async Task<PagedResult<PlasticRawMaterialReceiptHeaderDto>> ListAsync(int page, int size, string? keyword)
     {
         if (page < 1) page = 1;
-        if (size < 1 || size > 200) size = 20;
+        if (size < 1) size = 20;
+        if (size > 1000) size = 1000;
         var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
         using var c = factory.Create();
         using var multi = await c.QueryMultipleAsync(@"

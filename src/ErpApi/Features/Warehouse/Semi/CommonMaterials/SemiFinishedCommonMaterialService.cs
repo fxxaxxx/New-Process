@@ -58,7 +58,7 @@ WHEN NOT MATCHED AND @调整审核=1 THEN
         bool canSeePrice)
     {
         var page = Math.Max(query.Page, 1);
-        var size = Math.Clamp(query.Size, 1, 200);
+        var size = Math.Clamp(query.Size, 1, 1000);
         var keyword = string.IsNullOrWhiteSpace(query.Keyword) ? null : query.Keyword.Trim();
         var match = query.精确 || keyword is null ? keyword : $"%{keyword}%";
         var fieldSql = query.查询字段 switch

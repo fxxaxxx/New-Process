@@ -1,6 +1,6 @@
 namespace ErpApi.Features.Materials.PurchaseOrder;
 
-// 采购物料单/采购订单：两层(采购订单 单头 + 采购明细单 明细)，从生产单BOM带料生成。
+// 采购物料单/采购订单：两层(采购订单 单头 + 采购明细单 明细)，自由开单或从生产单BOM带料生成。
 
 public sealed class PurchaseOrderLineDto
 {
@@ -9,21 +9,26 @@ public sealed class PurchaseOrderLineDto
     public string? 物料类别 { get; set; }
     public string? 规格 { get; set; }
     public string? 颜色 { get; set; }
+    public string? 材料 { get; set; }
     public string? 单位 { get; set; }
     public decimal 数量 { get; set; }      // 本次已订数量
     public decimal? 单价 { get; set; }
     public decimal? 预算数量 { get; set; }
+    public string? 生产单号 { get; set; }  // 行级(自由开单可逐行不同;空则回落单头)
+    public string? 款号 { get; set; }
+    public string? 备注 { get; set; }
 }
 
 public sealed class PurchaseOrderCreateDto
 {
-    public string? 生产单号 { get; set; }
+    public string? 生产单号 { get; set; }   // 自由开单可空
     public string? 供应商编号 { get; set; }
     public string? 供应商名称 { get; set; }
     public DateTime? 交货日期 { get; set; }
     public string? 仓库 { get; set; }
     public string? 款号 { get; set; }
     public string? 合同号 { get; set; }
+    public string? 收件人 { get; set; }
     public string? 备注 { get; set; }
     public List<PurchaseOrderLineDto> 明细 { get; set; } = [];
 }
@@ -44,6 +49,8 @@ public sealed class PurchaseOrderHeaderDto
     public string? 审核人 { get; set; }
     public string? 备注 { get; set; }
     public string? 生产单号 { get; set; }
+    public string? 收件人 { get; set; }
+    public int? 打印次数 { get; set; }
 }
 
 public sealed class PurchaseOrderLineRowDto
@@ -54,11 +61,15 @@ public sealed class PurchaseOrderLineRowDto
     public string? 物料类别 { get; set; }
     public string? 规格 { get; set; }
     public string? 颜色 { get; set; }
+    public string? 材料 { get; set; }
     public string? 单位 { get; set; }
     public decimal? 数量 { get; set; }
     public decimal? 单价 { get; set; }
     public decimal? 金额 { get; set; }
     public decimal? 预算数量 { get; set; }
+    public string? 生产单号 { get; set; }
+    public string? 款号 { get; set; }
+    public string? 备注 { get; set; }
 }
 
 public sealed class PurchaseOrderDetailDto

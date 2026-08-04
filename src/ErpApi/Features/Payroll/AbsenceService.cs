@@ -21,7 +21,8 @@ SELECT CAST(SCOPE_IDENTITY() AS bigint);",
     public async Task<PagedResult<AbsenceRow>> ListAsync(string? 月份, string? 工号, string? 部门编号, int page, int size)
     {
         if (page < 1) page = 1;
-        if (size < 1 || size > 200) size = 20;
+        if (size < 1) size = 20;
+        if (size > 1000) size = 1000;
         DateTime? 月初 = null, 下月初 = null;
         if (!string.IsNullOrWhiteSpace(月份))
         {

@@ -23,7 +23,8 @@ ORDER BY [加工厂类别];");
     public async Task<PagedResult<FactoryRow>> ListAsync(string? 类别, string? keyword, int page, int size)
     {
         if (page < 1) page = 1;
-        if (size < 1 || size > 200) size = 20;
+        if (size < 1) size = 20;
+        if (size > 1000) size = 1000;
         var cat = string.IsNullOrWhiteSpace(类别) ? null : 类别.Trim();
         var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
         using var c = factory.Create();

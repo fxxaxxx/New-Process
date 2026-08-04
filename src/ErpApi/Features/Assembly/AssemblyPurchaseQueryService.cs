@@ -11,12 +11,29 @@ public sealed class AssemblyPurchaseQueryService(ISqlConnectionFactory factory)
     private static string? Exact(string? value) =>
         string.IsNullOrWhiteSpace(value) || value.Trim() == "全部" ? null : value.Trim();
 
-    private static string ApprovalFilter(string? 审核情况) => 审核情况 switch
+    private static string ApprovalFilter(string? 审核情况, string alias = "h") => 审核情况 switch
     {
-        "已审核" => " AND ISNULL(h.[审核], '0') = '1'",
-        "未审核" => " AND ISNULL(h.[审核], '0') <> '1'",
+        "已审核" => $" AND ISNULL({alias}.[审核], '0') = '1'",
+        "未审核" => $" AND ISNULL({alias}.[审核], '0') <> '1'",
         _ => "",
     };
+
+    // 快照化统计口径（2026-07-28 技术债清理，配合 db/44 装配加工采购单落库）：
+    // - 物料展开类报表（tracking/required-materials/factory-inventory/auxiliary-issue-progress/factory-category-monthly）
+    //   数据源 = 已落库单快照（装配加工采购单明细）∪ 实时展开（款号物料总表×款号物料明细表）。
+    // - 防重复计数：实时展开的归属键是（最近MO.生产单号 + 款号）；该组合一旦存在落库单明细行，
+    //   实时部分用 NOT EXISTS 整组排除，统计只按快照计一次；删除落库单后自动回到实时展开。
+    // - 快照行数量口径：需求数量=快照行.需求数量（保存时允许改过），单件用量=快照行.用量，
+    //   加工数量=同单同 生产单号+款号 的生产明细.加工数量（取不到回退单头.数量）。
+    // - 快照行的 规格/颜色/物料类别 取自物料主档（非 BOM，允许实时），日期/审核/收货仓库/供应商取落库单单头。
+    // - 边界：明细行 款号 为空的落库单（无生产明细且未填款号）无法与实时展开配对，两边各自统计，不去重。
+    private const string SnapshotExcludeSql = @"
+      AND NOT EXISTS (
+            SELECT 1
+            FROM [装配加工采购单明细] sd
+            WHERE sd.[款号] = h.[款号]
+              AND (sd.[生产单号] = mo.[生产单号] OR (sd.[生产单号] IS NULL AND mo.[生产单号] IS NULL))
+          )";
 
     public async Task<IReadOnlyList<AssemblyPurchaseSummaryRow>> SummaryAsync(
         DateTime 起,
@@ -117,66 +134,126 @@ ORDER BY h.[日期] DESC, h.[ID] DESC;", new
         bool 截止统计)
     {
         using var c = factory.Create();
-        var rows = await c.QueryAsync<AssemblyMaterialTrackingRow>(@"
-SELECT
-    h.[日期] AS 订购日期,
-    CONCAT(N'ZP', CONVERT(nvarchar(20), h.[ID])) AS 订单单号,
-    CASE WHEN COALESCE(h.[制作要求], N'') LIKE N'%半成品%' THEN N'半成品仓' ELSE N'成品仓' END AS 收货仓库,
-    prod.[加工厂编号] AS 加工厂编号,
-    prod.[加工厂名称] AS 加工厂名称,
-    h.[款号] AS 产品货号,
-    COALESCE(mo.[产品名称], h.[款式]) AS 产品名称,
-    h.[产品编号] AS 配件编号,
-    h.[款式] AS 产品装配名称,
-    h.[制作要求] AS 装配方式,
-    mo.[生产单号],
-    d.[物料编号],
-    d.[物料名称],
-    d.[规格],
-    d.[物料类别] AS 材料,
-    d.[颜色],
-    d.[单位],
-    q.[单件用量],
-    q.[加工数量],
-    q.[加工数量] * q.[单件用量] AS 需求数量,
-    CAST(0 AS decimal(18,4)) AS 已入仓数量,
-    q.[加工数量] * q.[单件用量] AS 未入仓数量,
-    h.[审核]
-FROM [款号物料总表] h
-JOIN [款号物料明细表] d ON d.[款号] = h.[款号]
-OUTER APPLY (
-    SELECT TOP 1 [生产单号], [产品名称], [接单数量]
-    FROM [生产通知单MO单] mo
-    WHERE mo.[产品货号] = h.[款号]
-    ORDER BY mo.[接单日期] DESC, mo.[ID] DESC
-) mo
-OUTER APPLY (
-    SELECT TOP 1 [加工厂编号], [加工厂名称]
-    FROM [生产制单] p
-    WHERE p.[生产单号] = mo.[生产单号] OR p.[款号] = h.[款号]
-    ORDER BY p.[ID] DESC
-) prod
-CROSS APPLY (
+        var rows = await c.QueryAsync<AssemblyMaterialTrackingRow>($@"
+WITH src AS (
     SELECT
+        h.[日期] AS 订购日期,
+        CONCAT(N'ZP', CONVERT(nvarchar(20), h.[ID])) AS 订单单号,
+        CASE WHEN COALESCE(h.[制作要求], N'') LIKE N'%半成品%' THEN N'半成品仓' ELSE N'成品仓' END AS 收货仓库,
+        prod.[加工厂编号],
+        prod.[加工厂名称],
+        h.[款号] AS 产品货号,
+        COALESCE(mo.[产品名称], h.[款式]) AS 产品名称,
+        h.[产品编号] AS 配件编号,
+        h.[款式] AS 产品装配名称,
+        h.[制作要求] AS 装配方式,
+        mo.[生产单号],
+        d.[物料编号],
+        d.[物料名称],
+        d.[规格],
+        d.[物料类别] AS 材料,
+        d.[颜色],
+        d.[单位],
+        ISNULL(d.[使用数量], 0) AS 单件用量,
         COALESCE(mo.[接单数量], h.[使用数量], 0) AS 加工数量,
-        ISNULL(d.[使用数量], 0) AS 单件用量
-) q
-WHERE (
-        (@deadline = 1 AND h.[日期] < @end)
-        OR (@deadline = 0 AND h.[日期] >= @start AND h.[日期] < @end)
-      )
-  AND (@kw IS NULL
-       OR CONCAT(N'ZP', CONVERT(nvarchar(20), h.[ID])) LIKE @kw
-       OR h.[款号] LIKE @kw
-       OR h.[款式] LIKE @kw
-       OR h.[产品编号] LIKE @kw
-       OR mo.[生产单号] LIKE @kw
-       OR prod.[加工厂编号] LIKE @kw
-       OR prod.[加工厂名称] LIKE @kw
-       OR d.[物料编号] LIKE @kw
-       OR d.[物料名称] LIKE @kw)
-  AND (@warehouse IS NULL OR CASE WHEN COALESCE(h.[制作要求], N'') LIKE N'%半成品%' THEN N'半成品仓' ELSE N'成品仓' END = @warehouse)
-ORDER BY h.[日期] DESC, h.[ID] DESC, d.[顺序], d.[ID];", new
+        COALESCE(mo.[接单数量], h.[使用数量], 0) * ISNULL(d.[使用数量], 0) AS 需求数量,
+        h.[审核]
+    FROM [款号物料总表] h
+    JOIN [款号物料明细表] d ON d.[款号] = h.[款号]
+    OUTER APPLY (
+        SELECT TOP 1 [生产单号], [产品名称], [接单数量]
+        FROM [生产通知单MO单] mo
+        WHERE mo.[产品货号] = h.[款号]
+        ORDER BY mo.[接单日期] DESC, mo.[ID] DESC
+    ) mo
+    OUTER APPLY (
+        SELECT TOP 1 [加工厂编号], [加工厂名称]
+        FROM [生产制单] p
+        WHERE p.[生产单号] = mo.[生产单号] OR p.[款号] = h.[款号]
+        ORDER BY p.[ID] DESC
+    ) prod
+    WHERE (
+            (@deadline = 1 AND h.[日期] < @end)
+            OR (@deadline = 0 AND h.[日期] >= @start AND h.[日期] < @end)
+          ){SnapshotExcludeSql}
+
+    UNION ALL
+
+    SELECT
+        po.[日期] AS 订购日期,
+        po.[单号] AS 订单单号,
+        po.[收货仓库],
+        po.[供应商编号] AS 加工厂编号,
+        po.[供应商名称] AS 加工厂名称,
+        sd.[款号] AS 产品货号,
+        COALESCE(pd.[产品名称], pd.[产品装配名称]) AS 产品名称,
+        pd.[配件编号],
+        pd.[产品装配名称],
+        po.[装配方式],
+        sd.[生产单号],
+        sd.[物料编号],
+        sd.[物料名称],
+        m.[规格],
+        m.[物料类别] AS 材料,
+        m.[颜色],
+        sd.[单位],
+        ISNULL(sd.[用量], 0) AS 单件用量,
+        COALESCE(pd.[加工数量], po.[数量], 0) AS 加工数量,
+        ISNULL(sd.[需求数量], 0) AS 需求数量,
+        po.[审核]
+    FROM [装配加工采购单明细] sd
+    JOIN [装配加工采购单] po ON po.[单号] = sd.[单号]
+    LEFT JOIN [物料资料] m ON m.[物料编号] = sd.[物料编号]
+    OUTER APPLY (
+        SELECT TOP 1 [产品名称], [配件编号], [产品装配名称], [加工数量]
+        FROM [装配加工采购单生产明细] p
+        WHERE p.[单号] = sd.[单号]
+          AND (p.[款号] = sd.[款号] OR (p.[款号] IS NULL AND sd.[款号] IS NULL))
+          AND (p.[生产单号] = sd.[生产单号] OR (p.[生产单号] IS NULL AND sd.[生产单号] IS NULL))
+        ORDER BY p.[行号], p.[ID]
+    ) pd
+    WHERE (
+            (@deadline = 1 AND po.[日期] < @end)
+            OR (@deadline = 0 AND po.[日期] >= @start AND po.[日期] < @end)
+          )
+)
+SELECT
+    订购日期,
+    订单单号,
+    收货仓库,
+    加工厂编号,
+    加工厂名称,
+    产品货号,
+    产品名称,
+    配件编号,
+    产品装配名称,
+    装配方式,
+    生产单号,
+    物料编号,
+    物料名称,
+    规格,
+    材料,
+    颜色,
+    单位,
+    单件用量,
+    加工数量,
+    需求数量,
+    CAST(0 AS decimal(18,4)) AS 已入仓数量,
+    需求数量 AS 未入仓数量,
+    审核
+FROM src
+WHERE (@kw IS NULL
+       OR 订单单号 LIKE @kw
+       OR 产品货号 LIKE @kw
+       OR 产品装配名称 LIKE @kw
+       OR 配件编号 LIKE @kw
+       OR 生产单号 LIKE @kw
+       OR 加工厂编号 LIKE @kw
+       OR 加工厂名称 LIKE @kw
+       OR 物料编号 LIKE @kw
+       OR 物料名称 LIKE @kw)
+  AND (@warehouse IS NULL OR 收货仓库 = @warehouse)
+ORDER BY 订购日期 DESC, 订单单号 DESC, 物料编号;", new
         {
             start = 起.Date,
             end = 止.Date.AddDays(1),
@@ -198,7 +275,7 @@ ORDER BY h.[日期] DESC, h.[ID] DESC, d.[顺序], d.[ID];", new
         string? keyword)
     {
         using var c = factory.Create();
-        var rows = await c.QueryAsync<AssemblyFactoryInventoryRow>(@"
+        var rows = await c.QueryAsync<AssemblyFactoryInventoryRow>($@"
 WITH src AS (
     SELECT
         prod.[加工厂编号],
@@ -243,7 +320,51 @@ WITH src AS (
            OR prod.[加工厂编号] LIKE @kw
            OR prod.[加工厂名称] LIKE @kw
            OR d.[物料编号] LIKE @kw
-           OR d.[物料名称] LIKE @kw)
+           OR d.[物料名称] LIKE @kw){SnapshotExcludeSql}
+
+    UNION ALL
+
+    SELECT
+        po.[供应商编号] AS 加工厂编号,
+        po.[供应商名称] AS 加工厂名称,
+        po.[收货仓库],
+        m.[物料类别] AS 物料分类,
+        sd.[款号] AS 产品货号,
+        COALESCE(pd.[产品名称], pd.[产品装配名称]) AS 产品名称,
+        sd.[物料编号],
+        sd.[物料名称],
+        m.[规格],
+        m.[物料类别] AS 材料,
+        m.[颜色],
+        sd.[单位],
+        ISNULL(sd.[需求数量], 0) AS 领料数量,
+        CAST(0 AS decimal(18,4)) AS 送货数量,
+        po.[日期] AS 订购日期
+    FROM [装配加工采购单明细] sd
+    JOIN [装配加工采购单] po ON po.[单号] = sd.[单号]
+    LEFT JOIN [物料资料] m ON m.[物料编号] = sd.[物料编号]
+    OUTER APPLY (
+        SELECT TOP 1 [产品名称], [配件编号], [产品装配名称]
+        FROM [装配加工采购单生产明细] p
+        WHERE p.[单号] = sd.[单号]
+          AND (p.[款号] = sd.[款号] OR (p.[款号] IS NULL AND sd.[款号] IS NULL))
+          AND (p.[生产单号] = sd.[生产单号] OR (p.[生产单号] IS NULL AND sd.[生产单号] IS NULL))
+        ORDER BY p.[行号], p.[ID]
+    ) pd
+    WHERE po.[日期] < @cutoffEnd
+      AND (@useDate = 0 OR (po.[日期] >= @start AND po.[日期] < @end))
+      AND (@factory IS NULL OR po.[供应商编号] LIKE @factory OR po.[供应商名称] LIKE @factory)
+      AND (@category IS NULL OR m.[物料类别] = @category)
+      AND (@warehouse IS NULL OR po.[收货仓库] = @warehouse)
+      AND (@kw IS NULL
+           OR sd.[款号] LIKE @kw
+           OR pd.[产品装配名称] LIKE @kw
+           OR pd.[配件编号] LIKE @kw
+           OR sd.[生产单号] LIKE @kw
+           OR po.[供应商编号] LIKE @kw
+           OR po.[供应商名称] LIKE @kw
+           OR sd.[物料编号] LIKE @kw
+           OR sd.[物料名称] LIKE @kw)
 )
 SELECT
     加工厂编号,
@@ -292,49 +413,99 @@ ORDER BY 加工厂编号, 加工厂名称, 产品货号, 物料编号;", new
     {
         using var c = factory.Create();
         var rows = await c.QueryAsync<AssemblyRequiredMaterialRow>($@"
+WITH src AS (
+    SELECT
+        h.[日期] AS 日期,
+        CONCAT(N'ZP', CONVERT(nvarchar(20), h.[ID])) AS 单号,
+        CASE WHEN COALESCE(h.[制作要求], N'') LIKE N'%半成品%' THEN N'半成品仓' ELSE N'成品仓' END AS 收货仓库,
+        prod.[加工厂编号] AS 供应商编号,
+        prod.[加工厂名称] AS 供应商名称,
+        h.[款号] AS 产品货号,
+        h.[款式] AS 产品装配名称,
+        h.[产品编号] AS 配件编号,
+        h.[制作要求] AS 装配方式,
+        mo.[生产单号],
+        d.[物料编号],
+        d.[物料名称],
+        d.[物料类别] AS 物料类别,
+        COALESCE(mo.[接单数量], h.[使用数量], 0) * ISNULL(d.[使用数量], 0) AS 需领数量,
+        h.[审核]
+    FROM [款号物料总表] h
+    JOIN [款号物料明细表] d ON d.[款号] = h.[款号]
+    OUTER APPLY (
+        SELECT TOP 1 [生产单号], [产品名称], [接单数量]
+        FROM [生产通知单MO单] mo
+        WHERE mo.[产品货号] = h.[款号]
+        ORDER BY mo.[接单日期] DESC, mo.[ID] DESC
+    ) mo
+    OUTER APPLY (
+        SELECT TOP 1 [加工厂编号], [加工厂名称]
+        FROM [生产制单] p
+        WHERE p.[生产单号] = mo.[生产单号] OR p.[款号] = h.[款号]
+        ORDER BY p.[ID] DESC
+    ) prod
+    WHERE h.[日期] >= @start AND h.[日期] < @end{SnapshotExcludeSql}
+
+    UNION ALL
+
+    SELECT
+        po.[日期] AS 日期,
+        po.[单号] AS 单号,
+        po.[收货仓库],
+        po.[供应商编号],
+        po.[供应商名称],
+        sd.[款号] AS 产品货号,
+        pd.[产品装配名称],
+        pd.[配件编号],
+        po.[装配方式],
+        sd.[生产单号],
+        sd.[物料编号],
+        sd.[物料名称],
+        m.[物料类别],
+        ISNULL(sd.[需求数量], 0) AS 需领数量,
+        po.[审核]
+    FROM [装配加工采购单明细] sd
+    JOIN [装配加工采购单] po ON po.[单号] = sd.[单号]
+    LEFT JOIN [物料资料] m ON m.[物料编号] = sd.[物料编号]
+    OUTER APPLY (
+        SELECT TOP 1 [配件编号], [产品装配名称]
+        FROM [装配加工采购单生产明细] p
+        WHERE p.[单号] = sd.[单号]
+          AND (p.[款号] = sd.[款号] OR (p.[款号] IS NULL AND sd.[款号] IS NULL))
+          AND (p.[生产单号] = sd.[生产单号] OR (p.[生产单号] IS NULL AND sd.[生产单号] IS NULL))
+        ORDER BY p.[行号], p.[ID]
+    ) pd
+    WHERE po.[日期] >= @start AND po.[日期] < @end
+)
 SELECT
-    h.[日期] AS 日期,
-    CONCAT(N'ZP', CONVERT(nvarchar(20), h.[ID])) AS 单号,
-    CASE WHEN COALESCE(h.[制作要求], N'') LIKE N'%半成品%' THEN N'半成品仓' ELSE N'成品仓' END AS 收货仓库,
-    prod.[加工厂编号] AS 供应商编号,
-    prod.[加工厂名称] AS 供应商名称,
-    h.[款号] AS 产品货号,
-    h.[款式] AS 产品装配名称,
-    h.[制作要求] AS 装配方式,
-    mo.[生产单号],
-    d.[物料编号],
-    d.[物料名称],
-    COALESCE(mo.[接单数量], h.[使用数量], 0) * ISNULL(d.[使用数量], 0) AS 需领数量,
-    h.[审核]
-FROM [款号物料总表] h
-JOIN [款号物料明细表] d ON d.[款号] = h.[款号]
-OUTER APPLY (
-    SELECT TOP 1 [生产单号], [产品名称], [接单数量]
-    FROM [生产通知单MO单] mo
-    WHERE mo.[产品货号] = h.[款号]
-    ORDER BY mo.[接单日期] DESC, mo.[ID] DESC
-) mo
-OUTER APPLY (
-    SELECT TOP 1 [加工厂编号], [加工厂名称]
-    FROM [生产制单] p
-    WHERE p.[生产单号] = mo.[生产单号] OR p.[款号] = h.[款号]
-    ORDER BY p.[ID] DESC
-) prod
-WHERE h.[日期] >= @start AND h.[日期] < @end
-  AND (@kw IS NULL
-       OR CONCAT(N'ZP', CONVERT(nvarchar(20), h.[ID])) LIKE @kw
-       OR h.[款号] LIKE @kw
-       OR h.[款式] LIKE @kw
-       OR h.[产品编号] LIKE @kw
-       OR mo.[生产单号] LIKE @kw
-       OR prod.[加工厂编号] LIKE @kw
-       OR prod.[加工厂名称] LIKE @kw
-       OR d.[物料编号] LIKE @kw
-       OR d.[物料名称] LIKE @kw)
-  AND (@warehouse IS NULL OR CASE WHEN COALESCE(h.[制作要求], N'') LIKE N'%半成品%' THEN N'半成品仓' ELSE N'成品仓' END = @warehouse)
-  AND (@type IS NULL OR h.[制作要求] = @type OR h.[制作要求] LIKE @typeLike OR d.[物料类别] = @type)
-  {ApprovalFilter(审核情况)}
-ORDER BY h.[日期] DESC, h.[ID] DESC, d.[顺序], d.[ID];", new
+    日期,
+    单号,
+    收货仓库,
+    供应商编号,
+    供应商名称,
+    产品货号,
+    产品装配名称,
+    装配方式,
+    生产单号,
+    物料编号,
+    物料名称,
+    需领数量,
+    审核
+FROM src
+WHERE (@kw IS NULL
+       OR 单号 LIKE @kw
+       OR 产品货号 LIKE @kw
+       OR 产品装配名称 LIKE @kw
+       OR 配件编号 LIKE @kw
+       OR 生产单号 LIKE @kw
+       OR 供应商编号 LIKE @kw
+       OR 供应商名称 LIKE @kw
+       OR 物料编号 LIKE @kw
+       OR 物料名称 LIKE @kw)
+  AND (@warehouse IS NULL OR 收货仓库 = @warehouse)
+  AND (@type IS NULL OR 装配方式 = @type OR 装配方式 LIKE @typeLike OR 物料类别 = @type)
+  {ApprovalFilter(审核情况, "src")}
+ORDER BY 日期 DESC, 单号 DESC, 物料编号;", new
         {
             start = 起.Date,
             end = 止.Date.AddDays(1),
@@ -387,8 +558,26 @@ WITH 需求 AS (
         WHERE mo.[产品货号] = h.[款号]
         ORDER BY mo.[接单日期] DESC, mo.[ID] DESC
     ) mo
-    WHERE d.[物料类别] = @category
+    WHERE d.[物料类别] = @category{SnapshotExcludeSql}
     GROUP BY h.[日期], mo.[生产单号], h.[款号], d.[物料编号]
+
+    UNION ALL
+
+    SELECT
+        po.[日期] AS 开单日期,
+        sd.[生产单号] AS 装配生产单号,
+        sd.[款号] AS 产品货号,
+        sd.[物料编号] AS 辅料编号,
+        MAX(sd.[物料名称]) AS 辅料名称,
+        MAX(m.[规格]) AS 规格,
+        MAX(sd.[单位]) AS 单位,
+        SUM(ISNULL(sd.[需求数量], 0)) AS 需求数量,
+        N'生产领料' AS 领料备注
+    FROM [装配加工采购单明细] sd
+    JOIN [装配加工采购单] po ON po.[单号] = sd.[单号]
+    LEFT JOIN [物料资料] m ON m.[物料编号] = sd.[物料编号]
+    WHERE m.[物料类别] = @category
+    GROUP BY po.[日期], sd.[生产单号], sd.[款号], sd.[物料编号]
 ),
 领料 AS (
     SELECT
@@ -482,7 +671,7 @@ ORDER BY q.[开单日期] DESC, q.[装配生产单号], q.[辅料编号];", new
         string? keyword)
     {
         using var c = factory.Create();
-        var rows = await c.QueryAsync<AssemblyFactoryCategoryMonthlyRow>(@"
+        var rows = await c.QueryAsync<AssemblyFactoryCategoryMonthlyRow>($@"
 WITH src AS (
     SELECT
         prod.[加工厂编号],
@@ -519,7 +708,32 @@ WITH src AS (
            OR prod.[加工厂名称] LIKE @kw
            OR d.[物料类别] LIKE @kw
            OR d.[物料编号] LIKE @kw
-           OR d.[物料名称] LIKE @kw)
+           OR d.[物料名称] LIKE @kw){SnapshotExcludeSql}
+
+    UNION ALL
+
+    SELECT
+        po.[供应商编号] AS 加工厂编号,
+        po.[供应商名称] AS 加工厂名称,
+        po.[收货仓库],
+        ISNULL(NULLIF(m.[物料类别], N''), N'未分类') AS 物料分类,
+        sd.[款号] AS 产品货号,
+        sd.[物料编号],
+        ISNULL(sd.[需求数量], 0) AS 领料数量,
+        CAST(0 AS decimal(18,4)) AS 送货数量,
+        po.[日期] AS 日期
+    FROM [装配加工采购单明细] sd
+    JOIN [装配加工采购单] po ON po.[单号] = sd.[单号]
+    LEFT JOIN [物料资料] m ON m.[物料编号] = sd.[物料编号]
+    WHERE po.[日期] >= @start AND po.[日期] < @end
+      AND (@factory IS NULL OR po.[供应商编号] LIKE @factory OR po.[供应商名称] LIKE @factory)
+      AND (@kw IS NULL
+           OR sd.[款号] LIKE @kw
+           OR sd.[物料编号] LIKE @kw
+           OR sd.[物料名称] LIKE @kw
+           OR m.[物料类别] LIKE @kw
+           OR po.[供应商编号] LIKE @kw
+           OR po.[供应商名称] LIKE @kw)
 )
 SELECT
     加工厂编号,

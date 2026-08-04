@@ -66,7 +66,8 @@ VALUES(@单号,@订单单号,@日期,@供应商编号,@供应商名称,@仓库,@
     public async Task<PagedResult<FinishedReceiptHeaderDto>> ListAsync(int page, int size, string? keyword)
     {
         if (page < 1) page = 1;
-        if (size < 1 || size > 200) size = 20;
+        if (size < 1) size = 20;
+        if (size > 1000) size = 1000;
         var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
         using var c = factory.Create();
         using var multi = await c.QueryMultipleAsync(@"
@@ -116,7 +117,7 @@ FROM [成品入仓明细单] WHERE [单号]=@单号 ORDER BY [ID];", new { 单�
     public async Task<PagedResult<FinishedReceiptProductRow>> ProductsAsync(FinishedReceiptProductQuery query)
     {
         var page = Math.Max(query.Page, 1);
-        var size = Math.Clamp(query.Size, 1, 200);
+        var size = Math.Clamp(query.Size, 1, 1000);
         var keyword = string.IsNullOrWhiteSpace(query.Keyword) ? null : query.Keyword.Trim();
         var match = keyword is null || query.Exact ? keyword : $"%{keyword}%";
         var comparer = query.Exact ? "=" : "LIKE";
@@ -137,7 +138,10 @@ WITH LatestHeader AS (
            COALESCE(NULLIF(LTRIM(RTRIM(h.[客户名称])), N''), NULLIF(LTRIM(RTRIM(h.[客户])), N'')) AS [客户],
            h.[款号] AS [产品货号], NULLIF(LTRIM(RTRIM(h.[款式])), N'') AS [产品名称], NULLIF(LTRIM(RTRIM(h.[款式])), N'') AS [产品装配名称],
            CAST(NULL AS decimal(18,4)) AS [加工单价], CAST(NULL AS decimal(18,4)) AS [库存单价]
-    FROM LatestHeader h WHERE h.rn=1
+    FROM LatestHeader h
+    LEFT JOIN [半成品共用物料设置] s ON s.[产品货号]=h.[款号]
+    -- 装配类别决定仓别：只列 类别=成品；未设置装配扩展或未填类别的款号保持现状（两边都出现）
+    WHERE h.rn=1 AND (s.[产品货号] IS NULL OR NULLIF(LTRIM(RTRIM(s.[类别])), N'') IS NULL OR s.[类别]=N'成品')
 ), Filtered AS (
     SELECT b.* FROM Base b
     WHERE NULLIF(LTRIM(RTRIM(b.[配件编号])), N'') IS NOT NULL AND (@keyword IS NULL OR {field} {comparer} @match)

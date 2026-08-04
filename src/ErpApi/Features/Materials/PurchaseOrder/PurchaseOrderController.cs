@@ -51,8 +51,7 @@ public sealed class PurchaseOrderController(
     [HttpGet("progress")]
     public async Task<IActionResult> Progress(
         string? 供应商 = null, DateTime? 起 = null, DateTime? 止 = null,
-        string? keyword = null, bool onlyOwed = false, string? 物料类别 = null,
-        string? 日期类型 = null)
+        string? keyword = null, bool onlyOwed = false, string? 物料类别 = null, string? 日期类型 = null)
     {
         if (!await AllowAsync(PermissionAction.打开)) return Forbid();
         return Ok(await svc.ProgressAsync(供应商, 起, 止, keyword, onlyOwed, 物料类别, 日期类型));
@@ -121,6 +120,32 @@ public sealed class PurchaseOrderController(
         catch (SqlException ex) when (ex.Number == 547) { return BadRequest(new { 消息 = "关联数据不存在(供应商/物料/生产单号)。" }); }
         await AuditAsync("新增", $"单号={单号}");
         return CreatedAtAction(nameof(Get), new { 单号 }, new { 单号 });
+    }
+
+    // 更新:仅未审核可改(已审核 400 中文提示);单事务 单头+明细整组替换
+    [HttpPut("{单号}")]
+    public async Task<IActionResult> Update(string 单号, [FromBody] PurchaseOrderCreateDto dto)
+    {
+        if (!await AllowAsync(PermissionAction.保存)) return Forbid();
+        bool ok;
+        try { ok = await svc.UpdateAsync(单号, dto, CurrentUser); }
+        catch (ArgumentException ex) { return BadRequest(new { 消息 = ex.Message }); }
+        catch (InvalidOperationException ex) { return BadRequest(new { 消息 = ex.Message }); }
+        catch (SqlException ex) when (ex.Number == 547) { return BadRequest(new { 消息 = "关联数据不存在(供应商/物料/生产单号)。" }); }
+        if (!ok) return NotFound();
+        await AuditAsync("修改", $"单号={单号}");
+        return NoContent();
+    }
+
+    // 打印:打印次数+1,返回新计数(权限:采购订单·打印)
+    [HttpPost("{单号}/print")]
+    public async Task<IActionResult> Print(string 单号)
+    {
+        if (!await AllowAsync(PermissionAction.打印)) return Forbid();
+        var n = await svc.PrintAsync(单号);
+        if (n is null) return NotFound();
+        await AuditAsync("打印", $"单号={单号},打印次数={n}");
+        return Ok(new { 打印次数 = n });
     }
 
     [HttpDelete("{单号}")]

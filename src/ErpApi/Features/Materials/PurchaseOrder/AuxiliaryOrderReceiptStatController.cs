@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using ErpApi.Engines.Authorization;
+using ErpApi.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -24,6 +25,7 @@ public sealed class AuxiliaryOrderReceiptStatController(
         [FromQuery] string? 日期类型 = null,
         string? keyword = null)
     {
+        (起, 止) = QueryDateDefaults.Normalize(起, 止);
         if (!await perms.HasAsync(CurrentUser, Menu, PermissionAction.打开)) return Forbid();
         return Ok(await svc.AuxiliaryOrderReceiptStatsAsync(起, 止, keyword, 日期类型));
     }

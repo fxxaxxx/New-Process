@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using ErpApi.Engines.Authorization;
+using ErpApi.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -24,6 +25,7 @@ public sealed class AssemblyPurchaseQueryController(
         string? 收货仓库 = null,
         string? 审核情况 = null)
     {
+        (起, 止) = QueryDateDefaults.Normalize(起, 止);
         if (!await perms.HasAsync(CurrentUser, Menu, PermissionAction.打开)) return Forbid();
         return Ok(await svc.SummaryAsync(起, 止, keyword, 收货仓库, 审核情况));
     }
@@ -36,6 +38,7 @@ public sealed class AssemblyPurchaseQueryController(
         string? 收货仓库 = null,
         string? 审核情况 = null)
     {
+        (起, 止) = QueryDateDefaults.Normalize(起, 止);
         if (!await perms.HasAsync(CurrentUser, Menu, PermissionAction.打开)) return Forbid();
         return Ok(await svc.DetailAsync(起, 止, keyword, 收货仓库, 审核情况));
     }
@@ -48,6 +51,7 @@ public sealed class AssemblyPurchaseQueryController(
         string? 收货仓库 = null,
         bool 截止统计 = false)
     {
+        (起, 止) = QueryDateDefaults.Normalize(起, 止);
         if (!await perms.HasAsync(CurrentUser, Menu, PermissionAction.打开)) return Forbid();
         return Ok(await svc.TrackingAsync(起, 止, keyword, 收货仓库, 截止统计));
     }
@@ -76,6 +80,7 @@ public sealed class AssemblyPurchaseQueryController(
         string? 类型 = null,
         string? 审核情况 = null)
     {
+        (起, 止) = QueryDateDefaults.Normalize(起, 止);
         if (!await perms.HasAsync(CurrentUser, Menu, PermissionAction.打开)) return Forbid();
         return Ok(await svc.RequiredMaterialsAsync(起, 止, keyword, 收货仓库, 类型, 审核情况));
     }
@@ -101,6 +106,7 @@ public sealed class AssemblyPurchaseQueryController(
         string? 加工厂 = null,
         string? keyword = null)
     {
+        (起, 止) = QueryDateDefaults.Normalize(起, 止);
         if (!await perms.HasAsync(CurrentUser, Menu, PermissionAction.打开)) return Forbid();
         return Ok(await svc.FactoryCategoryMonthlyAsync(起, 止, 加工厂, keyword));
     }

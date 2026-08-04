@@ -36,7 +36,8 @@ public sealed class SemiFinishedShortageController(
         var csv = new StringBuilder("\uFEFF客户,产品货号,产品名称,配件编号,产品装配名称,单位,需求数量,库存数量,欠料数量\r\n");
         foreach (var row in rows)
         {
-            csv.AppendLine(string.Join(',',
+            // 与表头一致使用 \r\n（CSV 标准），不随平台变化
+            csv.Append(string.Join(',',
             [
                 Cell(row.Customer),
                 Cell(row.ProductCode),
@@ -47,7 +48,7 @@ public sealed class SemiFinishedShortageController(
                 FormatQuantity(row.RequiredQuantity),
                 FormatQuantity(row.InventoryQuantity),
                 FormatQuantity(row.ShortageQuantity),
-            ]));
+            ])).Append("\r\n");
         }
 
         return File(

@@ -74,7 +74,8 @@ VALUES(@单号,@日期,@交货日期,@客户编号,@客户名称,@仓库,@款号
     public async Task<PagedResult<OrderHeaderDto>> ListAsync(int page, int size, string? keyword)
     {
         if (page < 1) page = 1;
-        if (size < 1 || size > 200) size = 20;
+        if (size < 1) size = 20;
+        if (size > 1000) size = 1000;
         var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
 
         using var c = factory.Create();

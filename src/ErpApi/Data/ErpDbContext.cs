@@ -13,8 +13,10 @@ public sealed class ErpDbContext(DbContextOptions<ErpDbContext> options) : DbCon
     public DbSet<物料类别> 物料类别 => Set<物料类别>();
     public DbSet<物料资料> 物料资料 => Set<物料资料>();
     public DbSet<塑胶物料资料> 塑胶物料资料 => Set<塑胶物料资料>();
+    public DbSet<塑胶物料类别> 塑胶物料类别 => Set<塑胶物料类别>();
     public DbSet<塑胶原料资料> 塑胶原料资料 => Set<塑胶原料资料>();
     public DbSet<塑胶共用物料表> 塑胶共用物料表 => Set<塑胶共用物料表>();
+    public DbSet<工模表> 工模表 => Set<工模表>();
     public DbSet<部门信息> 部门信息 => Set<部门信息>();
     public DbSet<人事档案> 人事档案 => Set<人事档案>();
     public DbSet<报价类别> 报价类别 => Set<报价类别>();
@@ -25,4 +27,12 @@ public sealed class ErpDbContext(DbContextOptions<ErpDbContext> options) : DbCon
     public DbSet<款号明细表> 款号明细表 => Set<款号明细表>();
     public DbSet<款号物料明细表> 款号物料明细表 => Set<款号物料明细表>();
     public DbSet<发外加工项目> 发外加工项目 => Set<发外加工项目>();
+
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        // 全局小数精度:库列普遍为 decimal(18,4),EF 默认 (18,2) 会在写入时把 4 位小数截成 2 位
+        // (实测:PUT 胶件啤工价 0.0427 → 库存 0.04)。统一按 (18,4) 映射,列本身精度更低的由 SQL Server 收尾。
+        configurationBuilder.Properties<decimal>().HavePrecision(18, 4);
+        configurationBuilder.Properties<decimal?>().HavePrecision(18, 4);
+    }
 }

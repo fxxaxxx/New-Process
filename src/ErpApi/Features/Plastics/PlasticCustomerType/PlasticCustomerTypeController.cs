@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using ErpApi.Engines.Authorization;
+using ErpApi.Infrastructure;
 using ErpApi.Features.Plastics.PlasticMaterialDoc;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -17,6 +18,7 @@ public sealed class PlasticCustomerTypeController(
     [HttpGet]
     public async Task<IActionResult> List(DateTime 起, DateTime 止, string? 客户 = null)
     {
+        (起, 止) = QueryDateDefaults.Normalize(起, 止);
         if (!await perms.HasAsync(CurrentUser, Menu, PermissionAction.打开)) return Forbid();
         var rows = await svc.CustomerTypeStatsAsync(起, 止, 客户);
         if (!await perms.HasAsync(CurrentUser, Menu, PermissionAction.金额))

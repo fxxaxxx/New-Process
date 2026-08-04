@@ -39,7 +39,8 @@ VALUES(@单号,@啤机生产单号,@开单日期,@啤机外发单号,@原料编�
     public async Task<PagedResult<PlasticRawMaterialStockIssueHeaderDto>> ListAsync(int page, int size, string? keyword)
     {
         if (page < 1) page = 1;
-        if (size < 1 || size > 200) size = 20;
+        if (size < 1) size = 20;
+        if (size > 1000) size = 1000;
         var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
         using var c = factory.Create();
         using var multi = await c.QueryMultipleAsync(@"
@@ -138,6 +139,62 @@ WHERE (@remark IS NULL OR h.[领料备注] = @remark)
   AND (@onlyNotReceived = 0 OR lk.[领料单号] IS NULL)
 ORDER BY h.[开单日期] DESC, h.[啤机生产单号], d.[ID], lk.[领料日期], lk.[领料单号];",
             new { qi, qe, kw, remark, onlyReceived, onlyNotReceived });
+        return rows.AsList();
+    }
+
+    // 原料出库进度表:每行一条原料生产需求明细,已出库按 (领料备注,啤机生产单号,原料编号) 关联已审核原料出库汇总
+    // (同 OutsourceShortageAsync 口径),欠数=需求−已出库,进度=已出库/需求×100(%)。到货情况:已到=欠数<=0,未到=欠数>0。
+    public async Task<IReadOnlyList<PlasticRawMaterialIssueProgressRow>> IssueProgressAsync(
+        DateTime? 起, DateTime? 止, string? keyword, string? 领料备注, string? 到货情况, bool onlyOwed)
+    {
+        var qi = 起?.Date;
+        var qe = 止?.Date.AddDays(1);
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        var remark = string.IsNullOrWhiteSpace(领料备注) || 领料备注 == "全部" ? null : 领料备注.Trim();
+        var onlyDone = 到货情况 == "已到" ? 1 : 0;
+        var onlyNotDone = (到货情况 == "未到" || onlyOwed) ? 1 : 0;
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<PlasticRawMaterialIssueProgressRow>(@"
+WITH 领料 AS (
+    SELECT ih.[领料备注],
+           il.[啤机生产单号],
+           il.[原料编号],
+           SUM(ISNULL(il.[数量],0)) AS 已出库数量,
+           MAX(ih.[日期]) AS 最后出库日期
+    FROM [原料出库明细单] il
+    JOIN [原料出库单] ih ON ih.[单号] = il.[单号]
+    WHERE ISNULL(ih.[审核],'0') = '1'
+    GROUP BY ih.[领料备注], il.[啤机生产单号], il.[原料编号]
+)
+SELECT h.[开单日期],
+       h.[单号] AS 需求单号,
+       h.[啤机生产单号],
+       h.[领料备注],
+       h.[生产车间],
+       d.[原料编号],
+       d.[原料名称],
+       d.[单位],
+       ISNULL(d.[需求数量包],0) AS 需求数量,
+       ISNULL(lk.[已出库数量],0) AS 已出库数量,
+       ISNULL(d.[需求数量包],0) - ISNULL(lk.[已出库数量],0) AS 欠数,
+       CASE WHEN ISNULL(d.[需求数量包],0) = 0 THEN NULL
+            ELSE CAST(ISNULL(lk.[已出库数量],0) * 100.0 / d.[需求数量包] AS decimal(18,2)) END AS 进度,
+       lk.[最后出库日期],
+       h.[审核]
+FROM [原料生产需求表] h
+JOIN [原料生产需求明细单] d ON d.[单号] = h.[单号]
+LEFT JOIN 领料 lk ON lk.[领料备注] = h.[领料备注]
+    AND lk.[啤机生产单号] = h.[啤机生产单号]
+    AND lk.[原料编号] = d.[原料编号]
+WHERE (@qi IS NULL OR h.[开单日期] >= @qi)
+  AND (@qe IS NULL OR h.[开单日期] < @qe)
+  AND (@remark IS NULL OR h.[领料备注] = @remark)
+  AND (@kw IS NULL OR h.[单号] LIKE @kw OR h.[啤机生产单号] LIKE @kw OR h.[生产车间] LIKE @kw
+       OR d.[原料编号] LIKE @kw OR d.[原料名称] LIKE @kw)
+  AND (@onlyDone = 0 OR (ISNULL(d.[需求数量包],0) - ISNULL(lk.[已出库数量],0)) <= 0)
+  AND (@onlyNotDone = 0 OR (ISNULL(d.[需求数量包],0) - ISNULL(lk.[已出库数量],0)) > 0)
+ORDER BY h.[开单日期] DESC, h.[单号], d.[ID];",
+            new { qi, qe, kw, remark, onlyDone, onlyNotDone });
         return rows.AsList();
     }
 

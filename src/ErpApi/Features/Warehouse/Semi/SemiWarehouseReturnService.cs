@@ -12,7 +12,7 @@ public sealed class SemiWarehouseReturnService(ISqlConnectionFactory factory, ID
 
     public async Task<PagedResult<SemiReceiptHeaderDto>> ReceiptListAsync(int page, int size, string? keyword)
     {
-        page = Math.Max(1, page); size = Math.Clamp(size, 1, 200);
+        page = Math.Max(1, page); size = Math.Clamp(size, 1, 1000);
         var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
         using var c = factory.Create();
         using var multi = await c.QueryMultipleAsync(@"
@@ -26,7 +26,7 @@ ORDER BY [ID] DESC OFFSET (@page-1)*@size ROWS FETCH NEXT @size ROWS ONLY;", new
 
     public async Task<PagedResult<SemiWarehouseReturnHeaderDto>> ListAsync(int page, int size, string? keyword)
     {
-        page = Math.Max(1, page); size = Math.Clamp(size, 1, 200);
+        page = Math.Max(1, page); size = Math.Clamp(size, 1, 1000);
         var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
         using var c = factory.Create();
         using var multi = await c.QueryMultipleAsync(@"
@@ -167,7 +167,7 @@ WHERE [单号]=@receiptNo AND ISNULL([审核],'0')='1';", new { receiptNo = head
     public async Task<PagedResult<SemiWarehouseReturnProductRow>> ProductsAsync(SemiWarehouseReturnProductQuery query, bool canSeePrice)
     {
         var page = Math.Max(query.Page, 1);
-        var size = Math.Clamp(query.Size, 1, 200);
+        var size = Math.Clamp(query.Size, 1, 1000);
         var keyword = string.IsNullOrWhiteSpace(query.Keyword) ? null : query.Keyword.Trim();
         var match = keyword is null || query.Exact ? keyword : $"%{keyword}%";
         var field = query.Field switch

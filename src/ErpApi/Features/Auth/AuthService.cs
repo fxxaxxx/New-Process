@@ -44,4 +44,24 @@ public sealed class AuthService(
             WHERE [用户]=@userName", new { userName });
         return new LoginResult(true, jwt.Issue((string)u.用户), null);
     }
+
+    // 用户自助修改密码：先校验输入（不触库），再 bcrypt 比对原密码，最后加盐哈希写回。
+    public async Task<ChangePasswordResult> ChangePasswordAsync(string userName, string 原密码, string 新密码)
+    {
+        if (string.IsNullOrEmpty(原密码)) return new ChangePasswordResult(false, "请输入原密码");
+        if (string.IsNullOrEmpty(新密码)) return new ChangePasswordResult(false, "请输入新密码");
+        if (新密码.Length < 6) return new ChangePasswordResult(false, "新密码长度至少 6 位");
+        if (新密码 == 原密码) return new ChangePasswordResult(false, "新密码不能与原密码相同");
+
+        using var c = factory.Create();
+        await c.OpenAsync();
+        var hash = await c.QuerySingleOrDefaultAsync<string>(
+            "SELECT [密码] FROM [sysfileuser] WHERE [用户]=@userName", new { userName });
+        if (hash is null) return new ChangePasswordResult(false, "用户不存在");
+        if (!hasher.Verify(原密码, hash)) return new ChangePasswordResult(false, "原密码错误");
+
+        await c.ExecuteAsync("UPDATE [sysfileuser] SET [密码]=@密码 WHERE [用户]=@userName",
+            new { userName, 密码 = hasher.Hash(新密码) });
+        return new ChangePasswordResult(true, null);
+    }
 }

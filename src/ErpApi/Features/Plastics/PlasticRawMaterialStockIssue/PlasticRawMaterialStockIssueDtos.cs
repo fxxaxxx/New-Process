@@ -61,6 +61,24 @@ public sealed class PlasticRawMaterialStockIssueCreateDto
     public List<PlasticRawMaterialStockIssueCreateLineDto> 明细 { get; set; } = new();
 }
 
+public sealed class PlasticRawMaterialIssueProgressRow
+{
+    public DateTime? 开单日期 { get; set; }
+    public string? 需求单号 { get; set; }
+    public string? 啤机生产单号 { get; set; }
+    public string? 领料备注 { get; set; }
+    public string? 生产车间 { get; set; }
+    public string? 原料编号 { get; set; }
+    public string? 原料名称 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal? 需求数量 { get; set; }
+    public decimal? 已出库数量 { get; set; }
+    public decimal? 欠数 { get; set; }
+    public decimal? 进度 { get; set; }   // 已出库数量/需求数量×100(%);需求为 0 时留空
+    public DateTime? 最后出库日期 { get; set; }
+    public string? 审核 { get; set; }
+}
+
 public sealed class PlasticRawMaterialIssueProgressDetailRow
 {
     public DateTime? 开单日期 { get; set; }

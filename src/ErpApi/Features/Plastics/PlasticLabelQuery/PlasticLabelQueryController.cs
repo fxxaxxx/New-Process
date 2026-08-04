@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using ErpApi.Engines.Authorization;
+using ErpApi.Infrastructure;
 using ErpApi.Features.Plastics.PlasticMaterialDoc;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -18,6 +19,7 @@ public sealed class PlasticLabelQueryController(
     public async Task<IActionResult> Detail(DateTime 起, DateTime 止, string? keyword = null,
         [FromQuery(Name = "审核情况")] string? 审核情况 = null, [FromQuery(Name = "物料类别")] string? 物料类别 = null)
     {
+        (起, 止) = QueryDateDefaults.Normalize(起, 止);
         if (!await perms.HasAsync(CurrentUser, Menu, PermissionAction.打开)) return Forbid();
         return Ok(await svc.LabelQueryDetailAsync(起, 止, keyword, 审核情况, 物料类别));
     }
@@ -26,6 +28,7 @@ public sealed class PlasticLabelQueryController(
     public async Task<IActionResult> Summary(DateTime 起, DateTime 止, string? keyword = null,
         [FromQuery(Name = "审核情况")] string? 审核情况 = null, [FromQuery(Name = "物料类别")] string? 物料类别 = null)
     {
+        (起, 止) = QueryDateDefaults.Normalize(起, 止);
         if (!await perms.HasAsync(CurrentUser, Menu, PermissionAction.打开)) return Forbid();
         return Ok(await svc.LabelQuerySummaryAsync(起, 止, keyword, 审核情况, 物料类别));
     }

@@ -209,6 +209,10 @@ public sealed class PlasticProcessOrderMakeRow
     public string? 颜色 { get; set; }
     public string? 色粉号 { get; set; }
     public string? 加工内容 { get; set; }
+    public string? 二次加工内容 { get; set; }
+    public string? 二次加工类别 { get; set; }  // BD/AF/AH
+    public string? 加工次序 { get; set; }      // 二次加工行拆为 第一次/第二次 两条
+    public string? 加工字母 { get; set; }
     public string? 用料名称 { get; set; }
     public string? 单位 { get; set; }
     public decimal? 用量 { get; set; }

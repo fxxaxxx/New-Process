@@ -44,12 +44,30 @@ public sealed class ProductionReportController(
         return Ok(await svc.PurchaseOverAsync(keyword));
     }
 
-    // 领料超数查询：每生产单×物料 已领−BOM需求>0 列出超领
+    // 领料超数/欠领查询：每生产单×物料 差异=已领−BOM需求（负=欠领，正=超领），全部需求行
     [HttpGet("issue-over")]
     public async Task<IActionResult> IssueOver(string? keyword = null)
     {
         if (!await perms.HasAsync(CurrentUser, Menu, PermissionAction.打开)) return Forbid();
         return Ok(await svc.IssueOverAsync(keyword));
+    }
+
+    // 制单用料查询：指定生产单 每物料 计划用量 对照 实际领料（审核领料单按生产单号汇总）
+    [HttpGet("order-material-usage")]
+    public async Task<IActionResult> OrderMaterialUsage([FromQuery(Name = "生产单号")] string? 生产单号 = null)
+    {
+        if (!await perms.HasAsync(CurrentUser, Menu, PermissionAction.打开)) return Forbid();
+        if (string.IsNullOrWhiteSpace(生产单号)) return BadRequest("缺少参数：生产单号");
+        return Ok(await svc.OrderMaterialUsageAsync(生产单号.Trim()));
+    }
+
+    // 采购领料分析表：生产单×物料 需求/采购/已领/库存 对照明细（差异=需求−已领）
+    [HttpGet("purchase-issue-analysis")]
+    public async Task<IActionResult> PurchaseIssueAnalysis(
+        DateTime? 起 = null, DateTime? 止 = null, string? keyword = null)
+    {
+        if (!await perms.HasAsync(CurrentUser, Menu, PermissionAction.打开)) return Forbid();
+        return Ok(await svc.PurchaseIssueAnalysisAsync(起, 止, keyword));
     }
 
     // 采购分析明细查询：生产BOM物料清单（算法4）扁平明细
@@ -77,5 +95,29 @@ public sealed class ProductionReportController(
     {
         if (!await perms.HasAsync(CurrentUser, Menu, PermissionAction.打开)) return Forbid();
         return Ok(await svc.TrackingAsync(keyword, 审核, 完成));
+    }
+
+    // 成品余料统计表：按款号 入仓累计 − 出仓累计 = 余数（菜单目录暂无独立权限菜单，与相邻报表同 gate 生产制单·打开）
+    [HttpGet("finished-leftover")]
+    public async Task<IActionResult> FinishedLeftover(string? keyword = null)
+    {
+        if (!await perms.HasAsync(CurrentUser, Menu, PermissionAction.打开)) return Forbid();
+        return Ok(await svc.FinishedLeftoverAsync(keyword));
+    }
+
+    // 合同余料统计表：按(合同号 × 物料) 采购入仓 − BOM需求 = 余料
+    [HttpGet("contract-leftover")]
+    public async Task<IActionResult> ContractLeftover(string? keyword = null)
+    {
+        if (!await perms.HasAsync(CurrentUser, Menu, PermissionAction.打开)) return Forbid();
+        return Ok(await svc.ContractLeftoverAsync(keyword));
+    }
+
+    // 生产加工缺料表：按(生产单 × 物料) 需求 − 库存 − 已领 = 缺料（仅缺料行）
+    [HttpGet("process-shortage")]
+    public async Task<IActionResult> ProcessShortage(string? keyword = null)
+    {
+        if (!await perms.HasAsync(CurrentUser, Menu, PermissionAction.打开)) return Forbid();
+        return Ok(await svc.ProcessShortageAsync(keyword));
     }
 }

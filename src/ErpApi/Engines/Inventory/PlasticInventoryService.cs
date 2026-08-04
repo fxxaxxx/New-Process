@@ -337,4 +337,100 @@ ORDER BY [原料编号]";
         var rows = await c.QueryAsync<PlasticRawMaterialMonthlyRow>(sql, new { qi, qe, cat, kw });
         return rows.AsList();
     }
+
+    // 带单据类型的签名台账(物料进出汇总用;仅审核='1')。数量一律为正,盘点支取盈亏数量(带符号)。
+    private const string LedgerUnionTyped = @"
+SELECT h.[日期] AS 日期, N'入仓' AS 类型, d.[物料编号],d.[物料名称],d.[规格],d.[单位], d.[数量] AS 数量
+    FROM [塑胶入仓明细单] d JOIN [塑胶入仓单] h ON h.[单号]=d.[单号] WHERE ISNULL(h.[审核],'0')='1'
+UNION ALL
+SELECT h.[日期], N'领料', d.[物料编号],d.[物料名称],d.[规格],d.[单位], d.[数量]
+    FROM [塑胶领料明细单] d JOIN [塑胶领料单] h ON h.[单号]=d.[单号] WHERE ISNULL(h.[审核],'0')='1'
+UNION ALL
+SELECT h.[日期], N'退料', d.[物料编号],d.[物料名称],d.[规格],d.[单位], d.[数量]
+    FROM [塑胶退料明细单] d JOIN [塑胶退料单] h ON h.[单号]=d.[单号] WHERE ISNULL(h.[审核],'0')='1'
+UNION ALL
+SELECT h.[日期], N'退仓', d.[物料编号],d.[物料名称],d.[规格],d.[单位], d.[数量]
+    FROM [塑胶退仓明细单] d JOIN [塑胶退仓单] h ON h.[单号]=d.[单号] WHERE ISNULL(h.[审核],'0')='1'
+UNION ALL
+SELECT h.[日期], N'报废', d.[物料编号],d.[物料名称],d.[规格],d.[单位], d.[数量]
+    FROM [塑胶报废明细单] d JOIN [塑胶报废单] h ON h.[单号]=d.[单号] WHERE ISNULL(h.[审核],'0')='1'
+UNION ALL
+SELECT h.[日期], N'盘点', d.[物料编号],d.[物料名称],d.[规格],d.[单位], d.[盈亏数量]
+    FROM [塑胶盘点明细单] d JOIN [塑胶盘点单] h ON h.[单号]=d.[单号] WHERE ISNULL(h.[审核],'0')='1'";
+
+    // 塑胶库存月报表:指定月份 按物料编号 期初/本期入库/本期出库/期末(口径同 InOutAsync,仅审核='1';
+    // 盘点盈亏按正负计入入/出)。与 InOutAsync 差别:按物料聚合(不分仓库)、支持物料类别过滤。
+    public async Task<IReadOnlyList<PlasticInOutRow>> MonthlyAsync(DateTime 月份, string? 物料类别, string? keyword)
+    {
+        var qi = new DateTime(月份.Year, 月份.Month, 1);
+        var qe = qi.AddMonths(1);
+        var cat = string.IsNullOrWhiteSpace(物料类别) ? null : 物料类别.Trim();
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        var sql = $@"
+SELECT t.[物料编号], MAX(t.[物料名称]) AS 物料名称, MAX(t.[规格]) AS 规格,
+       MAX(m.[颜色]) AS 颜色, MAX(m.[物料类别]) AS 物料类别, MAX(t.[单位]) AS 单位,
+       SUM(CASE WHEN t.[日期] < @qi THEN t.[数量] ELSE 0 END) AS 期初数量,
+       SUM(CASE WHEN t.[日期] >= @qi AND t.[日期] < @qe AND t.[数量] > 0 THEN t.[数量] ELSE 0 END) AS 本期入库,
+       SUM(CASE WHEN t.[日期] >= @qi AND t.[日期] < @qe AND t.[数量] < 0 THEN -t.[数量] ELSE 0 END) AS 本期出库
+FROM ({LedgerUnionDated}) t
+LEFT JOIN (SELECT [物料编号], MAX([颜色]) AS 颜色, MAX([物料类别]) AS 物料类别
+           FROM [塑胶物料资料] GROUP BY [物料编号]) m ON m.[物料编号]=t.[物料编号]
+WHERE (@cat IS NULL OR m.[物料类别] = @cat)
+  AND (@kw IS NULL OR t.[物料编号] LIKE @kw OR t.[物料名称] LIKE @kw OR t.[规格] LIKE @kw)
+GROUP BY t.[物料编号]
+HAVING SUM(CASE WHEN t.[日期] < @qi THEN t.[数量] ELSE 0 END) <> 0
+    OR SUM(CASE WHEN t.[日期] >= @qi AND t.[日期] < @qe THEN t.[数量] ELSE 0 END) <> 0
+ORDER BY t.[物料编号]";
+        using var c = factory.Create();
+        var rows = (await c.QueryAsync<PlasticInOutRow>(sql, new { qi, qe, cat, kw })).AsList();
+        foreach (var r in rows) r.期末数量 = r.期初数量 + r.本期入库 - r.本期出库;
+        return rows;
+    }
+
+    // 塑胶物料进出汇总:按物料一行汇总区间内各单据类型数量(入仓/退仓/领料/退料/报废=该类型绝对合计,
+    // 盘点盈亏=带符号合计)。区别于塑胶进出库统计表(期初/入/出/期末口径),仅审核='1'。
+    public async Task<IReadOnlyList<PlasticInOutSummaryRow>> InOutSummaryAsync(DateTime 起, DateTime 止, string? 物料类别, string? keyword)
+    {
+        var qi = 起.Date;
+        var qe = 止.Date.AddDays(1);
+        var cat = string.IsNullOrWhiteSpace(物料类别) ? null : 物料类别.Trim();
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        var sql = $@"
+SELECT t.[物料编号], MAX(t.[物料名称]) AS 物料名称, MAX(t.[规格]) AS 规格,
+       MAX(m.[颜色]) AS 颜色, MAX(m.[物料类别]) AS 物料类别, MAX(t.[单位]) AS 单位,
+       SUM(CASE WHEN t.[类型]=N'入仓' THEN t.[数量] ELSE 0 END) AS 入仓,
+       SUM(CASE WHEN t.[类型]=N'退仓' THEN t.[数量] ELSE 0 END) AS 退仓,
+       SUM(CASE WHEN t.[类型]=N'领料' THEN t.[数量] ELSE 0 END) AS 领料,
+       SUM(CASE WHEN t.[类型]=N'退料' THEN t.[数量] ELSE 0 END) AS 退料,
+       SUM(CASE WHEN t.[类型]=N'报废' THEN t.[数量] ELSE 0 END) AS 报废,
+       SUM(CASE WHEN t.[类型]=N'盘点' THEN t.[数量] ELSE 0 END) AS 盘点盈亏
+FROM ({LedgerUnionTyped}) t
+LEFT JOIN (SELECT [物料编号], MAX([颜色]) AS 颜色, MAX([物料类别]) AS 物料类别
+           FROM [塑胶物料资料] GROUP BY [物料编号]) m ON m.[物料编号]=t.[物料编号]
+WHERE t.[日期] >= @qi AND t.[日期] < @qe
+  AND (@cat IS NULL OR m.[物料类别] = @cat)
+  AND (@kw IS NULL OR t.[物料编号] LIKE @kw OR t.[物料名称] LIKE @kw OR t.[规格] LIKE @kw)
+GROUP BY t.[物料编号]
+ORDER BY t.[物料编号]";
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<PlasticInOutSummaryRow>(sql, new { qi, qe, cat, kw });
+        return rows.AsList();
+    }
+}
+
+// 塑胶物料进出汇总行:按物料一行的各单据类型合计。
+public sealed class PlasticInOutSummaryRow
+{
+    public string? 物料编号 { get; set; }
+    public string? 物料名称 { get; set; }
+    public string? 规格 { get; set; }
+    public string? 颜色 { get; set; }
+    public string? 物料类别 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal 入仓 { get; set; }
+    public decimal 退仓 { get; set; }
+    public decimal 领料 { get; set; }
+    public decimal 退料 { get; set; }
+    public decimal 报废 { get; set; }
+    public decimal 盘点盈亏 { get; set; }
 }

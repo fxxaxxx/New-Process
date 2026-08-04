@@ -3,6 +3,7 @@ using ErpApi.Engines.Authorization;
 using ErpApi.Infrastructure.Db;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.SqlClient;
 namespace ErpApi.Features.Styles;
 
 [ApiController]
@@ -67,14 +68,74 @@ public sealed class StyleController(
     {
         if (!await AllowAsync(PermissionAction.保存)) return Forbid();
         var canEditPrices = await AllowAsync(PermissionAction.单价);
-        try { await svc.ReplaceMaterialsAsync(款号, dto, canEditPrices); }
+        IReadOnlyList<string> 警告;
+        try { 警告 = await svc.ReplaceMaterialsAsync(款号, dto, canEditPrices, CurrentUser); }
         catch (InvalidOperationException ex) when (ex.Message.Contains("不存在"))
         { return NotFound(new { 消息 = ex.Message }); }
         catch (InvalidOperationException ex) when (ex.Message.Contains("合作方类型"))
         { return BadRequest(new { 消息 = ex.Message }); }
         catch (InvalidOperationException ex)
         { return Conflict(new { 消息 = ex.Message }); }
+        catch (SqlException ex) { return BadRequest(new { 消息 = $"保存失败：数据异常({ex.Number})，请检查物料/款号等关联数据。" }); }
         await AuditAsync("款号物料明细表", "修改", $"款号={款号}");
+        // 保存成功但可能有重复扣料风险：警告列表交前端 Modal 提示（不强制阻止）
+        return Ok(new { 警告 });
+    }
+
+    // BOM 调入下级半成品的可选款号列表（已设置的半成品/成品）
+    [HttpGet("semi-options")]
+    public async Task<IActionResult> SemiOptions()
+    {
+        if (!await AllowAsync(PermissionAction.打开)) return Forbid();
+        return Ok(await svc.ListSemiOptionsAsync());
+    }
+
+    // 生产通知单 货号选择:已做 BOM 物料设置的款号及单头信息
+    [HttpGet("bom-headers")]
+    public async Task<IActionResult> BomHeaders(string? keyword = null)
+    {
+        if (!await AllowAsync(PermissionAction.打开)) return Forbid();
+        return Ok(await svc.ListBomHeadersAsync(keyword));
+    }
+
+    // 复制单：把源款号 BOM（含装配扩展/报价，若有）复制到目标款号
+    [HttpPost("{款号}/copy")]
+    public async Task<IActionResult> CopyMaterials(string 款号, [FromBody] StyleBomCopyDto dto)
+    {
+        if (!await AllowAsync(PermissionAction.保存)) return Forbid();
+        if (string.IsNullOrWhiteSpace(dto.目标款号))
+            return BadRequest(new { 消息 = "请填写目标款号。" });
+        try { await svc.CopyMaterialsAsync(款号, dto.目标款号, dto.覆盖); }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("不存在"))
+        { return NotFound(new { 消息 = ex.Message }); }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("无法复制") || ex.Message.Contains("相同"))
+        { return BadRequest(new { 消息 = ex.Message }); }
+        catch (InvalidOperationException ex)
+        { return Conflict(new { 消息 = ex.Message }); }
+        await AuditAsync("款号物料明细表", "复制", $"款号={款号}→{dto.目标款号.Trim()}");
+        return NoContent();
+    }
+
+    // BOM 台头审核/反审核(款号物料总表.审核;区别于装配审核 半成品共用物料设置.调整审核)
+    [HttpPost("{款号}/bom-audit")]
+    public async Task<IActionResult> BomAudit(string 款号)
+    {
+        if (!await AllowAsync(PermissionAction.审核)) return Forbid();
+        try { await svc.BomSetAuditAsync(款号, true, CurrentUser); }
+        catch (InvalidOperationException ex)
+        { return Conflict(new { 消息 = ex.Message }); }
+        await AuditAsync("款号物料总表", "审核", $"款号={款号}");
+        return NoContent();
+    }
+
+    [HttpPost("{款号}/bom-reverse-audit")]
+    public async Task<IActionResult> BomReverseAudit(string 款号)
+    {
+        if (!await AllowAsync(PermissionAction.反审核)) return Forbid();
+        try { await svc.BomSetAuditAsync(款号, false, CurrentUser); }
+        catch (InvalidOperationException ex)
+        { return Conflict(new { 消息 = ex.Message }); }
+        await AuditAsync("款号物料总表", "反审核", $"款号={款号}");
         return NoContent();
     }
 

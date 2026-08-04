@@ -37,6 +37,7 @@ builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<ErpApi.Features.Styles.StyleService>();
 builder.Services.AddScoped<ErpApi.Features.Assembly.AssemblyMaterialSummaryService>();
 builder.Services.AddScoped<ErpApi.Features.Assembly.AssemblyPurchaseQueryService>();
+builder.Services.AddScoped<ErpApi.Features.Assembly.AssemblyPurchaseOrderService>();
 builder.Services.AddScoped<ErpApi.Features.Orders.OrderService>();
 builder.Services.AddScoped<ErpApi.Features.Production.ProductionService>();
 builder.Services.AddScoped<ErpApi.Features.Production.ProductionReportService>();
@@ -124,6 +125,11 @@ builder.Services.AddSingleton<ErpApi.Infrastructure.Security.IConfigProtector, E
 builder.Services.AddScoped<ErpApi.Features.SystemConfig.SysConfigService>();
 builder.Services.AddScoped<ErpApi.Features.Admin.AccountService>();
 builder.Services.AddScoped<ErpApi.Features.Admin.PermissionAdminService>();
+builder.Services.AddScoped<ErpApi.Features.Assembly.FactoryCategoryDetailService>();
+builder.Services.AddScoped<ErpApi.Features.Materials.LabelOrders.IMaterialLabelOrderService, ErpApi.Features.Materials.LabelOrders.MaterialLabelOrderService>();
+builder.Services.AddScoped<ErpApi.Features.Plastics.LabelOrders.IPlasticLabelOrderService, ErpApi.Features.Plastics.LabelOrders.PlasticLabelOrderService>();
+builder.Services.AddScoped<ErpApi.Features.Materials.PurchaseSettings.PurchaseMaterialSettingsService>();
+builder.Services.AddScoped<ErpApi.Features.Plastics.MaterialSettings.PlasticMaterialSettingsService>();
 
 // JWT 认证（密钥来自环境变量，无硬编码）
 var jwtKey = Environment.GetEnvironmentVariable(JwtTokenService.KeyEnvVar)
