@@ -63,6 +63,33 @@ public sealed class SemiFinishedShortageService(ISqlConnectionFactory factory) :
     FROM [半成品盘点明细单] d
     JOIN [半成品盘点单] h ON h.[单号] = d.[单号]
     WHERE ISNULL(h.[审核], '0') = '1'
+
+    UNION ALL
+
+    SELECT
+        LTRIM(RTRIM(d.[物料编号])),
+        CAST(ISNULL(d.[数量], 0) AS decimal(18,4)) * -1
+    FROM [半成品退仓明细单] d
+    JOIN [半成品退仓单] h ON h.[单号] = d.[单号]
+    WHERE ISNULL(h.[审核], '0') = '1'
+
+    UNION ALL
+
+    SELECT
+        LTRIM(RTRIM(d.[物料编号])),
+        CAST(ISNULL(d.[数量], 0) AS decimal(18,4))
+    FROM [半成品退库明细单] d
+    JOIN [半成品退库单] h ON h.[单号] = d.[单号]
+    WHERE ISNULL(h.[审核], '0') = '1'
+
+    UNION ALL
+
+    SELECT
+        LTRIM(RTRIM(d.[物料编号])),
+        CAST(ISNULL(d.[数量], 0) AS decimal(18,4)) * -1
+    FROM [半成品报废明细单] d
+    JOIN [半成品报废单] h ON h.[单号] = d.[单号]
+    WHERE ISNULL(h.[审核], '0') = '1'
 ), Inventory AS (
     SELECT PartCode, SUM(Quantity) AS InventoryQuantity
     FROM Movements
