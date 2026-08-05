@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Alert, Button, Modal, Space, Table, Upload, message } from "antd";
 import { UploadOutlined } from "@ant-design/icons";
-import * as XLSX from "xlsx";
+import type * as XLSXT from "xlsx";
 import type { ImportResult } from "../api/importResult";
 import { decodeCsvBuffer, splitDelimited } from "../utils/bomImport";
 import {
@@ -35,6 +35,8 @@ export default function MaterialImportModal({ open, title, spec, onImport, onClo
       if (file.name.toLowerCase().endsWith(".csv")) {
         grid = splitDelimited(decodeCsvBuffer(buf));
       } else {
+        // xlsx 库较大,解析文件时才按需加载(不进首屏包)
+        const XLSX: typeof XLSXT = await import("xlsx");
         const wb = XLSX.read(buf);
         grid = XLSX.utils.sheet_to_json<unknown[]>(
           wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: "" });

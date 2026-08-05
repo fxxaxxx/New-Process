@@ -151,3 +151,96 @@
 - 报表口径改正:原来误用塑胶件台账+塑胶报废,改为原料台账(RawMaterialLedgerUnion 入/退/出/退/盘,仅审核单)按原料名称汇总。
 - 列对齐旧系统:本月库存重量/存外厂重量/本月报废重量/本月总重量(KG,=数量×每包重量)+ 本月库存/存外厂数量/本月报废/本月总数;存外厂与原料报废暂无单据来源置 0(注释注明)。
 - 前端:列+合计行+导出列同步;api 类型补齐。
+
+---
+
+# 2026-08-05 追加:全系统综合测试报告(只读为主,无验证性写入)
+
+## ① 自动化套件 PASS
+- dotnet build 0 错;dotnet test 212 过 0 败 507 跳过(DB 测试,正常)。
+- npm test 62 文件 310 过;npm run build 过;eslint 286 problems(283 errors/3 warnings),对比基线 283 = **+3**(全部为本阶段新增页面/改造文件的同款 set-state-in-effect 基线类问题,无新类别错误)。
+
+## ② API 冒烟 22/23 PASS
+- 主数据:物料 288/12 类、塑胶 35/13 类、工模 23、客户 1、员工 88、部门 19、原料 264 全部 200 且数字一致。
+- **供应商 272 ≠ 预期 271**:系本轮自建占位供应商 S000(271 导入 + 1 占位),非异常。
+- 业务链:bom-headers 200、77772 materials 35 行+审核台头、生产单 SC20260803002 在列、basis 35 行/需订 41000、来料采购订单=0、塑胶三单(SP/SR/SLL20260805001)详情 35 行+已审核,全 PASS。
+- 报表:plastic-inventory 35 行合计 20500、raw-material-summary 200(空)、material-inventory 200。
+- 权限负测:无 token/错误 token 均 401 PASS。
+
+## ③ 页面冒烟 11/11 PASS(playwright 截图 /tmp/pwtest/smoke_*.png)
+- material-master(50 行+树 26 节点)、plastic-material-master(35 行+树)、plastic-molds(23 行)、production(SC20260803002)、purchase-orders(空列表正常)、plastic-inventory(35 行+树)、plastic-raw-material-summary(空表正常)、department-personnel(50 行)、purchase-receipts/material-issues(单据页打开正常)均无 JS 错误、无"加载失败"文案。
+- bom-setup 打开 77772:明细 35 行 57xxx 物料编号齐全、已审核 Tag 显示。
+
+## ④ 数据一致性 全部 PASS
+- 塑胶台账 6 支 union 聚合=35 行/合计 20500,与报表口径一致(57001896=500)。
+- 无重复编号:物料/塑胶物料/供应商/人事/塑胶原料 全部无重复。
+- BOM 明细悬空引用=0(放开 FK 后应用层校验生效);四类单据明细孤儿行=0。
+- 77772 BOM:明细 35 行、台头审核='1'。
+
+## 结论
+全系统绿。唯一"差异"为供应商 272(=271+占位 S000,预期内)。
+
+---
+
+# 2026-08-05 追加:TESTV 虚拟数据集成测试(全过,已全部清理)
+
+## 集成测试(23 步全 PASS)
+- a. TESTV-STY1 款号+混合 BOM(来料 01030008×3 + 塑胶 57001896×2,FK 放开后混存成功)→ bom-audit 204。
+- b. bom-headers 含 TESTV-STY1。
+- c. 生产通知单 SC20260805001(10 台)→审核;basis 2 行:01030008 需订 30、57001896 需订 20。
+- d. 来料采购单含塑胶行 → 400"关联数据不存在(供应商/物料/生产单号)"(**设计如此**:采购明细单.FK_207 仍指物料资料);纯来料单 PO20260805001 开单+审核。
+- e. 采购入仓 CG20260805001 ×30 审核 → f. 领料 LL20260805001 ×12 审核。
+- g. 塑胶链:塑胶共用物料 TESTV 行 → 塑胶 basis 1 行 → SP20260805002 → SR20260805002(收20)→ SLL20260805002(领5),全审核。
+- h. 盘点 PD20260805001(系统 18→盘点 20)审核。
+- i. 报表实测:来料库存接口 01030008=20、塑胶库存接口 57001896=515(=500+20−5),与台账一致。
+- j. 选择器接口:material-master next-code 200;plastic-material-master/next-code 不存在(404),但前端也未调用(PlasticMaterialMasterPage 不用预填编号),非漏接;suppliers/customers/employees/plastic-molds list 均 200。
+
+## "设计如此"行为清单
+- 来料采购订单不接受塑胶行(FK_207,400 中文):塑胶件采购须走塑胶专档(塑胶采购订单)。
+- plastic-material-master 无 next-code(来料档案才有预填编号)。
+
+## 清理确认(全归零)
+- 单据:TESTV 生产通知单/来料采购+入仓+领料+盘点/塑胶采购+入仓+领料 均反审核后删除(204);BOM 明细/台头/款号总表/塑胶共用物料 TESTV 行删除。
+- 库存复核:01030008 台账=0(回测试前)、57001896 台账=500(回测试前);13 类表 TESTV 残留计数全 0。
+
+## 漏连接静态扫描(前端 717 条调用 × 后端 722 条路由,参数归一化比对)
+- **A. 前端调了但后端没路由:0 条**(机器候选全部人工复核为假阳性:[controller] 令牌路由/MasterCrud/SysConfigSection 基类继承 action/页面动态拼接 URL 均已核实)。理论缺口(未触发):masterApi().get(id) 若用于 injection-machine-rates/warehouse-locations 会 404(这两个控制器不走 MasterCrud 基类、无 Get("{id}"),现页面只调 list)。
+- **B. 疑似死接口(后端有路由前端从不调)**:GET /api/plastic-label-query/detail|summary(前端走 /plastic-label-orders/label-query/*);GET /api/purchase-receipts/label-query/detail|summary(前端走 /material-label-orders/label-query/*);GET /api/master/pricing/material(前端只用 pricing/apply);GET /api/finished-sales-returns/{单号}、GET /api/finished-vendor-returns/{单号}(前端 finished api 无 get)。
+- **菜单权限对照:0 条对不上**(menuTree 130+ 项:path 均有 Route、权限名均在 MenuCatalog 注册)。反向发现:MenuCatalog 的"发外对数"(行18)/"计件汇总"(行17)两个权限名无任何菜单/前端 can() 引用,对应页面存在但没挂权限名,疑权限接线遗漏。
+
+---
+
+# 2026-08-05 追加:Dashboard 工作台升级(纯前端)
+
+## 改动
+- web/src/pages/Dashboard.tsx 重写:
+  - 统计卡两行:原 4 张(客户/供应商/物料/报价)+ 新 4 张(塑胶物料/工模/塑胶原料/人员,masterApi list total,青/紫/橙/天蓝渐变不撞色)。
+  - 业务流程卡:建档→BOM→生产通知单→采购分析→采购订单→入仓→领料→库存报表,8 步圆标+箭头,点击跳对应路由。
+  - 单据动态卡:生产通知单 total(productionApi)、采购订单 total(purchaseOrderApi)、塑胶库存合计(plasticInventoryApi 各行求和),可点击跳页。
+  - 快捷操作卡:新增物料/新建采购订单/新建生产通知单/导入表格/BOM物料设置 圆角按钮跳路由。
+  - 欢迎卡精简+中文日期星期;全部用 antd Card(主题 token 驱动)+ opacity 文字色,主题自适应。
+
+## 验证
+- npm run build 过;npm test 310 过;eslint 0 问题(中途清了未使用的 icon import)。
+- Playwright:数字序列 [1,272,288,0 | 35,23,264,88 | 1,0,20500] 全部正确;流程卡"采购分析"点击跳 /purchase-material-analysis 成功;浅色截图 dash_light.png 正常。
+- **深色主题:项目 themes.ts 只注册了 light 一个主题**(index.css 虽有 dark 规则但 antd token 恒为浅色,强制 data-erp-theme=dark 页面仍浅色)——深色实际不可用,非本页问题;本页全部用 antd 组件+token 色彩,将来注册深色主题即可自适应。
+- 部署:web/dist 已同步 src/ErpApi/wwwroot(index-DI4GwOxC.js / index-B4AbEeu9.css)。
+
+---
+
+# 2026-08-05 追加:前端性能优化(代码分割/xlsx按需/登录页美化)
+
+## 改动
+- App.tsx:186 个页面组件静态 import 改 React.lazy(Login/MainLayout/MasterRouter/Dashboard/PlaceholderPage 保持静态),Routes 外包 Suspense(全屏居中 Spin fallback);权限包装结构不变。
+- MaterialImportModal.tsx:xlsx 顶层 import 改 `await import("xlsx")`(类型仍 import type),xlsx 拆成独立 chunk(424KB,仅解析文件时加载)。
+- Login.tsx 重做:左品牌区(渐变底+系统名+4 个特性点:物料/生产/采购/仓库)+右登录卡(圆角阴影、输入框 UserOutlined/LockOutlined 前缀、大号 loading 登录按钮),flex wrap 窄屏自动单列。
+
+## 效果(实测)
+- 主包 3034KB → 852KB(index 入口);/plastic-material-master 硬导航首屏 JS(去重)3034KB → 1452KB(-52%,17 个 chunk:主包 852+jsx-runtime 433+页面 15+共享若干)。<800KB 目标未达——antd 核心约 1.2MB 为任何页面的必载下限,后续如要继续压可评估 manualChunks 分包缓存(不减少总量)或组件库替换(不建议)。
+- dist 273 个 chunk,每个页面独立 chunk(如 BomSetupPage/PlasticMaterialMasterPage),xlsx 独立 424KB。
+
+## 验证
+- npm run build 过(tsc+vite);npm test 310 过;eslint 3 个改动文件 0 问题。
+- Playwright:admin 登录流程回归(登录页填表→进 Dashboard 正常);登录页/首页截图 login_new.png / dash_regression.png。
+- 部署:web/dist 已同步 src/ErpApi/wwwroot(index-B_vtfDbl.js)。
+- 提交:d08266b perf(web): 路由级代码分割+xlsx按需加载+登录页美化(已推 origin master 与 master:main)。
