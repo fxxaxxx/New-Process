@@ -170,14 +170,14 @@ ALTER TABLE [款号物料总表] ADD CONSTRAINT FK_129_查找 FOREIGN KEY([客�
 ALTER TABLE [款号物料总表] ADD CONSTRAINT FK_130_查找 FOREIGN KEY([款号]) REFERENCES [款号总表]([款号]);  -- 查找
 ALTER TABLE [款号物料明细表] ADD CONSTRAINT FK_131_查找 FOREIGN KEY([客户编号]) REFERENCES [客户资料]([客户编号]);  -- 查找
 ALTER TABLE [款号物料明细表] ADD CONSTRAINT FK_132_查找 FOREIGN KEY([款号]) REFERENCES [款号总表]([款号]);  -- 查找
-ALTER TABLE [款号物料明细表] ADD CONSTRAINT FK_133_查找 FOREIGN KEY([物料编号]) REFERENCES [物料资料]([物料编号]);  -- 查找
+-- FK_133_查找 已废弃:BOM 为混合物料(来料+塑胶),外键改为应用层校验(StyleService.ReplaceMaterialsAsync 校验两档案),见 db/68
 ALTER TABLE [款号颜色表] ADD CONSTRAINT FK_134_查找 FOREIGN KEY([款号]) REFERENCES [款号总表]([款号]);  -- 查找
 ALTER TABLE [物料资料] ADD CONSTRAINT FK_135_查找 FOREIGN KEY([供应商编号]) REFERENCES [供应商资料]([供应商编号]);  -- 查找
 ALTER TABLE [物料资料] ADD CONSTRAINT FK_136_查找 FOREIGN KEY([款号]) REFERENCES [款号总表]([款号]);  -- 查找
 ALTER TABLE [物料资料] ADD CONSTRAINT FK_137_查找 FOREIGN KEY([生产单号]) REFERENCES [生产制单]([生产单号]);  -- 查找
 ALTER TABLE [生产BOM物料清单] ADD CONSTRAINT FK_138_查找 FOREIGN KEY([供应商编号]) REFERENCES [供应商资料]([供应商编号]);  -- 查找
 ALTER TABLE [生产BOM物料清单] ADD CONSTRAINT FK_139_查找 FOREIGN KEY([款号]) REFERENCES [款号总表]([款号]);  -- 查找
-ALTER TABLE [生产BOM物料清单] ADD CONSTRAINT FK_140_查找 FOREIGN KEY([物料编号]) REFERENCES [物料资料]([物料编号]);  -- 查找
+-- FK_140_查找 同 FK_133 已废弃(生产BOM物料清单为 BOM 展开快照,同样允许混合物料),见 db/68
 ALTER TABLE [生产BOM物料清单] ADD CONSTRAINT FK_141_查找 FOREIGN KEY([生产单号]) REFERENCES [生产制单]([生产单号]);  -- 查找
 ALTER TABLE [生产制单] ADD CONSTRAINT FK_142_查找 FOREIGN KEY([加工厂编号]) REFERENCES [加工厂资料]([加工厂编号]);  -- 查找
 ALTER TABLE [生产制单] ADD CONSTRAINT FK_143_查找 FOREIGN KEY([客户编号]) REFERENCES [客户资料]([客户编号]);  -- 查找
