@@ -222,6 +222,7 @@ export default function MaterialMasterPage() {
           </Space>
         )}
         <Tree
+          key={treeData[0]?.children?.length ?? 0}
           treeData={treeData}
           selectedKeys={[selKey]}
           defaultExpandAll

@@ -33,8 +33,14 @@ export default function PlasticRawMaterialSummaryPage() {
     setRange([base.startOf("month"), base.endOf("month")]);
   };
 
+  const kg = (v: number) => `${Number(v ?? 0).toFixed(1)} KG`;
   const columns = [
     { title: "原料名称", dataIndex: "原料名称", width: 240 },
+    { title: "本月库存重量(KG)", dataIndex: "本月库存重量", width: 140, align: "right" as const, render: kg },
+    { title: "存外厂重量(KG)", dataIndex: "存外厂重量", width: 140, align: "right" as const, render: kg },
+    { title: "本月报废重量(KG)", dataIndex: "本月报废重量", width: 140, align: "right" as const, render: kg },
+    { title: "本月总重量(KG)", dataIndex: "本月总重量", width: 140, align: "right" as const,
+      render: (v: number) => <span style={{ fontWeight: 600 }}>{kg(v)}</span> },
     { title: "本月库存", dataIndex: "本月库存", width: 120, align: "right" as const,
       render: (v: number) => <span style={{ color: v < 0 ? "#cf1322" : undefined }}>{v}</span> },
     { title: "存外厂数量", dataIndex: "存外厂数量", width: 120, align: "right" as const },
@@ -46,7 +52,10 @@ export default function PlasticRawMaterialSummaryPage() {
 
   const sum = (k: keyof PlasticRawMaterialSummaryRow) => rows.reduce((s, r) => s + Number(r[k] ?? 0), 0);
   const exportCols: ExportCol[] = [
-    { title: "原料名称", key: "原料名称" }, { title: "本月库存", key: "本月库存" },
+    { title: "原料名称", key: "原料名称" },
+    { title: "本月库存重量(KG)", key: "本月库存重量" }, { title: "存外厂重量(KG)", key: "存外厂重量" },
+    { title: "本月报废重量(KG)", key: "本月报废重量" }, { title: "本月总重量(KG)", key: "本月总重量" },
+    { title: "本月库存", key: "本月库存" },
     { title: "存外厂数量", key: "存外厂数量" }, { title: "本月报废", key: "本月报废" }, { title: "本月总数", key: "本月总数" },
   ];
   const asRecords = () => rows as unknown as Record<string, unknown>[];
@@ -74,10 +83,14 @@ export default function PlasticRawMaterialSummaryPage() {
           <Table.Summary fixed>
             <Table.Summary.Row>
               <Table.Summary.Cell index={0}><b>合计</b></Table.Summary.Cell>
-              <Table.Summary.Cell index={1} align="right"><b>{sum("本月库存")}</b></Table.Summary.Cell>
-              <Table.Summary.Cell index={2} align="right"><b>{sum("存外厂数量")}</b></Table.Summary.Cell>
-              <Table.Summary.Cell index={3} align="right"><b>{sum("本月报废")}</b></Table.Summary.Cell>
-              <Table.Summary.Cell index={4} align="right"><b>{sum("本月总数")}</b></Table.Summary.Cell>
+              <Table.Summary.Cell index={1} align="right"><b>{kg(sum("本月库存重量"))}</b></Table.Summary.Cell>
+              <Table.Summary.Cell index={2} align="right"><b>{kg(sum("存外厂重量"))}</b></Table.Summary.Cell>
+              <Table.Summary.Cell index={3} align="right"><b>{kg(sum("本月报废重量"))}</b></Table.Summary.Cell>
+              <Table.Summary.Cell index={4} align="right"><b>{kg(sum("本月总重量"))}</b></Table.Summary.Cell>
+              <Table.Summary.Cell index={5} align="right"><b>{sum("本月库存")}</b></Table.Summary.Cell>
+              <Table.Summary.Cell index={6} align="right"><b>{sum("存外厂数量")}</b></Table.Summary.Cell>
+              <Table.Summary.Cell index={7} align="right"><b>{sum("本月报废")}</b></Table.Summary.Cell>
+              <Table.Summary.Cell index={8} align="right"><b>{sum("本月总数")}</b></Table.Summary.Cell>
             </Table.Summary.Row>
           </Table.Summary>
         )} />

@@ -78,7 +78,7 @@ export default function PlasticInventoryPage() {
   return (
     <Card title="塑胶库存统计表" variant="borderless" styles={{ body: { display: "flex", gap: 12 } }}>
       <div style={{ width: 200, flex: "0 0 200px", borderRight: "1px solid #f0f0f0", paddingRight: 8 }}>
-        <Tree treeData={treeData} selectedKeys={[selKey]} defaultExpandAll
+        <Tree key={treeData[0]?.children?.length ?? 0} treeData={treeData} selectedKeys={[selKey]} defaultExpandAll
           onSelect={keys => { if (keys.length) setSelKey(String(keys[0])); }} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>

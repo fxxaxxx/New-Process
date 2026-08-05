@@ -62,3 +62,7 @@ body[data-erp-theme="dark"] { background: #0b0e16; }
     min-width: 0;
   }
 }
+
+/* 左树节点标题一律单行显示(如 塑胶分类 TIGERHEAD 塑胶(0)),超出横向滚动不折行 */
+.ant-tree .ant-tree-title { white-space: nowrap; }
+.ant-tree .ant-tree-node-content-wrapper { overflow-x: auto; overflow-y: hidden; }

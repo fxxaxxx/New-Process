@@ -38,6 +38,10 @@ public sealed class PlasticInOutRow
 public sealed class PlasticRawMaterialSummaryRow
 {
     public string? 原料名称 { get; set; }
+    public decimal 本月库存重量 { get; set; }
+    public decimal 存外厂重量 { get; set; }
+    public decimal 本月报废重量 { get; set; }
+    public decimal 本月总重量 { get; set; }
     public decimal 本月库存 { get; set; }
     public decimal 存外厂数量 { get; set; }
     public decimal 本月报废 { get; set; }
@@ -217,28 +221,29 @@ ORDER BY t.[物料编号], t.[仓库]";
         var qi = 起.Date;
         var qe = 止.Date.AddDays(1);
         var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        // 旧系统"原料本月库存汇总"口径:原料台账(入/退/出/退/盘,仅审核单)按原料名称汇总,
+        // 重量=数量×每包重量;存外厂待发外单据上线后接,原料报废单暂无→0(塑胶件报废不属于原料口径)
         var sql = $@"
 WITH 库存 AS (
-    SELECT [物料名称], SUM([数量]) AS 本月库存
-    FROM ({LedgerUnion}) t
-    GROUP BY [物料名称]
-),
-报废 AS (
-    SELECT d.[物料名称], SUM(ISNULL(d.[数量],0)) AS 本月报废
-    FROM [塑胶报废明细单] d JOIN [塑胶报废单] h ON h.[单号]=d.[单号]
-    WHERE ISNULL(h.[审核],'0')='1' AND h.[日期] >= @qi AND h.[日期] < @qe
-    GROUP BY d.[物料名称]
+    SELECT [原料名称],
+           SUM(ISNULL([数量],0)) AS 本月库存,
+           SUM(ISNULL([数量],0) * ISNULL([每包重量],0)) AS 本月库存重量
+    FROM ({RawMaterialLedgerUnion}) t
+    GROUP BY [原料名称]
 )
-SELECT ISNULL(k.[物料名称], s.[物料名称]) AS 原料名称,
-       ISNULL(k.[本月库存],0) AS 本月库存,
+SELECT [原料名称] AS 原料名称,
+       [本月库存重量],
+       CAST(0 AS decimal(18,4)) AS 存外厂重量,
+       CAST(0 AS decimal(18,4)) AS 本月报废重量,
+       [本月库存重量] AS 本月总重量,
+       [本月库存],
        CAST(0 AS decimal(18,4)) AS 存外厂数量,
-       ISNULL(s.[本月报废],0) AS 本月报废,
-       ISNULL(k.[本月库存],0) + ISNULL(s.[本月报废],0) AS 本月总数
-FROM 库存 k
-FULL OUTER JOIN 报废 s ON s.[物料名称] = k.[物料名称]
-WHERE (@kw IS NULL OR ISNULL(k.[物料名称], s.[物料名称]) LIKE @kw)
-  AND (ISNULL(k.[本月库存],0) <> 0 OR ISNULL(s.[本月报废],0) <> 0)
-ORDER BY 原料名称";
+       CAST(0 AS decimal(18,4)) AS 本月报废,
+       [本月库存] AS 本月总数
+FROM 库存
+WHERE (@kw IS NULL OR [原料名称] LIKE @kw)
+  AND ([本月库存] <> 0 OR [本月库存重量] <> 0)
+ORDER BY [原料名称]";
         using var c = factory.Create();
         var rows = await c.QueryAsync<PlasticRawMaterialSummaryRow>(sql, new { qi, qe, kw });
         return rows.AsList();

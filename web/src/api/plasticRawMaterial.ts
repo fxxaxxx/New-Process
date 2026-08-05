@@ -1,7 +1,9 @@
 import { api } from "./client";
 
 export interface PlasticRawMaterialSummaryRow {
-  原料名称?: string; 本月库存: number; 存外厂数量: number; 本月报废: number; 本月总数: number;
+  原料名称?: string;
+  本月库存重量: number; 存外厂重量: number; 本月报废重量: number; 本月总重量: number;
+  本月库存: number; 存外厂数量: number; 本月报废: number; 本月总数: number;
 }
 
 export interface PlasticRawMaterialInventoryRow {
