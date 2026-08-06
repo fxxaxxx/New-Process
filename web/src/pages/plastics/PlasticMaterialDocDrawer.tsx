@@ -86,7 +86,7 @@ export default function PlasticMaterialDocDrawer({ open, 生产单号, 单号, o
 
   const editColumns = [
     { title: "序号", width: 56, render: (_: unknown, __: EditRow, i: number) => i + 1 },
-    { title: "工模编号", dataIndex: "工模编号", width: 90 },
+    { title: "工模编号", dataIndex: "工模编号", width: 140 },
     { title: "物料编号", dataIndex: "物料编号", width: 110 },
     { title: "物料名称", dataIndex: "物料名称", width: 130 },
     { title: "颜色", dataIndex: "颜色", width: 110 },
@@ -107,7 +107,7 @@ export default function PlasticMaterialDocDrawer({ open, 生产单号, 单号, o
   ];
 
   const viewColumns = [
-    { title: "工模编号", dataIndex: "工模编号", width: 90 },
+    { title: "工模编号", dataIndex: "工模编号", width: 140 },
     { title: "物料编号", dataIndex: "物料编号", width: 110 },
     { title: "物料名称", dataIndex: "物料名称", width: 130 },
     { title: "颜色", dataIndex: "颜色", width: 110 },

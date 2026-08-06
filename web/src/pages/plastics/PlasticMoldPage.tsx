@@ -169,7 +169,7 @@ export default function PlasticMoldPage() {
     { title: "整啤套数", dataIndex: "整啤套数", width: 90, align: "right" as const, render: num },
     { title: "啤机机型", dataIndex: "啤机机型", width: 90 },
     { title: "模具日产量", dataIndex: "模具日产量", width: 100, align: "right" as const, render: num },
-    { title: "用料名称", dataIndex: "用料名称", width: 110 },
+    { title: "用料名称", dataIndex: "用料名称", width: 200 },
     { title: "整啤净重", dataIndex: "整啤净重", width: 90, align: "right" as const, render: num },
     { title: "水口比例", dataIndex: "水口比例", width: 90, align: "right" as const, render: num },
     { title: "备注", dataIndex: "备注", width: 140 },

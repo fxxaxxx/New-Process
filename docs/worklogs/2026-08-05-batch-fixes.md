@@ -58,3 +58,23 @@
 ## 总验证
 - npm run build 过;npm test 310 过;eslint:BomSetupPage 3 个=基线 3,新页面为基线同款 set-state-in-effect 类(全仓既有模式),无新类别错误。
 - dist 已同步 src/ErpApi/wwwroot;未 git commit。
+
+---
+
+# 2026-08-06 追加:全站窄文本列加宽防折行
+
+## 方法
+- 静态扫描(grep 列定义 width≤90 文本列)+ Playwright 行高实测(行高 >1.35×中位数标记)+ 单元格级 Range 高度定位(>30px 即两行)。
+
+## 修复(只动列宽)
+- PlasticMaterialMasterPage:工模编号 130→150、物料名称 140→170、原料名称 90→130、用料名称 100→200。
+- PlasticMoldPage:用料名称 110→200。
+- MaterialMasterPage:颜色 80→110。
+- PlasticMaterialDocDrawer:工模编号 90→140(明细/汇总两处)。
+
+## 实测
+- 修复前折行点:塑胶物料资料(3 行 83px vs 中位 61:用料名称"透明MABS TX-0520IM-NP"等)、工模表(5 行 61 vs 39:用料名称)。
+- 修复后行高实测:plastic-material-master 35 行全 39、plastic-molds 23 行全 39、material-master 50 行统一 61(本就等高)——全部无折行。截图 after_pmm/after_molds/after_mm.png。
+- npm run build 过;npm test 310 过。
+- 其余页面(部门人事/供应商/库存/生产/采购等 11 页)实测行高均匀,未动。
+- 部署:web/dist 已同步 src/ErpApi/wwwroot。

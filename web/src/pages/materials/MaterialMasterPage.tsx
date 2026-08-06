@@ -194,7 +194,7 @@ export default function MaterialMasterPage() {
     { title: "物料名称", dataIndex: "物料名称", width: 150 },
     { title: "类别", dataIndex: "物料类别", width: 100 },
     { title: "规格", dataIndex: "规格", width: 100 },
-    { title: "颜色", dataIndex: "颜色", width: 80 },
+    { title: "颜色", dataIndex: "颜色", width: 110 },
     { title: "单位", dataIndex: "单位", width: 64 },
     { title: "单价", dataIndex: "单价", width: 90, align: "right" as const, render: money },
     { title: "销售价", dataIndex: "销售价", width: 90, align: "right" as const, render: money },
