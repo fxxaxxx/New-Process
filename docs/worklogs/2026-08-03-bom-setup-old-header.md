@@ -244,3 +244,17 @@
 - Playwright:admin 登录流程回归(登录页填表→进 Dashboard 正常);登录页/首页截图 login_new.png / dash_regression.png。
 - 部署:web/dist 已同步 src/ErpApi/wwwroot(index-B_vtfDbl.js)。
 - 提交:d08266b perf(web): 路由级代码分割+xlsx按需加载+登录页美化(已推 origin master 与 master:main)。
+
+---
+
+# 2026-08-06 追加:全站视觉打磨(纯视觉层)
+
+## 改动(仅 2 个文件)
+- web/src/theme/themes.ts(antd token):Table 淡底表头 #fafbfc/淡蓝 hover #f5f8ff/cellPadding 13;Card 圆角 14;Button 圆角 8+主按钮轻投影;Modal/Drawer 圆角 14;Tag pill 圆角 999;Form label 颜色字重统一;Input/InputNumber focus 阴影;Menu item 间距微调。
+- web/src/index.css:表头分隔线加粗 2px;表格圆角外框(容器 overflow hidden,不影响表体滚动);按钮 0.18s 过渡;Modal 遮罩 backdrop-filter blur(2px)(仅 modal);Drawer 左圆角;侧栏菜单组标题字重/字距、选中项加粗;顶栏极淡下边阴影;内容区 0.18s fade-in;深浅色兼容(dark 表头 #11162a)。MainLayout.tsx 未动。
+- 登录页不在本轮范围(上轮已美化)。
+
+## 验证
+- npm run build 过;npm test 310 过;eslint themes.ts 0 问题(index.css 仅"file ignored"提示,非问题)。
+- Playwright 6 页截图(p_login/p_dash/p_material-master/p_plastic-material-master/p_purchase-orders/p_production + p_hover):表头淡底+加粗分隔线、表格圆角外框、行 hover 淡蓝、侧栏 pill 高亮、顶栏淡阴影、卡片圆角投影均生效,无破版/错位/溢出/对比度问题。
+- 部署:web/dist 已同步 src/ErpApi/wwwroot。
