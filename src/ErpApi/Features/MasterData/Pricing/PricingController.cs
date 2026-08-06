@@ -10,12 +10,7 @@ namespace ErpApi.Features.MasterData.Pricing;
 public sealed class PricingController(PricingService pricing, ISqlConnectionFactory factory) : ControllerBase
 {
     // 取价：GET /api/master/pricing/material?物料编号=..&报价类别=..&asOf=2026-06-01
-    [HttpGet("material")]
-    public async Task<IActionResult> GetPrice(string 物料编号, string 报价类别, DateTime? asOf)
-    {
-        var price = await pricing.GetMaterialPriceAsync(物料编号, 报价类别, asOf ?? DateTime.Now);
-        return Ok(new { 物料编号, 报价类别, 单价 = price });
-    }
+
 
     // 应用调价：把一张调价单的明细写成 报价资料 的新生效价(生效日期=单据日期)
     [HttpPost("apply/{单号}")]

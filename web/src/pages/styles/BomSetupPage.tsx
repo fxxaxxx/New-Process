@@ -206,6 +206,8 @@ export default function BomSetupPage() {
   const [pickKw, setPickKw] = useState("");
   const [pickLoading, setPickLoading] = useState(false);
   const [pickTab, setPickTab] = useState<"material" | "semi">("material");
+  // 物料 picker 多选勾选的行 key（格式 `m-${下标}`，与表格 rowKey 一致）
+  const [pickSelectedKeys, setPickSelectedKeys] = useState<string[]>([]);
   const [semiOptions, setSemiOptions] = useState<SemiOption[]>([]);
 
   const [partnerOpen, setPartnerOpen] = useState(false);
@@ -479,6 +481,8 @@ export default function BomSetupPage() {
       const dedup = new Map<string, MaterialPick>();
       for (const m of source) dedup.set(`${m.物料编号 ?? ""}|${m.物料名称 ?? ""}|${m.规格 ?? ""}`, m);
       setPickRows([...dedup.values()]);
+      // 数据刷新后行下标可能变化，清空多选勾选避免错位
+      setPickSelectedKeys([]);
     } catch {
       message.error("加载该货号物料失败");
     } finally {
@@ -495,6 +499,7 @@ export default function BomSetupPage() {
     setPickRowKey(rowKey);
     setPickKw("");
     setPickTab("material");
+    setPickSelectedKeys([]);
     loadPickList("");
   };
 
@@ -525,7 +530,41 @@ export default function BomSetupPage() {
     });
     setRows(prev => (prev.some(r => !r.物料编号 && !r.物料名称) ? prev : [...prev, newRow()]));
     setPickRowKey(null);
+    setPickSelectedKeys([]);
     openPartnerPicker(pickRowKey, "supplier");
+  };
+
+  // 多选加入：按勾选顺序一次性把多个物料加入明细；字段映射与单行加入一致，但用量留空待填
+  const choosePickMulti = () => {
+    if (pickRowKey == null || !pickSelectedKeys.length) return;
+    const picked = pickRows.filter((_, i) => pickSelectedKeys.includes(`m-${i}`));
+    if (!picked.length) { message.warning("请先勾选要加入的物料"); return; }
+    const added: MatRow[] = picked.map(m => ({
+      key: uid(),
+      物料编号: m.物料编号 ?? "",
+      物料名称: m.物料名称 ?? "",
+      工模编号: m.工模编号 ?? "",
+      规格: m.规格 ?? "",
+      材料: m.材料 ?? m.物料类别 ?? "",
+      颜色: m.颜色 ?? "",
+      单位: m.单位 ?? "",
+      用量: undefined, // 多选加入时用量留空待填
+      备注: m.备注 ?? "",
+    }));
+    setRows(prev => {
+      const next = [...prev];
+      const idx = next.findIndex(r => r.key === pickRowKey);
+      // 触发行（点放大镜的行）为空时用它承载第一条勾选物料，其余插到其后；否则整体追加到末尾
+      if (idx >= 0 && !next[idx].物料编号 && !next[idx].物料名称) {
+        next.splice(idx, 1, ...added);
+      } else {
+        next.push(...added);
+      }
+      return next.some(r => !r.物料编号 && !r.物料名称) ? next : [...next, newRow()];
+    });
+    message.success(`已加入 ${added.length} 行物料`);
+    setPickRowKey(null);
+    setPickSelectedKeys([]);
   };
 
   // 调入下级半成品：行内存款号，用量默认取半成品的需求用量（可手工改）；半成品无需选供应商
@@ -595,6 +634,13 @@ export default function BomSetupPage() {
 
   const addRow = () => setRows(rs => [...rs, newRow()]);
   const removeRow = (key: number) => setRows(rs => rs.filter(r => r.key !== key));
+  // 在当前行下方（index+1 处）插入一行空行，结构与"添加行"一致
+  const insertRow = (index: number) =>
+    setRows(rs => {
+      const next = [...rs];
+      next.splice(index + 1, 0, newRow());
+      return next;
+    });
 
   // 打开导入弹窗：一次性全量拉取物料档案建 Map 供逐行校验
   const openImport = async () => {
@@ -894,8 +940,14 @@ export default function BomSetupPage() {
 
   const matColumns: ColumnsType<MatRow> = [
     {
-      title: "", width: 40, align: "center",
-      render: (_v, r) => <a style={{ color: "#cf1322" }} onClick={() => { if (!readOnly) removeRow(r.key); }}>删</a>,
+      title: "", width: 84, align: "center",
+      render: (_v, r, i) => (
+        <Space size={8}>
+          {/* 在该行下方插入一行空行 */}
+          <a onClick={() => { if (!readOnly) insertRow(i); }}>插入</a>
+          <a style={{ color: "#cf1322" }} onClick={() => { if (!readOnly) removeRow(r.key); }}>删</a>
+        </Space>
+      ),
     },
     { title: "序号", width: 58, render: (_v, _r, i) => i + 1 },
     {
@@ -1247,12 +1299,20 @@ export default function BomSetupPage() {
         </Form>
       </Modal>
 
-      <Modal title="选择该货号的物料/下级半成品" open={pickRowKey != null} footer={null} width={980} onCancel={() => setPickRowKey(null)}>
-        <Input.Search
-          placeholder="搜索物料编号/物料名称/规格" allowClear style={{ marginBottom: 12, width: 320 }}
-          value={pickKw} onChange={e => setPickKw(e.target.value)}
-          onSearch={v => { if (pickTab === "semi") setPickKw(v); else loadPickList(v); }}
-        />
+      <Modal title="选择该货号的物料/下级半成品" open={pickRowKey != null} footer={null} width={980} onCancel={() => { setPickRowKey(null); setPickSelectedKeys([]); }}>
+        <Space style={{ marginBottom: 12 }} wrap>
+          <Input.Search
+            placeholder="搜索物料编号/物料名称/规格" allowClear style={{ width: 320 }}
+            value={pickKw} onChange={e => setPickKw(e.target.value)}
+            onSearch={v => { if (pickTab === "semi") setPickKw(v); else loadPickList(v); }}
+          />
+          {/* 多选加入：仅"物料"页签可用，把勾选的物料一次性追加进 BOM 明细（单击行仍是单行加入） */}
+          {pickTab === "material" && (
+            <Button type="primary" disabled={!pickSelectedKeys.length} onClick={choosePickMulti}>
+              多选加入{pickSelectedKeys.length ? `（${pickSelectedKeys.length}）` : ""}
+            </Button>
+          )}
+        </Space>
         <Tabs
           activeKey={pickTab}
           onChange={k => setPickTab(k as "material" | "semi")}
@@ -1268,7 +1328,18 @@ export default function BomSetupPage() {
                   dataSource={pickRows}
                   scroll={{ y: 420, x: "max-content" }}
                   pagination={false}
-                  onRow={r => ({ onClick: () => choosePick(r), style: { cursor: "pointer" } })}
+                  rowSelection={{
+                    selectedRowKeys: pickSelectedKeys,
+                    onChange: keys => setPickSelectedKeys(keys.map(String)),
+                  }}
+                  onRow={r => ({
+                    onClick: e => {
+                      // 点击多选 checkbox 单元格时不触发单行加入，只改变勾选状态
+                      if ((e.target as HTMLElement).closest(".ant-table-selection-column")) return;
+                      choosePick(r);
+                    },
+                    style: { cursor: "pointer" },
+                  })}
                   columns={[
                     { title: "款号", dataIndex: "款号", width: 120 },
                     { title: "物料编号", dataIndex: "物料编号", width: 130, render: (v: string) => <a className="erp-num">{v}</a> },

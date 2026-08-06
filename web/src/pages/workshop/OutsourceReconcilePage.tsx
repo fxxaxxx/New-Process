@@ -1,8 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { Card, Select, Table, message } from "antd";
 import { outsourcingApi, type OutHeader, type OutReconcileRow } from "../../api/outsourcing";
+import { can } from "../../auth/permissions";
+import { usePerms } from "../../auth/PermissionContext";
+
+// 菜单权限名"发外对数"(后端 reconcile 接口同名门控)
+const MENU = "发外对数";
 
 export default function OutsourceReconcilePage() {
+  const perms = usePerms();
+  const canOpen = can(perms, MENU, "打开");
   const [dispatched, setDispatched] = useState<OutHeader[]>([]);
   const [发外单号, set发外单号] = useState<string>();
   const [rows, setRows] = useState<OutReconcileRow[]>([]);
@@ -32,6 +39,14 @@ export default function OutsourceReconcilePage() {
     { title: "单价", dataIndex: "单价", render: (v?: number | null) => (v == null ? "***" : v) },
     { title: "金额", dataIndex: "金额", render: (v?: number | null) => (v == null ? "***" : v) },
   ];
+
+  if (!canOpen) {
+    return (
+      <Card variant="borderless">
+        <div style={{ padding: 24, color: "#999" }}>无权访问该页面（缺少"发外对数·打开"权限）。</div>
+      </Card>
+    );
+  }
 
   return (
     <Card title="发外对数（按发外单 款×加工项目 核对发外/回收/相差）" variant="borderless"

@@ -25,6 +25,7 @@ public sealed class PlasticStocktakeService(
     public async Task<string> CreateAsync(PlasticStocktakeCreateDto dto, string user)
     {
         if (dto.明细.Count == 0) throw new ArgumentException("塑胶盘点单至少要有一行明细");
+        if (dto.明细.Any(l => l.盘点数量 < 0)) throw new ArgumentException("盘点数量不能为负");
         if (string.IsNullOrWhiteSpace(dto.仓库)) throw new ArgumentException("塑胶盘点单必须指定仓库");
         var now = DateTime.Now;
         using var c = factory.Create();

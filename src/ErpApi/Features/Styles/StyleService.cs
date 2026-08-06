@@ -114,6 +114,13 @@ WHERE [产品货号]=@款号;", new { 款号 }, tx);
             if (audited)
                 throw new InvalidOperationException($"款号 [{款号}] 已审核，不能保存，请先反审核。");
 
+            // BOM 台头已审核同样禁改(旧说明书 3-1:审核后必须反审核才能修改;与装配 调整审核 是两套)
+            var bomAudited = await c.ExecuteScalarAsync<string?>(@"
+SELECT ISNULL([审核],'0') FROM [款号物料总表] WITH (UPDLOCK, HOLDLOCK) WHERE [款号]=@款号;",
+                new { 款号 }, tx);
+            if (bomAudited == "1")
+                throw new InvalidOperationException($"款号 [{款号}] 的 BOM 已审核，请先反审核再修改。");
+
             // 物料编号列宽防御（物料资料.物料编号 = nvarchar(20)，不加宽，见 db/56_widen_material_code.sql 评估）：
             // 半成品款号可超过 20 字，调入 BOM 后塞不进 物料编号 列；即便截断写入，半成品行判定
             // （编号 ∈ 半成品共用物料设置.产品货号）也会失效，多层级展开按普通物料错算。超长半成品款号直接拒绝调入。

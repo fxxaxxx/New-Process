@@ -14,6 +14,7 @@ public sealed class PlasticRawMaterialStocktakeService(ISqlConnectionFactory fac
     public async Task<string> CreateAsync(PlasticRawMaterialStocktakeCreateDto dto, string user)
     {
         if (dto.明细.Count == 0) throw new ArgumentException("原料盘点单至少要有一行明细");
+        if (dto.明细.Any(l => l.盘点数量 < 0)) throw new ArgumentException("盘点数量不能为负");
         var now = DateTime.Now;
 
         using var c = factory.Create();

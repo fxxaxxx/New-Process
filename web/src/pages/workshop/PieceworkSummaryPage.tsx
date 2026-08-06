@@ -2,8 +2,15 @@ import { useCallback, useEffect, useState } from "react";
 import { Card, Select, Table, message } from "antd";
 import { productionApi, type ProductionHeader } from "../../api/production";
 import { pieceworkApi, type PieceSummaryRow } from "../../api/piecework";
+import { can } from "../../auth/permissions";
+import { usePerms } from "../../auth/PermissionContext";
+
+// 菜单权限名"计件汇总"(后端 summary 接口同名门控)
+const MENU = "计件汇总";
 
 export default function PieceworkSummaryPage() {
+  const perms = usePerms();
+  const canOpen = can(perms, MENU, "打开");
   const [orders, setOrders] = useState<ProductionHeader[]>([]);
   const [生产单号, set生产单号] = useState<string>();
   const [rows, setRows] = useState<PieceSummaryRow[]>([]);
@@ -29,6 +36,14 @@ export default function PieceworkSummaryPage() {
     { title: "计件数量", dataIndex: "数量" },
     { title: "计件金额", dataIndex: "金额", render: (v?: number | null) => (v == null ? "***" : v) },
   ];
+
+  if (!canOpen) {
+    return (
+      <Card variant="borderless">
+        <div style={{ padding: 24, color: "#999" }}>无权访问该页面（缺少"计件汇总·打开"权限）。</div>
+      </Card>
+    );
+  }
 
   return (
     <Card title="计件汇总（已审核计件按工人×工序归集）" variant="borderless"

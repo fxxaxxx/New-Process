@@ -50,6 +50,7 @@ ORDER BY [款号]", new { kw = Kw(keyword) });
 
     // 采购超数查询：每(生产单 × 物料) 已采购数量(审核入仓) − BOM需求数量(算法4) > 0.005 的超采行。
     // 需求按 (生产单号,物料编号) 聚合 Σ总数量；已采购按同键 Σ数量(仅审核='1' 入仓单)。
+    // 门槛(说明书1-3):仅已审核生产通知单出数。
     public async Task<List<PurchaseOverRow>> PurchaseOverAsync(string? keyword)
     {
         using var c = factory.Create();
@@ -59,6 +60,7 @@ SELECT b.[生产单号], MAX(b.[款号]) AS 款号, MAX(b.[合同号]) AS 合同
        SUM(ISNULL(b.[总数量],0)) AS 需求数量, ISNULL(p.已采购,0) AS 已采购数量,
        ISNULL(p.已采购,0) - SUM(ISNULL(b.[总数量],0)) AS 超数
 FROM [生产BOM物料清单] b
+JOIN [生产制单] g ON g.[生产单号]=b.[生产单号] AND ISNULL(g.[审核],'0')='1'
 LEFT JOIN (SELECT d.[生产单号], d.[物料编号], SUM(ISNULL(d.[数量],0)) AS 已采购
            FROM [采购入仓明细单] d JOIN [采购入仓单] h ON h.[单号]=d.[单号]
            WHERE ISNULL(h.[审核],'0')='1' GROUP BY d.[生产单号], d.[物料编号]) p
@@ -72,6 +74,7 @@ ORDER BY b.[生产单号], b.[物料编号]", new { kw = Kw(keyword) });
 
     // 领料超数/欠领查询：每(生产单 × 物料) 有 BOM 需求即返回，差异=已领数量(审核领料单) − BOM需求数量(算法4)。
     // 负数=欠领(还没领够/还没领料)，正数=超领。需求按 (生产单号,物料编号) 聚合 Σ总数量；已领按同键 Σ数量(仅审核='1' 领料单)。
+    // 门槛(说明书1-3):仅已审核生产通知单出数。
     public async Task<List<IssueOverRow>> IssueOverAsync(string? keyword)
     {
         using var c = factory.Create();
@@ -81,6 +84,7 @@ SELECT b.[生产单号], MAX(b.[款号]) AS 款号, MAX(b.[合同号]) AS 合同
        SUM(ISNULL(b.[总数量],0)) AS 需求数量, ISNULL(p.已领,0) AS 已领数量,
        ISNULL(p.已领,0) - SUM(ISNULL(b.[总数量],0)) AS 差异
 FROM [生产BOM物料清单] b
+JOIN [生产制单] g ON g.[生产单号]=b.[生产单号] AND ISNULL(g.[审核],'0')='1'
 LEFT JOIN (SELECT d.[生产单号], d.[物料编号], SUM(ISNULL(d.[数量],0)) AS 已领
            FROM [领料明细单] d JOIN [领料单] h ON h.[单号]=d.[单号]
            WHERE ISNULL(h.[审核],'0')='1' GROUP BY d.[生产单号], d.[物料编号]) p

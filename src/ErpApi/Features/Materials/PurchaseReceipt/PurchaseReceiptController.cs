@@ -39,24 +39,10 @@ public sealed class PurchaseReceiptController(
     }
 
     // 来料标签查询·明细：每行一条采购入仓明细(双击 单号 看整单)。无价格列。
-    [HttpGet("label-query/detail")]
-    public async Task<IActionResult> LabelQueryDetail(
-        DateTime? 起 = null, DateTime? 止 = null, string? keyword = null,
-        string? 物料类别 = null, string? 审核情况 = null)
-    {
-        if (!await AllowAsync(PermissionAction.打开)) return Forbid();
-        return Ok(await svc.LabelQueryDetailAsync(起, 止, keyword, 物料类别, 审核情况));
-    }
+
 
     // 来料标签查询·汇总：按 物料编号+规格+颜色 合并。
-    [HttpGet("label-query/summary")]
-    public async Task<IActionResult> LabelQuerySummary(
-        DateTime? 起 = null, DateTime? 止 = null, string? keyword = null,
-        string? 物料类别 = null, string? 审核情况 = null)
-    {
-        if (!await AllowAsync(PermissionAction.打开)) return Forbid();
-        return Ok(await svc.LabelQuerySummaryAsync(起, 止, keyword, 物料类别, 审核情况));
-    }
+
 
     // 采购入仓查询·明细：每行一条采购入仓明细(全列·无价格,双击 入库单号 看整单)。
     [HttpGet("receipt-query/detail")]

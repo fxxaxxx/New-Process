@@ -24,6 +24,7 @@ public sealed class PurchaseOrderCreateDto
     public string? 生产单号 { get; set; }   // 自由开单可空
     public string? 供应商编号 { get; set; }
     public string? 供应商名称 { get; set; }
+    public DateTime? 日期 { get; set; }     // 可空,空则取当天
     public DateTime? 交货日期 { get; set; }
     public string? 仓库 { get; set; }
     public string? 款号 { get; set; }

@@ -215,6 +215,7 @@ export default function PurchaseOrderDrawer({
       生产单号: 生产单号 ?? detail?.单头?.生产单号 ?? undefined,
       供应商编号: header.供应商编号.trim(),
       供应商名称: header.供应商名称.trim() || undefined,
+      日期: header.日期 ? header.日期.format("YYYY-MM-DD") : undefined,
       交货日期: header.交货日期 ? header.交货日期.format("YYYY-MM-DD") : undefined,
       收件人: header.收件人.trim() || undefined,
       仓库: header.仓库.trim() || undefined,

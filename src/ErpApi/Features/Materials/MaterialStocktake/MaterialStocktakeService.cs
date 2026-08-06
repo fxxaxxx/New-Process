@@ -28,6 +28,7 @@ public sealed class MaterialStocktakeService(
     public async Task<string> CreateAsync(MaterialStocktakeCreateDto dto, string user)
     {
         if (dto.明细.Count == 0) throw new ArgumentException("盘点单至少要有一行明细");
+        if (dto.明细.Any(l => l.盘点数量 < 0)) throw new ArgumentException("盘点数量不能为负");
         if (string.IsNullOrWhiteSpace(dto.仓库)) throw new ArgumentException("仓库必填");
         var now = DateTime.Now;
         var docDate = dto.日期 ?? now;

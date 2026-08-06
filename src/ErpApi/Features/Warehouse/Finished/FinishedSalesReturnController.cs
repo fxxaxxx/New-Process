@@ -50,16 +50,6 @@ public sealed class FinishedSalesReturnController(
         return Ok(rows);
     }
 
-    [HttpGet("{单号}")]
-    public async Task<IActionResult> Get(string 单号)
-    {
-        if (!await AllowAsync(PermissionAction.打开)) return Forbid();
-        var d = await svc.GetAsync(单号);
-        if (d is null) return NotFound();
-        if (!await AllowAsync(PermissionAction.单价))
-            foreach (var l in d.明细) { l.单价 = null; l.金额 = null; }
-        return Ok(d);
-    }
 
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] FinishedSalesReturnCreateDto dto)
@@ -72,7 +62,7 @@ public sealed class FinishedSalesReturnController(
         catch (ArgumentException ex) { return BadRequest(new { 消息 = ex.Message }); }
         catch (SqlException ex) when (ex.Number == 547) { return BadRequest(new { 消息 = "客户/生产单号/款号不存在。" }); }
         await AuditAsync("新增", $"单号={单号}");
-        return CreatedAtAction(nameof(Get), new { 单号 }, new { 单号 });
+        return StatusCode(201, new { 单号 }); // Get 详情接口已删(死接口清理),直接返回单号
     }
 
     [HttpDelete("{单号}")]

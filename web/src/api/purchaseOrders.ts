@@ -181,6 +181,7 @@ export interface PurchaseOrderCreate {
   生产单号?: string;
   供应商编号: string;
   供应商名称?: string;
+  日期?: string;
   交货日期?: string;
   收件人?: string;
   仓库?: string;
