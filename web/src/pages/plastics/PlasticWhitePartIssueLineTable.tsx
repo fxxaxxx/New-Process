@@ -45,7 +45,7 @@ export default function PlasticWhitePartIssueLineTable({ value, onChange, readOn
     { title: "模具编号", dataIndex: "模具编号", width: 120, render: (_, r, i) => txt(r.模具编号, s => setLine(i, { 模具编号: s }), 106) },
     { title: "物料编号", dataIndex: "物料编号", width: 140, render: (_, r, i) => pickCell(r.物料编号, s => setLine(i, { 物料编号: s }), () => setMatPickFor(i), 118) },
     { title: "物料名称", dataIndex: "物料名称", width: 140, render: (v: string) => ro(v) },
-    { title: "颜色", dataIndex: "颜色", width: 80, render: (_, r, i) => txt(r.颜色, s => setLine(i, { 颜色: s }), 68) },
+    { title: "颜色", dataIndex: "颜色", width: 110, render: (_, r, i) => txt(r.颜色, s => setLine(i, { 颜色: s }), 68) },
     { title: "用料名称", dataIndex: "用料名称", width: 130, render: (_, r, i) => txt(r.用料名称, s => setLine(i, { 用料名称: s }), 118) },
     { title: "单位", dataIndex: "单位", width: 80, render: (_, r, i) => txt(r.单位, s => setLine(i, { 单位: s }), 68) },
     { title: "数量", dataIndex: "数量", width: 92, render: (_, r, i) => <InputNumber min={0} precision={2} style={{ width: 80 }} disabled={readOnly} value={r.数量 ?? 0} onChange={n => setLine(i, { 数量: Number(n ?? 0) })} /> },

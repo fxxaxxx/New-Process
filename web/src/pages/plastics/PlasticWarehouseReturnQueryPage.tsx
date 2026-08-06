@@ -62,7 +62,7 @@ export default function PlasticWarehouseReturnQueryPage() {
     { title: "工模编号", dataIndex: "工模编号", width: 110 },
     { title: "物料编号", dataIndex: "物料编号", width: 110 },
     { title: "物料名称", dataIndex: "物料名称", width: 140 },
-    { title: "颜色", dataIndex: "颜色", width: 70 },
+    { title: "颜色", dataIndex: "颜色", width: 110 },
     { title: "塑胶货号", dataIndex: "塑胶货号", width: 100 },
     { title: "共用货号", dataIndex: "共用货号", width: 100 },
     { title: "供应商", dataIndex: "供应商", width: 120 },
@@ -78,7 +78,7 @@ export default function PlasticWarehouseReturnQueryPage() {
   const summaryColumns: ColumnsType<PlasticWhReturnQuerySummaryRow> = [
     { title: "物料编号", dataIndex: "物料编号", width: 120 },
     { title: "物料名称", dataIndex: "物料名称", width: 150 },
-    { title: "颜色", dataIndex: "颜色", width: 80 },
+    { title: "颜色", dataIndex: "颜色", width: 110 },
     { title: "塑胶货号", dataIndex: "塑胶货号", width: 100 },
     { title: "共用货号", dataIndex: "共用货号", width: 100 },
     { title: "共用物料", dataIndex: "共用物料", width: 110 },

@@ -39,7 +39,7 @@ export default function PlasticInOutSummaryPage() {
     { title: "物料编号", dataIndex: "物料编号", width: 120, render: (v: string) => <span className="erp-num">{v}</span> },
     { title: "物料名称", dataIndex: "物料名称", width: 150 },
     { title: "规格", dataIndex: "规格", width: 110 },
-    { title: "颜色", dataIndex: "颜色", width: 80 },
+    { title: "颜色", dataIndex: "颜色", width: 110 },
     { title: "材料", dataIndex: "物料类别", width: 90 },
     { title: "单位", dataIndex: "单位", width: 64 },
     { title: "入仓", dataIndex: "入仓", width: 90, align: "right" as const },

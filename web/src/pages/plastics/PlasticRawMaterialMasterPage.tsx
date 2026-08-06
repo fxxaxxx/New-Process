@@ -100,7 +100,7 @@ export default function PlasticRawMaterialMasterPage() {
     { title: "物料名称", dataIndex: "物料名称", width: 150 },
     { title: "类别", dataIndex: "物料类别", width: 90 },
     { title: "规格", dataIndex: "规格", width: 100 },
-    { title: "颜色", dataIndex: "颜色", width: 70 },
+    { title: "颜色", dataIndex: "颜色", width: 110 },
     { title: "商品名称", dataIndex: "商品名称", width: 130 },
     { title: "产地", dataIndex: "产地", width: 90 },
     { title: "每包重量", dataIndex: "每包重量", width: 80, align: "right" as const, render: (v?: number | null) => v ?? "" },

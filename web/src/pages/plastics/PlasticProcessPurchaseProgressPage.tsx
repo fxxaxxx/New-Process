@@ -61,7 +61,7 @@ export default function PlasticProcessPurchaseProgressPage() {
     { title: "物料编号", dataIndex: "物料编号", width: 110 },
     { title: "物料名称", dataIndex: "物料名称", width: 140 },
     { title: "用料名称", dataIndex: "用料名称", width: 120 },
-    { title: "颜色", dataIndex: "颜色", width: 70 },
+    { title: "颜色", dataIndex: "颜色", width: 110 },
     { title: "加工内容", dataIndex: "加工内容", width: 100 },
     { title: "单位", dataIndex: "单位", width: 60 },
     { title: "订购数量", dataIndex: "订购数量", width: 90, align: "right" as const },

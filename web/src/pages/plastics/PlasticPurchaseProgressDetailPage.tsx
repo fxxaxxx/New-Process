@@ -48,7 +48,7 @@ export default function PlasticPurchaseProgressDetailPage() {
     { title: "物料编号", dataIndex: "物料编号", width: 110 },
     { title: "物料名称", dataIndex: "物料名称", width: 140 },
     { title: "模具编号", dataIndex: "模具编号", width: 100 },
-    { title: "颜色", dataIndex: "颜色", width: 80 },
+    { title: "颜色", dataIndex: "颜色", width: 110 },
     { title: "单位", dataIndex: "单位", width: 60 },
     { title: "订购数量", dataIndex: "订购数量", width: 90, align: "right" as const },
     { title: "入仓日期", dataIndex: "入仓日期", width: 100, render: (v?: string) => v?.slice(0, 10) },

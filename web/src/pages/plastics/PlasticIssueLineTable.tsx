@@ -49,7 +49,7 @@ export default function PlasticIssueLineTable({ value, onChange, readOnly, onMat
     { title: "物料编号", dataIndex: "物料编号", width: 140, render: (_: unknown, r: PILine, i: number) => pickCell(r.物料编号, s => setLine(i, { 物料编号: s }), () => setMatPickFor(i), 118) },
     { title: "模具编号", dataIndex: "模具编号", width: 110, render: (_: unknown, r: PILine, i: number) => txt(r.模具编号, s => setLine(i, { 模具编号: s }), 98) },
     { title: "物料名称", dataIndex: "物料名称", width: 140, render: (v: string) => ro(v) },
-    { title: "颜色", dataIndex: "颜色", width: 80, render: (_: unknown, r: PILine, i: number) => txt(r.颜色, s => setLine(i, { 颜色: s }), 68) },
+    { title: "颜色", dataIndex: "颜色", width: 110, render: (_: unknown, r: PILine, i: number) => txt(r.颜色, s => setLine(i, { 颜色: s }), 68) },
     { title: "色粉号", dataIndex: "色粉号", width: 100, render: (_: unknown, r: PILine, i: number) => txt(r.色粉号, s => setLine(i, { 色粉号: s }), 88) },
     { title: "用料名称", dataIndex: "用料名称", width: 120, render: (_: unknown, r: PILine, i: number) => txt(r.用料名称, s => setLine(i, { 用料名称: s }), 108) },
     { title: "单位", dataIndex: "单位", width: 64, render: (v: string) => ro(v) },

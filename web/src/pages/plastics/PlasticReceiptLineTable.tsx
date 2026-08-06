@@ -50,7 +50,7 @@ export default function PlasticReceiptLineTable({ value, onChange, readOnly, hid
     { title: "物料编号", dataIndex: "物料编号", width: 140, render: (_: unknown, r: PSDLine, i: number) => pickCell(r.物料编号, s => setLine(i, { 物料编号: s }), () => setMatPickFor(i), 118) },
     { title: "工模编号", dataIndex: "工模编号", width: 120, render: (_: unknown, r: PSDLine, i: number) => txt(r.工模编号, s => setLine(i, { 工模编号: s }), 106) },
     { title: "物料名称", dataIndex: "物料名称", width: 140, render: (v: string) => ro(v) },
-    { title: "颜色", dataIndex: "颜色", width: 80, render: (_: unknown, r: PSDLine, i: number) => txt(r.颜色, s => setLine(i, { 颜色: s }), 68) },
+    { title: "颜色", dataIndex: "颜色", width: 110, render: (_: unknown, r: PSDLine, i: number) => txt(r.颜色, s => setLine(i, { 颜色: s }), 68) },
     { title: "塑胶货号", dataIndex: "塑胶货号", width: 120, render: (_: unknown, r: PSDLine, i: number) => txt(r.塑胶货号, s => setLine(i, { 塑胶货号: s }), 108) },
     { title: "单位", dataIndex: "单位", width: 64, render: (v: string) => ro(v) },
     { title: "数量", dataIndex: "数量", width: 92, render: (_: unknown, r: PSDLine, i: number) => <InputNumber min={0} precision={2} style={{ width: 80 }} disabled={readOnly} value={r.数量 ?? 0} onChange={n => setLine(i, { 数量: Number(n ?? 0) })} /> },

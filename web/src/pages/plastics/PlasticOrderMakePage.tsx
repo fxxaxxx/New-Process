@@ -45,7 +45,7 @@ export default function PlasticOrderMakePage() {
     { title: "工模编号", dataIndex: "工模编号", width: 100 },
     { title: "物料编号", dataIndex: "物料编号", width: 110 },
     { title: "物料名称", dataIndex: "物料名称", width: 140 },
-    { title: "颜色", dataIndex: "颜色", width: 80 },
+    { title: "颜色", dataIndex: "颜色", width: 110 },
     { title: "用料名称", dataIndex: "用料名称", width: 120 },
     { title: "单位", dataIndex: "单位", width: 60 },
     { title: "用量", dataIndex: "用量", width: 90, align: "right" as const },

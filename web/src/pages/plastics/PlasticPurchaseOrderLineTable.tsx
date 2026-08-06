@@ -49,7 +49,7 @@ export default function PlasticPurchaseOrderLineTable({ value, onChange, readOnl
     { title: "用量", dataIndex: "用量", width: 92, render: (_, r, i) => numCell(r.用量, n => setLine(i, { 用量: n })) },
     { title: "套数", dataIndex: "套数", width: 92, render: (_, r, i) => numCell(r.套数, n => setLine(i, { 套数: n })) },
     { title: "数量", dataIndex: "数量", width: 92, render: (_, r, i) => <InputNumber min={0} precision={2} style={{ width: 80 }} disabled={readOnly} value={r.数量 ?? 0} onChange={n => setLine(i, { 数量: Number(n ?? 0) })} /> },
-    { title: "颜色", dataIndex: "颜色", width: 80, render: (_, r, i) => txt(r.颜色, s => setLine(i, { 颜色: s }), 68) },
+    { title: "颜色", dataIndex: "颜色", width: 110, render: (_, r, i) => txt(r.颜色, s => setLine(i, { 颜色: s }), 68) },
     { title: "色粉号", dataIndex: "色粉号", width: 110, render: (_, r, i) => txt(r.色粉号, s => setLine(i, { 色粉号: s }), 98) },
     { title: "用料名称", dataIndex: "用料名称", width: 130, render: (_, r, i) => txt(r.用料名称, s => setLine(i, { 用料名称: s }), 118) },
     { title: "备注", dataIndex: "备注", width: 130, render: (_, r, i) => txt(r.备注, s => setLine(i, { 备注: s }), 118) },

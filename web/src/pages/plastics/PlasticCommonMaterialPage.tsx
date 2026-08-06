@@ -129,7 +129,7 @@ export default function PlasticCommonMaterialPage() {
     { title: "塑胶货号", dataIndex: "塑胶货号", width: 110 },
     { title: "工模编号", dataIndex: "工模编号", width: 90 },
     { title: "物料名称", dataIndex: "物料名称", width: 140 },
-    { title: "颜色", dataIndex: "颜色", width: 70 },
+    { title: "颜色", dataIndex: "颜色", width: 110 },
     { title: "色粉号", dataIndex: "色粉号", width: 90 },
     { title: "用料名称", dataIndex: "用料名称", width: 110 },
     { title: "加工内容", dataIndex: "加工内容", width: 110 },

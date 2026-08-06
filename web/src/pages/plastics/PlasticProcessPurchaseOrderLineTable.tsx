@@ -46,7 +46,7 @@ export default function PlasticProcessPurchaseOrderLineTable({ value, onChange, 
     { title: "物料编号", dataIndex: "物料编号", width: 140, render: (_, r, i) => pickCell(r.物料编号, s => setLine(i, { 物料编号: s }), () => setMatPickFor(i), 118) },
     { title: "物料名称", dataIndex: "物料名称", width: 140, render: (v: string) => ro(v) },
     { title: "用料名称", dataIndex: "用料名称", width: 130, render: (_, r, i) => txt(r.用料名称, s => setLine(i, { 用料名称: s }), 118) },
-    { title: "颜色", dataIndex: "颜色", width: 80, render: (_, r, i) => txt(r.颜色, s => setLine(i, { 颜色: s }), 68) },
+    { title: "颜色", dataIndex: "颜色", width: 110, render: (_, r, i) => txt(r.颜色, s => setLine(i, { 颜色: s }), 68) },
     { title: "加工内容", dataIndex: "加工内容", width: 130, render: (_, r, i) => txt(r.加工内容, s => setLine(i, { 加工内容: s }), 118) },
     {
       title: "加工次序", dataIndex: "加工次序", width: 96,

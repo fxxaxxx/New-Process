@@ -58,7 +58,7 @@ export default function PlasticStocktakeQueryPage() {
     { title: "单号", dataIndex: "单号", width: 130, render: (v: string) => <span className="erp-num">{v}</span> },
     { title: "物料编号", dataIndex: "物料编号", width: 110 },
     { title: "物料名称", dataIndex: "物料名称", width: 140 },
-    { title: "颜色", dataIndex: "颜色", width: 70 },
+    { title: "颜色", dataIndex: "颜色", width: 110 },
     { title: "塑胶货号", dataIndex: "塑胶货号", width: 100 },
     { title: "共用货号", dataIndex: "共用货号", width: 100 },
     { title: "单位", dataIndex: "单位", width: 56 },
@@ -75,7 +75,7 @@ export default function PlasticStocktakeQueryPage() {
   const summaryColumns: ColumnsType<PlasticStocktakeQuerySummaryRow> = [
     { title: "物料编号", dataIndex: "物料编号", width: 120 },
     { title: "物料名称", dataIndex: "物料名称", width: 150 },
-    { title: "颜色", dataIndex: "颜色", width: 80 },
+    { title: "颜色", dataIndex: "颜色", width: 110 },
     { title: "塑胶货号", dataIndex: "塑胶货号", width: 100 },
     { title: "单位", dataIndex: "单位", width: 60 },
     { title: "系统数量", dataIndex: "系统数量", width: 100, align: "right" },

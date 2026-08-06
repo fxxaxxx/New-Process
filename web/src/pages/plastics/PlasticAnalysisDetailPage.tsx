@@ -43,7 +43,7 @@ export default function PlasticAnalysisDetailPage() {
     { title: "货号", dataIndex: "货号", width: 110 },
     { title: "物料编号", dataIndex: "物料编号", width: 110 },
     { title: "物料名称", dataIndex: "物料名称", width: 140 },
-    { title: "颜色", dataIndex: "颜色", width: 80 },
+    { title: "颜色", dataIndex: "颜色", width: 110 },
     { title: "材料", dataIndex: "材料", width: 80 },
     { title: "单位", dataIndex: "单位", width: 60 },
     { title: "加工内容", dataIndex: "加工内容", width: 100 },

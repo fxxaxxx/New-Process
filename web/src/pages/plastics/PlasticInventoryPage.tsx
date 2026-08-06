@@ -45,7 +45,7 @@ export default function PlasticInventoryPage() {
     { title: "工模编号", dataIndex: "工模编号", width: 110 },
     { title: "物料名称", dataIndex: "物料名称", width: 150 },
     { title: "规格", dataIndex: "规格", width: 110 },
-    { title: "颜色", dataIndex: "颜色", width: 80 },
+    { title: "颜色", dataIndex: "颜色", width: 110 },
     { title: "材料", dataIndex: "物料类别", width: 90 },
     { title: "塑胶货号", dataIndex: "塑胶货号", width: 110 },
     { title: "仓位号", dataIndex: "仓位号", width: 90 },
