@@ -54,6 +54,7 @@ builder.Services.AddScoped<ErpApi.Features.Plastics.PlasticMaterialDoc.PlasticMa
 builder.Services.AddScoped<ErpApi.Engines.Inventory.PlasticInventoryService>();
 builder.Services.AddScoped<ErpApi.Features.Plastics.PlasticPurchaseOrder.PlasticPurchaseOrderService>();
 builder.Services.AddScoped<ErpApi.Features.Plastics.PlasticProcessPurchaseOrder.PlasticProcessPurchaseOrderService>();
+builder.Services.AddScoped<ErpApi.Features.Plastics.PlasticProcessDemand.PlasticProcessDemandService>();
 builder.Services.AddScoped<ErpApi.Features.Plastics.PlasticWhitePartIssue.PlasticWhitePartIssueService>();
 builder.Services.AddScoped<ErpApi.Features.Plastics.PlasticRawMaterialDemand.PlasticRawMaterialDemandService>();
 builder.Services.AddScoped<ErpApi.Features.Plastics.PlasticRawMaterialPurchaseOrder.PlasticRawMaterialPurchaseOrderService>();

@@ -258,3 +258,7 @@
 - npm run build 过;npm test 310 过;eslint themes.ts 0 问题(index.css 仅"file ignored"提示,非问题)。
 - Playwright 6 页截图(p_login/p_dash/p_material-master/p_plastic-material-master/p_purchase-orders/p_production + p_hover):表头淡底+加粗分隔线、表格圆角外框、行 hover 淡蓝、侧栏 pill 高亮、顶栏淡阴影、卡片圆角投影均生效,无破版/错位/溢出/对比度问题。
 - 部署:web/dist 已同步 src/ErpApi/wwwroot。
+
+## 原料类别归并旧系统13大类(2026-08-05 追加)
+- 塑胶原料资料.物料类别 按规则归并:PVC 60/TPE&TPR 46/PP 39/ABS 28/混料 15/POM 13/HIPS 12/透明MABS 10/PA66 7/PC 7/HDPE 4/PETG 3/K料 2/POK 2,旧系统 13 类全覆盖;HIPS/LDPE/POE/SAN/EPS/EVA/GPPS/PE水口 等无旧类对应的保留原样;2 行无类别(源数据如此)。
+- 旧系统原料库存统计表为 0 记录→无期初库存要迁移,原料仓从零启用。
