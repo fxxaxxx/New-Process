@@ -395,8 +395,17 @@ export default function ProductionNoticePage() {
         editable ? <Input value={v} onChange={e => patchGoods(r.key, { 款号名称: e.target.value })} /> : v,
     },
     {
-      title: "数量", width: 90,
-      render: (_: unknown, r: GoodsRow) => goodsQty(r),
+      title: "数量", width: 110,
+      render: (_: unknown, r: GoodsRow) =>
+        editable ? (
+          <InputNumber
+            min={0} style={{ width: "100%" }} value={goodsQty(r)}
+            onChange={n => patchGoods(r.key, {
+              // 手输数量 = 生成一条无色码的数量行(在下方色码表里加行后,数量自动变回色码合计)
+              数量明细: [{ key: uid(), 颜色: "", 尺码: "", 数量: n ?? undefined }],
+            })}
+          />
+        ) : goodsQty(r),
     },
     {
       title: "比例", dataIndex: "比例", width: 100,
