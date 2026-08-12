@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Button, Card, Checkbox, Col, Form, Input, InputNumber, Popconfirm, Row, Select, Space, Statistic, Table, Tag, message } from "antd";
+import { Button, Card, Checkbox, Col, Form, Input, InputNumber, Modal, Popconfirm, Row, Select, Space, Statistic, Table, Tag, message } from "antd";
 import { SearchOutlined } from "@ant-design/icons";
 import { plasticIssueApi, type PIHeader, type PILine } from "../../api/plasticIssue";
 import { plasticInventoryApi } from "../../api/plasticInventory";
 import { plasticMaterialSettingsApi } from "../../api/plasticMaterialSettings";
+import { productionApi } from "../../api/production";
 import type { PlasticMaterialRow } from "../../api/plasticMaterialMaster";
 import { prefillDefaultWarehouse } from "../../utils/plasticSettings";
 import EmployeePicker from "../materials/EmployeePicker";
@@ -24,8 +25,13 @@ export default function PlasticIssueFormPage() {
   const [opened, setOpened] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [empPickFor, setEmpPickFor] = useState<string | null>(null);
+  const [basisOpen, setBasisOpen] = useState(false);     // 按生产单带入弹窗
+  const [basisNo, setBasisNo] = useState("");
+  const [basisLoading, setBasisLoading] = useState(false);
   const [mergePrint, setMergePrint] = useState(true);
   const [stock, setStock] = useState<Record<string, number>>({});
+  const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]); // 历史单据勾选 id
+  const [batchApproving, setBatchApproving] = useState(false);          // 批量审核中
   const readOnly = opened !== null;
 
   // 塑胶物料设置消费: 选物料后表头仓库为空时按设置的默认仓库预填(不覆盖已填)。
@@ -92,6 +98,48 @@ export default function PlasticIssueFormPage() {
   const act = async (fn: () => Promise<unknown>, ok: string) => {
     try { await fn(); message.success(ok); loadRows(); }
     catch (e) { message.error((e as { response?: { data?: { 消息?: string } } }).response?.data?.消息 ?? "操作失败"); }
+  };
+
+  // 批量审核:只对勾选的未审核单逐张调审核接口,汇总成功/失败后刷新列表
+  const batchApprove = async () => {
+    const targets = rows.filter(r => selectedRowKeys.includes(r.id) && r.审核 !== "1");
+    if (targets.length === 0) { message.info("勾选的单据均已审核"); return; }
+    setBatchApproving(true);
+    let ok = 0; const fails: string[] = [];
+    for (const r of targets) {
+      try { await plasticIssueApi.approve(r.单号!); ok++; }
+      catch (e) { fails.push((e as { response?: { data?: { 消息?: string } } }).response?.data?.消息 ?? "审核失败"); }
+    }
+    setBatchApproving(false);
+    setSelectedRowKeys([]);
+    if (fails.length === 0) message.success(`已审核 ${ok} 张`);
+    else message.warning(`已审核 ${ok} 张,失败 ${fails.length} 张(${fails[0]})`);
+    loadRows();
+  };
+
+  // 按生产单带入:issue-basis 塑胶档应领行,数量=应领(接单数×BOM用量),可改完再保存
+  const bringIssueBasis = async (生产单号: string) => {
+    const no = 生产单号.trim();
+    if (!no) return;
+    setBasisLoading(true);
+    try {
+      const rows = await productionApi.issueBasis(no, "塑胶");
+      if (rows.length === 0) { message.warning(`生产单 ${no} 无塑胶应领明细`); return; }
+      const mapped: PILine[] = rows.map(r => ({
+        生产单号: r.生产单号 ?? no,
+        款号: r.款号 ?? undefined,
+        物料编号: r.物料编号 ?? undefined,
+        物料名称: r.物料名称 ?? undefined,
+        规格: r.规格 ?? undefined,
+        颜色: r.颜色 ?? undefined,
+        单位: r.单位 ?? undefined,
+        数量: Number(r.数量 ?? 0),
+      }));
+      setLines(prev => [...prev.filter(l => l.物料编号), ...mapped]);   // 丢弃空白行后追加
+      message.success(`已带入 ${rows.length} 行(应领量)`);
+      setBasisOpen(false); setBasisNo("");
+    } catch { message.error("按生产单带入失败"); }
+    finally { setBasisLoading(false); }
   };
 
   const stockRefRows = useMemo(() => {
@@ -168,6 +216,11 @@ export default function PlasticIssueFormPage() {
 
       <Row gutter={12}>
         <Col span={17}>
+          {!readOnly && (
+            <Space style={{ marginBottom: 8 }}>
+              <Button onClick={() => setBasisOpen(true)}>按生产单带入</Button>
+            </Space>
+          )}
           <PlasticIssueLineTable value={lines} onChange={setLines} readOnly={readOnly} onMaterialPicked={handleMaterialPicked} />
         </Col>
         <Col span={7}>
@@ -190,12 +243,23 @@ export default function PlasticIssueFormPage() {
       </Space>
 
       <div style={{ marginTop: 24 }}>
-        <Table rowKey="id" size="middle" dataSource={rows} columns={listColumns} pagination={{ pageSize: 10 }} />
+        {can(perms, MENU, "审核") && (
+          <Space style={{ marginBottom: 8 }}>
+            <Button loading={batchApproving} disabled={selectedRowKeys.length === 0} onClick={batchApprove}>批量审核</Button>
+          </Space>
+        )}
+        <Table rowKey="id" size="middle" dataSource={rows} columns={listColumns} pagination={{ pageSize: 10 }}
+          rowSelection={{ selectedRowKeys, onChange: ks => setSelectedRowKeys(ks as number[]) }} />
       </div>
 
       <EmployeePicker open={empPickFor !== null}
         onPick={姓名 => { if (empPickFor) form.setFieldValue(empPickFor, 姓名); }}
         onClose={() => setEmpPickFor(null)} />
+      <Modal title="按生产单带入应领明细" open={basisOpen} onCancel={() => setBasisOpen(false)} footer={null} width={420}>
+        <Input.Search placeholder="输入生产单号,回车带入" enterButton="带入" loading={basisLoading}
+          value={basisNo} onChange={e => setBasisNo(e.target.value)} onSearch={bringIssueBasis} />
+        <div style={{ marginTop: 8, color: "#888" }}>按 BOM 展开应领量(塑胶档)带入,可改完再保存;当前空白行会被替换</div>
+      </Modal>
     </Card>
   );
 }

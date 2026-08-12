@@ -46,6 +46,12 @@ export interface ProductionDetail {
   }[];
 }
 
+// 领料应领行(issue-basis):生产单 BOM 展开快照按物料聚合 数量=应领(接单数×BOM用量);档=来料/塑胶 按档案过滤
+export interface IssueBasisRow {
+  生产单号?: string; 款号?: string; 物料编号?: string; 物料名称?: string;
+  规格?: string; 颜色?: string; 单位?: string; 数量: number;
+}
+
 // MO单跟踪行（生产通知单MO单）
 export interface MoLine {
   序号?: number | null;
@@ -74,4 +80,7 @@ export const productionApi = {
     api.get<MoLine[]>(`/production/${enc(生产单号)}/mo`).then(r => r.data),
   saveMo: (生产单号: string, lines: MoLine[]) =>
     api.put(`/production/${enc(生产单号)}/mo`, lines),
+  // 领料应领明细(供领料单按生产单一键带入):档=来料/塑胶
+  issueBasis: (生产单号: string, 档: "来料" | "塑胶") =>
+    api.get<IssueBasisRow[]>(`/production/${enc(生产单号)}/issue-basis`, { params: { 档 } }).then(r => r.data),
 };

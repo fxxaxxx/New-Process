@@ -125,6 +125,26 @@ WHERE [生产单号]=@生产单号",
     }
 
     // 分页列表（单头；关键字模糊匹配 生产单号/款号/款式/客户名称/合同号）
+    // 领料应领明细:按生产单 BOM 展开快照取 应领=Σ总数量(需求侧,不扣库存)。
+    // 档=来料 只留 物料资料 存在的行;档=塑胶 只留 物料资料 不存在的行(塑胶/未知档案)。
+    public async Task<IReadOnlyList<IssueBasisRow>> IssueBasisAsync(string 生产单号, string? 档)
+    {
+        var mat = 档 == "来料" ? 1 : 0;
+        var plastic = 档 == "塑胶" ? 1 : 0;
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<IssueBasisRow>(@"
+SELECT b.[生产单号], MAX(b.[货号]) AS 款号, b.[物料编号], MAX(b.[物料名称]) AS 物料名称,
+       MAX(b.[规格]) AS 规格, MAX(b.[颜色]) AS 颜色, MAX(b.[单位]) AS 单位,
+       SUM(ISNULL(b.[总数量],0)) AS 数量
+FROM [生产BOM物料清单] b
+WHERE b.[生产单号]=@生产单号
+  AND (@mat=0 OR EXISTS(SELECT 1 FROM [物料资料] m WHERE m.[物料编号]=b.[物料编号]))
+  AND (@plastic=0 OR NOT EXISTS(SELECT 1 FROM [物料资料] m WHERE m.[物料编号]=b.[物料编号]))
+GROUP BY b.[生产单号], b.[物料编号]
+ORDER BY b.[物料编号];", new { 生产单号, mat, plastic });
+        return rows.AsList();
+    }
+
     public async Task<PagedResult<ProductionHeaderDto>> ListAsync(int page, int size, string? keyword)
     {
         if (page < 1) page = 1;

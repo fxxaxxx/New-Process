@@ -78,3 +78,32 @@
 - npm run build 过;npm test 310 过。
 - 其余页面(部门人事/供应商/库存/生产/采购等 11 页)实测行高均匀,未动。
 - 部署:web/dist 已同步 src/ErpApi/wwwroot。
+
+---
+
+# 2026-08-12 追加:采购+仓库线"减动作"优化 3 项
+
+## 1. 入仓整单带入、默认全收 ✅
+- 来料(MaterialLineTable,orderPicker 模式):新增"整单带入"按钮→输入采购单号→purchaseOrderApi.progress(onlyOwed) 全量欠数行前端按单号精确过滤→整单填入,数量=欠数(单行带入原本就默认欠数,本次补整单);表头供应商空时带出(onSupplier 传到抽屉回写)。**坑:progress 的 keyword 不匹配采购单号(只匹配生产单号/款号/物料),首版带 keyword 查询恒空,改全量拉取+前端过滤修复**。
+- 塑胶入仓(PlasticReceiptFormPage,仅 plastic-receipts):"从采购单带入"→弹窗列已审核有欠数塑胶采购单(plastic-purchase-progress onlyOwed)→选单→欠数行填入(数量=欠数),单头供应商/订单单号带出(plasticPurchaseOrderApi.get 补供应商编号)。
+- Playwright:塑胶 SP20260812002(TESTV)→57001896×10.00/57001897×20.00 带入正确;来料 PO20260812001→01030008 数量=30.00 全收欠数(截图 ux_receipt_bring.png / ux_material_receipt_bring.png)。
+
+## 2. 领料按生产单一键带入 ✅
+- 后端新增 GET /api/production/{生产单号}/issue-basis?档=来料|塑胶(生产通知单·打开):按生产BOM物料清单快照聚合 应领=Σ总数量(接单数×用量,需求侧不扣库存);档按 物料资料 存在性过滤(来料=存在,塑胶=不存在)。
+- 前端:来料领料(MaterialLineTable usageCols 模式)与塑胶领料(PlasticIssueFormPage)各加"按生产单带入"按钮→输入生产单号→整单填入。
+- Playwright:SC20260803002 → 塑胶档 35 行,57001896=1000(用量1×1000)、57001908=2000(用量2×1000)(截图 ux_issue_bring.png)。
+
+## 3. 列表页批量审核 ✅
+- MaterialDocPage(来料通用,覆盖采购入仓/领料等)、PlasticReceiptFormPage、PlasticIssueFormPage:列表加 rowSelection + "批量审核"按钮(各菜单"审核"权限门控),仅未审核勾选行逐张 approve,汇总提示"已审核 X 张/失败 Y 张(原因)"并刷新。
+- Playwright:勾 2 张 TESTV 塑胶入仓单 → "已审核 2 张"(截图 ux_batch_approve.png)。
+
+## 验证与清理
+- dotnet build 0 错;dotnet test 212 过;npm run build 过;npm test 310 过;eslint 7=基线 7。
+- TESTV 单据(塑胶入仓×2/塑胶采购/来料采购)全部反审核+删除,残留 0;正式单 SP/SR/SLL20260805001 与 SC20260803002 完好。
+- 部署:后端 Development 重启;web/dist 已同步 src/ErpApi/wwwroot。
+- **环境事故记录**:本轮 /tmp 被系统清理,erp_env_kv.sh(ERP_DB/ERP_JWT_KEY)丢失、后端被杀且 5000 被 macOS ControlCenter(AirPlay)抢占;已重建 env(新随机 JWT key,DB 无加密配置行,无影响;旧登录态失效重新登录即可)、抢回 5000 重启成功。erp_env_kv.sh 重建于 /tmp(仍易丢,建议重要环境另存)。
+
+## 遗留
+- 塑胶入仓带入行的 规格/单价 无来源(塑胶采购订单明细 schema 无此列),单价留空手填。
+- 塑胶"从采购单带入"依赖 塑胶进度表·打开 权限,无该权限角色会 403。
+- 来料"按生产单带入"对 usageCols 全部单据(领料/退料/报废)都显示,如需限领料单可加配置区分。

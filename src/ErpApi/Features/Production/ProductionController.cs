@@ -60,6 +60,14 @@ public sealed class ProductionController(
         return Ok(d);
     }
 
+    // 领料应领明细(供领料单按生产单一键带入):档=来料/塑胶 过滤档案
+    [HttpGet("{生产单号}/issue-basis")]
+    public async Task<IActionResult> IssueBasis(string 生产单号, string? 档 = null)
+    {
+        if (!await AllowAsync(PermissionAction.打开)) return Forbid();
+        return Ok(await svc.IssueBasisAsync(生产单号, 档));
+    }
+
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] ProductionNoticeCreateDto dto)
     {

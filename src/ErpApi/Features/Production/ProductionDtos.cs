@@ -43,6 +43,20 @@ public sealed class ProductionNoticeCreateDto
     public List<ProductionGoodsLineDto> 货号明细 { get; set; } = [];
 }
 
+
+// 领料应领行:生产单 BOM 展开快照(生产BOM物料清单)按物料聚合 应领=Σ总数量;档=来料/塑胶 按档案过滤
+public sealed class IssueBasisRow
+{
+    public string? 生产单号 { get; set; }
+    public string? 款号 { get; set; }
+    public string? 物料编号 { get; set; }
+    public string? 物料名称 { get; set; }
+    public string? 规格 { get; set; }
+    public string? 颜色 { get; set; }
+    public string? 单位 { get; set; }
+    public decimal 数量 { get; set; }
+}
+
 // 列表行（单头）
 public sealed class ProductionHeaderDto
 {

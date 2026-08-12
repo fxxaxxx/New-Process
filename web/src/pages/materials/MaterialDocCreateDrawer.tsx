@@ -96,7 +96,11 @@ export default function MaterialDocCreateDrawer({ cfg, open, onClose, onCreated,
         onClose={() => setEmpPickFor(null)}
       />
       <MaterialLineTable value={lines} onChange={setLines} hidePriceCols={priceHidden}
-        enableOrderPicker={cfg.orderPicker} usageCols={cfg.usageCols} 供应商={供应商编号 as string | undefined} />
+        enableOrderPicker={cfg.orderPicker} usageCols={cfg.usageCols} 供应商={供应商编号 as string | undefined}
+        onSupplier={(编号, 名称) => {
+          // 整单带入顺带带出供应商:仅表头供应商编号为空时回写,不覆盖已填
+          if (!(form.getFieldValue("供应商编号") as string)) form.setFieldsValue({ 供应商编号: 编号, 供应商名称: 名称 });
+        }} />
       <Space style={{ marginTop: 16 }} size={32}>
         <Statistic title="数量合计" value={sumQty(lines)} />
         {!priceHidden && !cfg.usageCols && <Statistic title="金额合计" value={sumAmount(lines).toFixed(2)} />}

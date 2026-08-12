@@ -1,11 +1,12 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
-import { Button, Input, InputNumber, Table } from "antd";
+import { Button, Input, InputNumber, Modal, Space, Table, message } from "antd";
 import { PlusOutlined, SearchOutlined } from "@ant-design/icons";
 import { lineAmount, productionLinePatch, type DocLine } from "../../utils/materialLines";
 import OrderLinePicker from "./OrderLinePicker";
 import MaterialPicker from "./MaterialPicker";
 import ProductionPicker from "./ProductionPicker";
-import type { PurchaseOrderProgressRow } from "../../api/purchaseOrders";
+import { purchaseOrderApi, type PurchaseOrderProgressRow } from "../../api/purchaseOrders";
+import { productionApi } from "../../api/production";
 import type { MaterialRow } from "../../api/materialMaster";
 import type { ProductionTrackingRow } from "../../api/productionReports";
 
@@ -13,13 +14,17 @@ import type { ProductionTrackingRow } from "../../api/productionReports";
 // usageCols(领料/退料)按原系统列序：装配采购|生产单号|款号|物料编号|物料名称|规格|材料|颜色|单位|数量|备注，
 //   生产单号/款号/物料编号 为「输入框+🔍」点弹选择器；物料名称/规格/材料/单位 选物料后只读带出；无单价/金额。
 // 非 usageCols(采购入仓/退仓)沿用原行为：物料合并链接、可选款号选订单、带单价/金额。
-export default function MaterialLineTable({ value, onChange, hidePriceCols, enableOrderPicker, usageCols, 供应商 }: {
+// 减动作：orderPicker 模式提供「整单带入」(按采购单号带入全部欠数行,数量=欠数)；
+//   usageCols 模式提供「按生产单带入」(issue-basis 应领量)。两者均丢弃空白行后追加。
+// onSupplier: 整单带入时表头供应商为空则顺带带出(由父抽屉回写)。
+export default function MaterialLineTable({ value, onChange, hidePriceCols, enableOrderPicker, usageCols, 供应商, onSupplier }: {
   value: DocLine[];
   onChange: Dispatch<SetStateAction<DocLine[]>>;
   hidePriceCols: boolean;
   enableOrderPicker?: boolean;
   usageCols?: boolean;
   供应商?: string;
+  onSupplier?: (供应商编号: string, 供应商名称?: string) => void;
 }) {
   const setLine = (i: number, patch: Partial<DocLine>) =>
     onChange(prev => prev.map((l, j) => (j === i ? { ...l, ...patch } : l)));
@@ -27,21 +32,73 @@ export default function MaterialLineTable({ value, onChange, hidePriceCols, enab
   const [pickFor, setPickFor] = useState<number | null>(null);         // 款号选订单(采购)
   const [matPickFor, setMatPickFor] = useState<number | null>(null);   // 物料选择器
   const [prodPickFor, setProdPickFor] = useState<number | null>(null); // 款号/生产单号选生产制单
+  const [wholeOpen, setWholeOpen] = useState(false);     // 整单带入弹窗(采购入仓/退仓)
+  const [wholeNo, setWholeNo] = useState("");
+  const [wholeLoading, setWholeLoading] = useState(false);
+  const [basisOpen, setBasisOpen] = useState(false);     // 按生产单带入弹窗(领料/退料)
+  const [basisNo, setBasisNo] = useState("");
+  const [basisLoading, setBasisLoading] = useState(false);
+
+  // 订单行 → 明细行的字段映射(单行带入与整单带入共用),数量默认=欠数(全收)
+  const orderRowToLine = (row: PurchaseOrderProgressRow): DocLine => ({
+    订单单号: row.采购单号 ?? undefined,
+    生产单号: row.生产单号 ?? undefined,
+    款号: row.款号 ?? undefined,
+    物料编号: row.物料编号 ?? undefined,
+    物料名称: row.物料名称 ?? undefined,
+    物料类别: row.物料类别 ?? undefined,
+    规格: row.规格 ?? undefined,
+    颜色: row.颜色 ?? undefined,
+    单位: row.单位 ?? undefined,
+    数量: Number(row.欠数 ?? 0),
+  });
 
   const fillFromOrder = (row: PurchaseOrderProgressRow) => {
     if (pickFor === null) return;
-    setLine(pickFor, {
-      订单单号: row.采购单号 ?? undefined,
-      生产单号: row.生产单号 ?? undefined,
-      款号: row.款号 ?? undefined,
-      物料编号: row.物料编号 ?? undefined,
-      物料名称: row.物料名称 ?? undefined,
-      物料类别: row.物料类别 ?? undefined,
-      规格: row.规格 ?? undefined,
-      颜色: row.颜色 ?? undefined,
-      单位: row.单位 ?? undefined,
-      数量: Number(row.欠数 ?? 0),
-    });
+    setLine(pickFor, orderRowToLine(row));
+  };
+
+  // 整单带入：取该采购单全部欠数行,丢弃当前空白行后追加;表头供应商为空时顺带带出
+  const bringWholeOrder = async (单号: string) => {
+    const no = 单号.trim();
+    if (!no) return;
+    setWholeLoading(true);
+    try {
+      // keyword 不含采购单号(后端仅匹配 生产单号/款号/物料),故不带 keyword 拉全量欠数行,前端精确过滤该单
+      const rows = (await purchaseOrderApi.progress({ onlyOwed: true, 供应商: 供应商 || undefined }))
+        .filter(r => (r.采购单号 ?? "").trim() === no);
+      if (rows.length === 0) { message.warning(`未找到采购单 ${no} 的欠数行`); return; }
+      onChange(prev => [...prev.filter(l => l.物料编号), ...rows.map(orderRowToLine)]);
+      if (!供应商 && rows[0].供应商编号) onSupplier?.(rows[0].供应商编号, rows[0].供应商名称 ?? undefined);
+      message.success(`已带入 ${rows.length} 行(默认全收欠数)`);
+      setWholeOpen(false); setWholeNo("");
+    } catch { message.error("整单带入失败"); }
+    finally { setWholeLoading(false); }
+  };
+
+  // 按生产单带入(领料/退料)：issue-basis 来料档应领行,数量=应领(接单数×BOM用量)
+  const bringIssueBasis = async (生产单号: string) => {
+    const no = 生产单号.trim();
+    if (!no) return;
+    setBasisLoading(true);
+    try {
+      const rows = await productionApi.issueBasis(no, "来料");
+      if (rows.length === 0) { message.warning(`生产单 ${no} 无来料应领明细`); return; }
+      const mapped: DocLine[] = rows.map(r => ({
+        生产单号: r.生产单号 ?? no,
+        款号: r.款号 ?? undefined,
+        物料编号: r.物料编号 ?? undefined,
+        物料名称: r.物料名称 ?? undefined,
+        规格: r.规格 ?? undefined,
+        颜色: r.颜色 ?? undefined,
+        单位: r.单位 ?? undefined,
+        数量: Number(r.数量 ?? 0),
+      }));
+      onChange(prev => [...prev.filter(l => l.物料编号), ...mapped]);
+      message.success(`已带入 ${rows.length} 行(应领量)`);
+      setBasisOpen(false); setBasisNo("");
+    } catch { message.error("按生产单带入失败"); }
+    finally { setBasisLoading(false); }
   };
 
   const fillFromProduction = (row: ProductionTrackingRow) => {
@@ -159,7 +216,21 @@ export default function MaterialLineTable({ value, onChange, hidePriceCols, enab
     <div>
       <Table size="small" rowKey={(_: DocLine, i?: number) => String(i)} pagination={false}
         dataSource={value} columns={columns} scroll={{ x: "max-content" }} />
-      <Button icon={<PlusOutlined />} style={{ marginTop: 12 }} onClick={() => onChange(prev => [...prev, { 数量: 0 }])}>加一行</Button>
+      <Space style={{ marginTop: 12 }}>
+        <Button icon={<PlusOutlined />} onClick={() => onChange(prev => [...prev, { 数量: 0 }])}>加一行</Button>
+        {enableOrderPicker && <Button onClick={() => setWholeOpen(true)}>整单带入</Button>}
+        {usageCols && <Button onClick={() => setBasisOpen(true)}>按生产单带入</Button>}
+      </Space>
+      <Modal title="整单带入采购订单" open={wholeOpen} onCancel={() => setWholeOpen(false)} footer={null} width={420}>
+        <Input.Search placeholder="输入采购订单号,回车带入" enterButton="带入" loading={wholeLoading}
+          value={wholeNo} onChange={e => setWholeNo(e.target.value)} onSearch={bringWholeOrder} />
+        <div style={{ marginTop: 8, color: "#888" }}>仅带入该单的欠数行,数量默认=欠数(全收);当前空白行会被替换</div>
+      </Modal>
+      <Modal title="按生产单带入应领明细" open={basisOpen} onCancel={() => setBasisOpen(false)} footer={null} width={420}>
+        <Input.Search placeholder="输入生产单号,回车带入" enterButton="带入" loading={basisLoading}
+          value={basisNo} onChange={e => setBasisNo(e.target.value)} onSearch={bringIssueBasis} />
+        <div style={{ marginTop: 8, color: "#888" }}>按 BOM 展开应领量(来料档)带入,可改完再保存;当前空白行会被替换</div>
+      </Modal>
       <MaterialPicker
         open={matPickFor !== null} hidePriceCols={hidePriceCols}
         onPick={fillFromMaterial} onClose={() => setMatPickFor(null)}
