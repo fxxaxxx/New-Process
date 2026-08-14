@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Card, Checkbox, Col, Form, Input, InputNumber, Modal, Popconfirm, Row, Select, Space, Statistic, Table, Tag, message } from "antd";
 import { SearchOutlined } from "@ant-design/icons";
+import { useSearchParams } from "react-router-dom";
 import { plasticIssueApi, type PIHeader, type PILine } from "../../api/plasticIssue";
 import { plasticInventoryApi } from "../../api/plasticInventory";
 import { plasticMaterialSettingsApi } from "../../api/plasticMaterialSettings";
@@ -118,7 +119,7 @@ export default function PlasticIssueFormPage() {
   };
 
   // 按生产单带入:issue-basis 塑胶档应领行,数量=应领(接单数×BOM用量),可改完再保存
-  const bringIssueBasis = async (生产单号: string) => {
+  const bringIssueBasis = useCallback(async (生产单号: string) => {
     const no = 生产单号.trim();
     if (!no) return;
     setBasisLoading(true);
@@ -140,7 +141,18 @@ export default function PlasticIssueFormPage() {
       setBasisOpen(false); setBasisNo("");
     } catch { message.error("按生产单带入失败"); }
     finally { setBasisLoading(false); }
-  };
+  }, []);
+
+  // 下推入口：URL 带 ?basis=生产单号 时自动带入应领明细（从生产通知单「下推领料」跳入）
+  const [searchParams, setSearchParams] = useSearchParams();
+  const autoBasisDone = useRef(false);
+  useEffect(() => {
+    const basis = searchParams.get("basis");
+    if (!basis || autoBasisDone.current) return;
+    autoBasisDone.current = true;
+    setSearchParams({}, { replace: true });   // 先清参数，避免刷新/返回重复带入
+    void bringIssueBasis(basis);
+  }, [searchParams, setSearchParams, bringIssueBasis]);
 
   const stockRefRows = useMemo(() => {
     const seen = new Set<string>(); const out: { 物料编号: string; 物料名称?: string; 库存数量: number }[] = [];

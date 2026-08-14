@@ -19,6 +19,7 @@ const M = (label: string, path?: string, perm?: string): MenuLeaf => ({ label, p
 export const MENU_TREE: MenuGroup[] = [
   // ① 基本设置
   { key: "g-base", label: "基本设置", children: [
+    M("物料快速建档", "/material-create", "物料资料"),
     M("基本资料", "/system/company-profile", "基本资料"),
     M("功能设置", "/system/feature-settings", "功能设置"),
     M("仓库位置设置", "/system/warehouse-locations", "仓库位置设置"),

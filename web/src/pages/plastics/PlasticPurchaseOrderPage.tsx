@@ -3,6 +3,7 @@ import { Button, Card, Col, DatePicker, Form, Input, Popconfirm, Row, Space, Sta
 import { SearchOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
+import { useNavigate } from "react-router-dom";
 import { plasticPurchaseOrderApi, type PPOHeader, type PPOLine } from "../../api/plasticPurchaseOrder";
 import SupplierPicker from "./SupplierPicker";
 import ProductionPicker from "../materials/ProductionPicker";
@@ -18,6 +19,7 @@ interface MergeRow { 序号: number; 物料编号: string; 物料名称?: string
 
 export default function PlasticPurchaseOrderPage() {
   const perms = usePerms();
+  const navigate = useNavigate();
   const canOpen = can(perms, MENU, "打开");
   const [form] = Form.useForm<Record<string, unknown>>();
   const [lines, setLines] = useState<PPOLine[]>([]);
@@ -123,6 +125,7 @@ export default function PlasticPurchaseOrderPage() {
         <Space>
           {row.审核 !== "1" && can(perms, MENU, "审核") && <a onClick={() => act(() => plasticPurchaseOrderApi.approve(row.单号!), "已审核")}>审核</a>}
           {row.审核 === "1" && can(perms, MENU, "反审核") && <a onClick={() => act(() => plasticPurchaseOrderApi.unapprove(row.单号!), "已反审核")}>反审核</a>}
+          {row.审核 === "1" && <a onClick={() => navigate(`/plastic-receipts?ppo=${encodeURIComponent(row.单号!)}`)}>下推入仓</a>}
           {row.审核 !== "1" && can(perms, MENU, "删除") && (
             <Popconfirm title="确认删除该单据?" onConfirm={() => act(() => plasticPurchaseOrderApi.remove(row.单号!), "已删除")}><a>删除</a></Popconfirm>
           )}

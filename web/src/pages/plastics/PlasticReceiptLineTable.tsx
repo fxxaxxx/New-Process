@@ -3,6 +3,8 @@ import { Button, Input, InputNumber, Table } from "antd";
 import { PlusOutlined, SearchOutlined } from "@ant-design/icons";
 import PlasticMaterialPicker from "./PlasticMaterialPicker";
 import ProductionPicker from "../materials/ProductionPicker";
+import ScanEntry from "../../components/scan/ScanEntry";
+import { usePlasticMaterialScan } from "../../api/usePlasticMaterialScan";
 import type { PlasticMaterialRow } from "../../api/plasticMaterialMaster";
 import type { ProductionTrackingRow } from "../../api/productionReports";
 import type { PSDLine } from "../../api/plasticSupplierDoc";
@@ -20,6 +22,8 @@ export default function PlasticReceiptLineTable({ value, onChange, readOnly, hid
     onChange(prev => prev.map((l, j) => (j === i ? { ...l, ...patch } : l)));
   const [matPickFor, setMatPickFor] = useState<number | null>(null);
   const [prodPickFor, setProdPickFor] = useState<number | null>(null);
+  // 扫码录入：扫物料条码 → 已有该物料数量+1，否则新增行；并触发父页默认仓库预填
+  const handleScan = usePlasticMaterialScan<PSDLine>(onChange, { onMaterialPicked });
 
   const fillFromMaterial = (row: PlasticMaterialRow) => {
     if (matPickFor === null) return;
@@ -64,6 +68,11 @@ export default function PlasticReceiptLineTable({ value, onChange, readOnly, hid
 
   return (
     <div>
+      {!readOnly && (
+        <div style={{ marginBottom: 8 }}>
+          <ScanEntry onScan={handleScan} />
+        </div>
+      )}
       <Table size="small" rowKey={(_: PSDLine, i?: number) => String(i)} pagination={false}
         dataSource={value} columns={columns} scroll={{ x: "max-content" }} />
       {!readOnly && <Button icon={<PlusOutlined />} style={{ marginTop: 12 }} onClick={() => onChange(prev => [...prev, { 数量: 0 }])}>加一行</Button>}

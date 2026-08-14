@@ -62,6 +62,7 @@ const OrderProgressPage = lazy(() => import("./pages/production/OrderProgressPag
 const ProgressDetailPage = lazy(() => import("./pages/production/ProgressDetailPage"));
 const MaterialDocRouter = lazy(() => import("./pages/materials/MaterialDocRouter"));
 const MaterialMasterPage = lazy(() => import("./pages/materials/MaterialMasterPage"));
+const MaterialCreateWizard = lazy(() => import("./pages/materials/MaterialCreateWizard"));
 const AuxiliaryMaterialMasterPage = lazy(() => import("./pages/auxiliary/AuxiliaryMaterialMasterPage"));
 const AuxiliaryPurchaseAnalysisPage = lazy(() => import("./pages/auxiliary/AuxiliaryPurchaseAnalysisPage"));
 const AuxiliaryPurchaseOrderPage = lazy(() => import("./pages/auxiliary/AuxiliaryPurchaseOrderPage"));
@@ -239,6 +240,7 @@ export default function App() {
           <Route path="order-progress" element={<OrderProgressPage />} />
           <Route path="order-progress-detail" element={<ProgressDetailPage />} />
           <Route path="materials/:doc" element={<MaterialDocRouter />} />
+          <Route path="material-create" element={<MaterialCreateWizard />} />
           <Route path="material-master" element={<MaterialMasterPage />} />
           <Route path="auxiliary-material-master" element={<AuxiliaryMaterialMasterPage />} />
           <Route path="auxiliary-purchase-analysis" element={<AuxiliaryPurchaseAnalysisPage />} />

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Card, Col, Form, Input, Modal, Popconfirm, Row, Space, Statistic, Table, Tag, message } from "antd";
 import { SearchOutlined } from "@ant-design/icons";
+import { useSearchParams } from "react-router-dom";
 import { plasticSupplierDocApi, type PSDHeader, type PSDLine } from "../../api/plasticSupplierDoc";
 import { plasticDocApi } from "../../api/plasticDocs";
 import { plasticMaterialSettingsApi } from "../../api/plasticMaterialSettings";
@@ -96,9 +97,11 @@ export default function PlasticReceiptFormPage({ cfg }: { cfg: PlasticReceiptFor
   }, [ppoRows, ppoKw]);
 
   // 从采购单带入:该单全部欠数行,数量=欠数(默认全收);表头 供应商/订单单号 带出
-  const bringFromPurchaseOrder = async (单号: string) => {
+  // 直接查进度表 API(不依赖弹窗 ppoRows state),手动带入与 URL 自动带入共用
+  const bringFromPurchaseOrder = useCallback(async (单号: string) => {
     try {
-      const owed = ppoRows.filter(r => r.采购单号 === 单号);
+      const all = await plasticPurchaseProgressApi.list({ onlyOwed: true });
+      const owed = all.filter(r => r.审核 === "1" && r.采购单号 === 单号);
       if (owed.length === 0) { message.warning(`采购单 ${单号} 无欠数行`); return; }
       const d = await plasticPurchaseOrderApi.get(单号);   // 进度表无供应商编号,取单头补齐
       form.setFieldsValue({
@@ -121,7 +124,19 @@ export default function PlasticReceiptFormPage({ cfg }: { cfg: PlasticReceiptFor
       message.success(`已带入 ${owed.length} 行(默认全收)`);
       setPpoOpen(false);
     } catch { message.error("从采购单带入失败"); }
-  };
+  }, [form]);
+
+  // 下推入口：URL 带 ?ppo=采购单号 时自动带入欠数行（从塑胶采购订单「下推入仓」跳入）
+  const [searchParams, setSearchParams] = useSearchParams();
+  const autoPpoDone = useRef(false);
+  useEffect(() => {
+    const ppo = searchParams.get("ppo");
+    if (!ppo || autoPpoDone.current) return;
+    if (cfg.resource !== "plastic-receipts") return;   // 仅塑胶入仓单支持该下推
+    autoPpoDone.current = true;
+    setSearchParams({}, { replace: true });            // 先清参数，避免刷新/返回重复带入
+    void bringFromPurchaseOrder(ppo);
+  }, [searchParams, setSearchParams, bringFromPurchaseOrder, cfg.resource]);
 
   const openDoc = async (单号: string) => {
     try {

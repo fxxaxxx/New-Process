@@ -5,9 +5,10 @@ import {
 } from "antd";
 import {
   CheckOutlined, CloseOutlined, DeleteOutlined, FileAddOutlined,
-  FolderOpenOutlined, PrinterOutlined, SaveOutlined,
+  FolderOpenOutlined, PrinterOutlined, SaveOutlined, SendOutlined, RocketOutlined,
 } from "@ant-design/icons";
 import dayjs, { type Dayjs } from "dayjs";
+import { useNavigate } from "react-router-dom";
 import {
   productionApi, type MoLine, type ProductionDetail, type ProductionHeader, type ProductionNoticeCreate,
 } from "../../api/production";
@@ -16,6 +17,7 @@ import { masterApi } from "../../api/master";
 import { can, hidePrice } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
 import ImageNotesPanel from "../../components/ImageNotesPanel";
+import ProductionStartupModal from "./ProductionStartupModal";
 
 const MENU = "生产制单";
 const money = (v?: number | null) => (v == null ? "***" : v);
@@ -64,6 +66,7 @@ interface HeaderForm {
 
 export default function ProductionNoticePage() {
   const perms = usePerms();
+  const navigate = useNavigate();
   const priceHidden = hidePrice(perms, MENU);
   const [form] = Form.useForm<HeaderForm>();
 
@@ -78,6 +81,7 @@ export default function ProductionNoticePage() {
   const [goods, setGoods] = useState<GoodsRow[]>([]);
   const [selectedKey, setSelectedKey] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
+  const [startupOpen, setStartupOpen] = useState(false);   // 一键启动面板
 
   // MO单录入（独立于主单据保存；仅在已载入生产单号时可编辑/保存）
   const [moRows, setMoRows] = useState<MoRow[]>([]);
@@ -343,6 +347,12 @@ export default function ProductionNoticePage() {
       )}
       {isView && 审核 === "1" && can(perms, MENU, "反审核") && (
         <Button icon={<CloseOutlined />} onClick={() => act(() => productionApi.unapprove(生产单号), "已反审核", "reload")}>反审核</Button>
+      )}
+      {isView && (
+        <Button type="primary" icon={<RocketOutlined />} onClick={() => setStartupOpen(true)}>一键启动</Button>
+      )}
+      {isView && (
+        <Button icon={<SendOutlined />} onClick={() => navigate(`/plastic-issues?basis=${encodeURIComponent(生产单号)}`)}>下推领料</Button>
       )}
       <Button icon={<PrinterOutlined />} onClick={() => window.print()}>打印</Button>
     </Space>
@@ -713,6 +723,7 @@ export default function ProductionNoticePage() {
           ]}
         />
       </Modal>
+      <ProductionStartupModal open={startupOpen} 生产单号={生产单号} onClose={() => setStartupOpen(false)} />
     </Card>
   );
 }

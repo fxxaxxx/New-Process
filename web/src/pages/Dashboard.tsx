@@ -11,6 +11,7 @@ import { masterApi } from "../api/master";
 import { productionApi } from "../api/production";
 import { purchaseOrderApi } from "../api/purchaseOrders";
 import { plasticInventoryApi } from "../api/plasticInventory";
+import AlertCenter from "../components/AlertCenter";
 
 interface Stat { key: string; label: string; sub: string; grad: string; icon: ReactNode }
 // 第一行:原有 4 张(来料向)
@@ -41,7 +42,7 @@ const FLOW_STEPS = [
 ];
 
 const QUICK_ACTIONS = [
-  { name: "新增物料", path: "/material-master", icon: <PlusOutlined /> },
+  { name: "新增物料", path: "/material-create", icon: <PlusOutlined /> },
   { name: "新建采购订单", path: "/purchase-orders", icon: <ShoppingCartOutlined /> },
   { name: "新建生产通知单", path: "/production", icon: <FileAddOutlined /> },
   { name: "导入表格", path: "/material-master", icon: <ImportOutlined /> },
@@ -166,6 +167,8 @@ export default function Dashboard() {
           ))}
         </div>
       </Card>
+
+      <AlertCenter />
 
       <Card variant="borderless" style={{ marginTop: 20 }}>
         <h2 style={{ marginTop: 0, marginBottom: 8, fontWeight: 800 }}>欢迎使用 兴信B ERP</h2>
