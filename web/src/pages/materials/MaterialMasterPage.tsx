@@ -3,13 +3,14 @@ import {
   AutoComplete, Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Space, Table, Tree, message,
 } from "antd";
 import type { TreeDataNode } from "antd";
-import { PlusOutlined, EditOutlined, DeleteOutlined, UploadOutlined } from "@ant-design/icons";
+import { PlusOutlined, EditOutlined, DeleteOutlined, UploadOutlined, BarcodeOutlined } from "@ant-design/icons";
 import { materialMasterApi, type MaterialRow, type MaterialCategoryNode } from "../../api/materialMaster";
 import { masterApi } from "../../api/master";
 import { can, hidePrice } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
 import { toDocCurrency, useFeatureSettings } from "../../auth/featureSettings";
 import MaterialImportModal from "../../components/MaterialImportModal";
+import BarcodePrintModal from "../../components/scan/BarcodePrintModal";
 import { MATERIAL_IMPORT_SPEC } from "../../utils/materialImport";
 
 const MENU = "物料资料";
@@ -57,6 +58,7 @@ export default function MaterialMasterPage() {
   const [catName, setCatName] = useState("");
   const [catSaving, setCatSaving] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [printOpen, setPrintOpen] = useState(false);   // 条码打印弹窗
   // 仓库位置字典(数据源:仓库位置表);可输入可选择,不强制字典值(兼容存量自由文本)
   const [locOptions, setLocOptions] = useState<{ value: string; label: string }[]>([]);
 
@@ -238,6 +240,7 @@ export default function MaterialMasterPage() {
           />
           {canSave && <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增</Button>}
           {canSave && <Button icon={<UploadOutlined />} onClick={() => setImportOpen(true)}>导入表格</Button>}
+          <Button icon={<BarcodeOutlined />} onClick={() => setPrintOpen(true)}>打印条码</Button>
           {canSave && (
             <Button icon={<EditOutlined />} disabled={!selRow} onClick={() => selRow && openEdit(selRow)}>编辑</Button>
           )}
@@ -314,6 +317,7 @@ export default function MaterialMasterPage() {
         onClose={() => setImportOpen(false)}
         onDone={() => { void loadCats(); void loadRows(1); setPage(1); }}
       />
+      <BarcodePrintModal open={printOpen} onClose={() => setPrintOpen(false)} />
     </Card>
   );
 }
