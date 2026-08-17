@@ -13,7 +13,7 @@ import CommandPalette from "../components/CommandPalette";
 
 const { Sider, Header, Content } = Layout;
 
-// 简易模式菜单：新手天天用的 7 个入口，默认只显示这些，其余收进「全部功能」。
+// 简易模式菜单：新手天天用的 7 个入口，其余收进「全部功能」。
 // perm 对应菜单权限；页面本身也有权限兜底，没权限点进去会提示。
 const SIMPLE_MENU: { label: string; path: string; perm?: string; icon: React.ReactNode }[] = [
   { label: "首页", path: "/", icon: <HomeOutlined /> },
@@ -40,8 +40,8 @@ export default function MainLayout() {
   const loc = useLocation();
   const { theme } = useTheme();
   const [openKeys, setOpenKeys] = useState<string[]>([]);   // 默认全折叠,点击菜单组才展开
-  // 简易模式：默认开启(localStorage 记忆)，新手只看到 7 个核心入口
-  const [simple, setSimple] = useState<boolean>(() => localStorage.getItem("erp_simple_menu") !== "0");
+  // 简易模式：默认关闭(localStorage 记忆)，点按钮切到只显示 7 个核心入口的简易菜单
+  const [simple, setSimple] = useState<boolean>(() => localStorage.getItem("erp_simple_menu") === "1");
 
   const toggleSimple = () => {
     setSimple(s => {
@@ -63,7 +63,7 @@ export default function MainLayout() {
     return leaves.length
       ? { key: g.key, label: g.label, icon: <AppstoreOutlined />, children: leaves }
       : null;
-  }).filter(Boolean);
+  }).filter((x): x is NonNullable<typeof x> => x !== null);
 
   // 简易菜单(扁平,无分组)
   const simpleItems = SIMPLE_MENU
