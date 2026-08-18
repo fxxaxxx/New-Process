@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Button, Input, Modal, Space, Tooltip, message } from "antd";
+import type { InputRef } from "antd";
 import { BarcodeOutlined, CameraOutlined } from "@ant-design/icons";
 
 // 扫码录入条：扫码枪扫入条码后回车触发 onScan，扫完自动清空并重新聚焦，支持连续扫码。
@@ -25,7 +26,7 @@ export default function ScanEntry({ onScan, disabled, placeholder }: {
 }) {
   const [value, setValue] = useState("");
   const [cameraOpen, setCameraOpen] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<InputRef>(null);
   const busyRef = useRef(false);            // 防止 onScan 未完成时重复触发
   const cameraSupported = getDetectorCtor() !== null;
 
@@ -51,7 +52,7 @@ export default function ScanEntry({ onScan, disabled, placeholder }: {
   return (
     <Space.Compact style={{ width: "100%", maxWidth: 520 }}>
       <Input
-        ref={inputRef as React.RefObject<HTMLInputElement>}
+        ref={inputRef}
         prefix={<BarcodeOutlined style={{ color: "#1677ff" }} />}
         placeholder={placeholder ?? "扫物料条码后回车（扫码枪直接扫）"}
         value={value}

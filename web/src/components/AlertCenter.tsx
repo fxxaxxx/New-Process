@@ -20,8 +20,9 @@ const DOC_ENDPOINTS: { label: string; ep: string; path: string }[] = [
   { label: "成品入仓单", ep: "/finished-receipts", path: "/finished-receipts" },
 ];
 
-const isPaged = (d: unknown): d is { items: { 审核?: string }[] } =>
+const _isPaged = (d: unknown): d is { items: { 审核?: string }[] } =>
   typeof d === "object" && d !== null && Array.isArray((d as { items?: unknown }).items);
+void _isPaged;
 
 export default function AlertCenter() {
   const nav = useNavigate();
