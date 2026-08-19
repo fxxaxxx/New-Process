@@ -48,6 +48,7 @@ const ProductionNoticePage = lazy(() => import("./pages/production/ProductionNot
 const ProductionQueryPage = lazy(() => import("./pages/production/ProductionQueryPage"));
 const ProductionTrackingPage = lazy(() => import("./pages/production/ProductionTrackingPage"));
 const BomMaterialQueryPage = lazy(() => import("./pages/production/BomMaterialQueryPage"));
+const SchedulingPage = lazy(() => import("./pages/scheduling/SchedulingPage"));
 const BomStyleQueryPage = lazy(() => import("./pages/production/BomStyleQueryPage"));
 const OrderSummaryPage = lazy(() => import("./pages/production/OrderSummaryPage"));
 const PurchaseOverQueryPage = lazy(() => import("./pages/production/PurchaseOverQueryPage"));
@@ -202,6 +203,7 @@ export default function App() {
         <Route path="/" element={<RequireAuth><PermissionProvider><MainLayout /></PermissionProvider></RequireAuth>}>
           <Route index element={<Dashboard />} />
           <Route path="master/:menu" element={<MasterRouter />} />
+          <Route path="scheduling" element={<SchedulingPage />} />
           <Route path="styles/:styleNo" element={<StyleDetailPage />} />
           <Route path="bom-setup" element={<BomSetupPage />} />
           <Route path="assembly-factory-inventory" element={<AssemblyFactoryInventoryPage />} />

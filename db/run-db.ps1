@@ -71,4 +71,8 @@ dotnet run --project (Join-Path $root "tools\DbDeploy") -- $ConnectionString `
   (Join-Path $dir "seed_plastic_label_order_perms.sql") `
   (Join-Path $dir "59_material_label_query_perms.sql") `
   (Join-Path $dir "seed_system_masters_perms.sql") `
-  (Join-Path $dir "seed_audit_fix_perms.sql")
+  (Join-Path $dir "seed_audit_fix_perms.sql") `
+  (Join-Path $dir "69_production_schedule.sql") `
+  (Join-Path $dir "70_production_schedule_widen.sql") `
+  (Join-Path $dir "71_production_schedule_raw.sql") `
+  (Join-Path $dir "seed_scheduling_perms.sql")

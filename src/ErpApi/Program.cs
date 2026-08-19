@@ -39,6 +39,7 @@ builder.Services.AddScoped<ErpApi.Features.Assembly.AssemblyMaterialSummaryServi
 builder.Services.AddScoped<ErpApi.Features.Assembly.AssemblyPurchaseQueryService>();
 builder.Services.AddScoped<ErpApi.Features.Assembly.AssemblyPurchaseOrderService>();
 builder.Services.AddScoped<ErpApi.Features.Orders.OrderService>();
+builder.Services.AddScoped<ErpApi.Features.Scheduling.SchedulingService>();
 builder.Services.AddScoped<ErpApi.Features.Production.ProductionService>();
 builder.Services.AddScoped<ErpApi.Features.Production.ProductionReportService>();
 builder.Services.AddScoped<ErpApi.Features.Production.MoTrackingService>();

@@ -159,6 +159,7 @@ export const MENU_TREE: MenuGroup[] = [
   ]},
   // ⑩ 业务部
   { key: "g-biz", label: "业务部", children: [
+    M("客户排期表", "/scheduling", "生产排期"),
     M("客户资料", "/master/客户资料", "客户资料"),
     M("调价", "/master/调价", "调价"),
   ]},
