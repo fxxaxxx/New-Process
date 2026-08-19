@@ -210,7 +210,7 @@ export default function PlasticMaterialMasterPage() {
   };
 
   const num = (v?: number | null) => v ?? "";
-  // 旧系统固定表头(27 列,顺序不可变):塑胶货号=款号,原胶件单价=单价(导入时存的就是 单价 列)
+  // 旧系统固定表头(28 列,顺序不可变):塑胶货号=款号,原胶件单价=单价(导入时存的就是 单价 列)
   const columns = [
     { title: "物料编号", dataIndex: "物料编号", width: 100 },
     { title: "客户", dataIndex: "客户", width: 80 },
@@ -239,6 +239,7 @@ export default function PlasticMaterialMasterPage() {
     { title: "胶件料价", dataIndex: "胶件料价", width: 90, align: "right" as const, render: money },
     { title: "原胶件单价", dataIndex: "单价", width: 95, align: "right" as const, render: money },
     { title: "备注", dataIndex: "备注", width: 140 },
+    { title: "其他成本", dataIndex: "其他成本", width: 90, align: "right" as const, render: money },
   ];
 
   if (!canOpen) {

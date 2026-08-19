@@ -38,9 +38,13 @@ export const MENU_TREE: MenuGroup[] = [
   // ② 工程部
   { key: "g-eng", label: "工程部", children: [
     M("款号总表", "/master/款号资料", "款号资料"),
-    M("BOM物料设置", "/bom-setup", "款号资料"),
     M("BOM货号查询", "/bom-style-query", "生产制单"),
+    M("物料资料", "/material-master", "物料资料"),
+    M("塑胶物料资料", "/plastic-material-master", "塑胶物料资料"),
+    M("工模表", "/plastic-molds", "工模表"),
+    M("BOM物料设置", "/bom-setup", "款号资料"),
     M("BOM物料查询", "/bom-material-query", "生产制单"),
+    M("生产通知单", "/production", "生产制单"),
   ]},
   // ③ 装配部(生产部)
   { key: "g-prod", label: "装配部(生产部)", children: [

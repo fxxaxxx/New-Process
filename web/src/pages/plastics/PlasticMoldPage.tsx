@@ -5,12 +5,13 @@ import {
 import { PlusOutlined } from "@ant-design/icons";
 import { masterApi } from "../../api/master";
 import { api } from "../../api/client";
-import { can, hidePrice } from "../../auth/permissions";
+import { can } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
 
 const MENU = "工模表";
 const crud = masterApi("plastic-molds");
 const machineRates = masterApi("injection-machine-rates");
+const customerMaster = masterApi("customers");
 
 // 工模编号改名同步:引用方(塑胶物料资料/塑胶共用物料表)跟着改
 const syncCode = (旧编号: string, 新编号: string) =>
@@ -22,9 +23,9 @@ const syncFields = (工模编号: string) =>
   api.post<{ 物料资料更新: number }>(
     "/master/plastic-molds/sync-fields", { 工模编号 }).then(r => r.data);
 
-// 参与"字段改动检测/同步"的工模字段(颜色/色粉号/备注/客户/工模名称/整啤套数 不同步)
+// 参与"字段改动检测/同步"的工模字段(颜色/色粉号/备注/客户/工模名称/整啤套数 不同步;价格类字段本页不再使用)
 const SYNC_FIELDS = ["用料名称", "整啤模腔数", "水口比例", "模具日产量", "整啤毛重", "整啤净重",
-  "啤机机型", "啤机价钱", "胶件啤工价", "原胶料单价", "胶料单价"] as const;
+  "啤机机型"] as const;
 const normVal = (x: unknown) => {
   if (x === null || x === undefined || x === "") return null;
   const n = Number(x);
@@ -32,14 +33,12 @@ const normVal = (x: unknown) => {
 };
 
 type MoldRow = Record<string, unknown> & { ID: number };
-type RateOption = { value: string; price: number | null };
 
 export default function PlasticMoldPage() {
   const perms = usePerms();
   const canOpen = can(perms, MENU, "打开");
   const canSave = can(perms, MENU, "保存");
   const canDelete = can(perms, MENU, "删除");
-  const priceHidden = hidePrice(perms, MENU);
   const num = (v?: number | null) => v ?? "";
 
   const [keyword, setKeyword] = useState("");
@@ -55,24 +54,28 @@ export default function PlasticMoldPage() {
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
   // 啤机机型下拉(数据源:啤机机型啤工表);null=字典加载失败(无权限等),回落为手输框
-  const [rateOptions, setRateOptions] = useState<RateOption[] | null>(null);
+  const [rateOptions, setRateOptions] = useState<{ value: string }[] | null>(null);
+  // 客户下拉(数据源:客户资料);null=加载失败,回落为手输框
+  const [custOptions, setCustOptions] = useState<{ value: string; label: string }[] | null>(null);
+
+  useEffect(() => {
+    customerMaster.list(1, 500)
+      .then(r => setCustOptions(r.items
+        .filter(x => typeof x.客户名称 === "string" && x.客户名称)
+        .map(x => ({
+          value: x.客户名称 as string,
+          label: `${x.客户编号 ?? ""} ${x.客户名称}`.trim(),
+        }))))
+      .catch(() => setCustOptions(null));
+  }, []);
 
   useEffect(() => {
     machineRates.list(1, 200)
       .then(r => setRateOptions(r.items
         .filter(x => typeof x.啤机机型 === "string" && x.啤机机型)
-        .map(x => ({ value: x.啤机机型 as string, price: (x.啤工价 as number | null) ?? null }))))
+        .map(x => ({ value: x.啤机机型 as string }))))
       .catch(() => setRateOptions(null));
   }, []);
-
-  // 选中机型后:啤机价钱为空且有单价权限时才带出该机型啤工价(后端无单价权限已把啤工价脱敏为 null)
-  const onRateSelect = (v?: string) => {
-    if (priceHidden || v == null) return;
-    const cur = form.getFieldValue("啤机价钱");
-    if (cur !== undefined && cur !== null && cur !== "") return;
-    const price = rateOptions?.find(o => o.value === v)?.price;
-    if (price != null) form.setFieldValue("啤机价钱", price);
-  };
 
   const loadRows = useCallback(async (p: number) => {
     if (!canOpen) return;
@@ -112,7 +115,7 @@ export default function PlasticMoldPage() {
       const newCode = String(v.工模编号 ?? "").trim().toUpperCase();
       const isEdit = !!(editing && editing.ID > 0);
       const renamed = isEdit && origCode && newCode && newCode !== origCode;
-      // 技术字段差异(原料单价比较时用 胶料单价,故比较清单含 胶料单价 本身)
+      // 技术字段差异(只比较 SYNC_FIELDS 里本页仍在用的字段)
       const fieldsChanged = isEdit && !!origRow &&
         SYNC_FIELDS.some(f => normVal(origRow[f]) !== normVal(v[f]));
       setEditing(null); setSelRow(null); await loadRows(page);
@@ -160,16 +163,19 @@ export default function PlasticMoldPage() {
     catch { message.error("删除失败"); }
   };
 
-  // 旧系统固定表头(11 列,顺序不可变);色粉号/整啤毛重/啤机价钱/胶件啤工价/胶料单价/原胶料单价 只在编辑表单
+  // 旧系统固定表头(14 列,顺序与旧工模表一致);价格类字段(啤机价钱/胶件啤工价/胶料单价/原胶料单价)本页不再使用
   const columns = [
     { title: "客户", dataIndex: "客户", width: 90 },
-    { title: "工模编号", dataIndex: "工模编号", width: 140 },
+    { title: "工模编号", dataIndex: "工模编号", width: 130 },
     { title: "工模名称", dataIndex: "工模名称", width: 150 },
     { title: "整啤模腔数", dataIndex: "整啤模腔数", width: 100, align: "right" as const, render: num },
     { title: "整啤套数", dataIndex: "整啤套数", width: 90, align: "right" as const, render: num },
     { title: "啤机机型", dataIndex: "啤机机型", width: 90 },
     { title: "模具日产量", dataIndex: "模具日产量", width: 100, align: "right" as const, render: num },
-    { title: "用料名称", dataIndex: "用料名称", width: 200 },
+    { title: "颜色", dataIndex: "颜色", width: 100 },
+    { title: "色粉号", dataIndex: "色粉号", width: 90 },
+    { title: "用料名称", dataIndex: "用料名称", width: 180 },
+    { title: "整啤毛重", dataIndex: "整啤毛重", width: 90, align: "right" as const, render: num },
     { title: "整啤净重", dataIndex: "整啤净重", width: 90, align: "right" as const, render: num },
     { title: "水口比例", dataIndex: "水口比例", width: 90, align: "right" as const, render: num },
     { title: "备注", dataIndex: "备注", width: 140 },
@@ -217,20 +223,23 @@ export default function PlasticMoldPage() {
         confirmLoading={saving} destroyOnClose width={640}
       >
         <Form form={form} layout="vertical">
+          <Form.Item name="客户" label="客户">
+            {custOptions === null
+              ? <Input />
+              : <Select
+                  showSearch allowClear placeholder="选择客户(可输入编号/名称搜索)"
+                  options={custOptions}
+                  filterOption={(input, opt) =>
+                    (opt?.label ?? "").toLowerCase().includes(input.toLowerCase())}
+                />}
+          </Form.Item>
           <Form.Item name="工模编号" label="工模编号(保存时自动转大写)"
             rules={[{ required: true, message: "请输入工模编号" }]}>
             <Input onChange={e => form.setFieldValue("工模编号", e.target.value.toUpperCase())} />
           </Form.Item>
           <Form.Item name="工模名称" label="工模名称"><Input /></Form.Item>
-          <Form.Item name="客户" label="客户"><Input /></Form.Item>
-          <Form.Item name="颜色" label="颜色(格式:颜色/PANTONE,如 绿色/7481C)"><Input /></Form.Item>
-          <Form.Item name="色粉号" label="色粉号"><Input /></Form.Item>
           <Form.Item name="整啤模腔数" label="整啤模腔数"><InputNumber style={{ width: "100%" }} /></Form.Item>
           <Form.Item name="整啤套数" label="整啤套数"><InputNumber style={{ width: "100%" }} /></Form.Item>
-          <Form.Item name="水口比例" label="水口比例"><InputNumber style={{ width: "100%" }} /></Form.Item>
-          <Form.Item name="模具日产量" label="模具日产量"><InputNumber style={{ width: "100%" }} /></Form.Item>
-          <Form.Item name="整啤毛重" label="整啤毛重"><InputNumber style={{ width: "100%" }} /></Form.Item>
-          <Form.Item name="整啤净重" label="整啤净重"><InputNumber style={{ width: "100%" }} /></Form.Item>
           <Form.Item name="啤机机型" label="啤机机型">
             {rateOptions === null
               ? <Input />
@@ -239,22 +248,15 @@ export default function PlasticMoldPage() {
                   options={rateOptions}
                   filterOption={(input, opt) =>
                     (opt?.value ?? "").toLowerCase().includes(input.toLowerCase())}
-                  onChange={v => onRateSelect(v)}
                 />}
           </Form.Item>
-          {!priceHidden && (
-            <Form.Item name="啤机价钱" label="啤机价钱"><InputNumber min={0} style={{ width: "100%" }} /></Form.Item>
-          )}
-          {!priceHidden && (
-            <Form.Item name="胶件啤工价" label="胶件啤工价"><InputNumber min={0} style={{ width: "100%" }} /></Form.Item>
-          )}
+          <Form.Item name="模具日产量" label="模具日产量"><InputNumber style={{ width: "100%" }} /></Form.Item>
+          <Form.Item name="颜色" label="颜色(格式:颜色/PANTONE,如 绿色/7481C)"><Input /></Form.Item>
+          <Form.Item name="色粉号" label="色粉号"><Input /></Form.Item>
           <Form.Item name="用料名称" label="用料名称"><Input /></Form.Item>
-          {!priceHidden && (
-            <Form.Item name="胶料单价" label="胶料单价"><InputNumber min={0} style={{ width: "100%" }} /></Form.Item>
-          )}
-          {!priceHidden && (
-            <Form.Item name="原胶料单价" label="原胶料单价"><InputNumber min={0} style={{ width: "100%" }} /></Form.Item>
-          )}
+          <Form.Item name="整啤毛重" label="整啤毛重"><InputNumber style={{ width: "100%" }} /></Form.Item>
+          <Form.Item name="整啤净重" label="整啤净重"><InputNumber style={{ width: "100%" }} /></Form.Item>
+          <Form.Item name="水口比例" label="水口比例"><InputNumber style={{ width: "100%" }} /></Form.Item>
           <Form.Item name="备注" label="备注"><Input.TextArea rows={2} /></Form.Item>
         </Form>
       </Modal>
