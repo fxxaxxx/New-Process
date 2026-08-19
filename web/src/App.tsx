@@ -1,10 +1,11 @@
 import { lazy, Suspense } from "react";
 import { Spin } from "antd";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { PermissionProvider } from "./auth/PermissionContext";
 import RequireAuth from "./auth/RequireAuth";
 import Login from "./pages/Login";
 import MainLayout from "./pages/MainLayout";
+import DocQueryTabs from "./components/DocQueryTabs";
 import MasterRouter from "./pages/master/MasterRouter";
 import Dashboard from "./pages/Dashboard";
 const ChangePasswordPage = lazy(() => import("./pages/ChangePasswordPage"));
@@ -60,7 +61,7 @@ const PurchaseOrderListPage = lazy(() => import("./pages/production/PurchaseOrde
 const PurchaseOrderQueryPage = lazy(() => import("./pages/production/PurchaseOrderQueryPage"));
 const OrderProgressPage = lazy(() => import("./pages/production/OrderProgressPage"));
 const ProgressDetailPage = lazy(() => import("./pages/production/ProgressDetailPage"));
-const MaterialDocRouter = lazy(() => import("./pages/materials/MaterialDocRouter"));
+const MaterialsDocCenter = lazy(() => import("./pages/materials/MaterialsDocCenter"));
 const MaterialMasterPage = lazy(() => import("./pages/materials/MaterialMasterPage"));
 const MaterialCreateWizard = lazy(() => import("./pages/materials/MaterialCreateWizard"));
 const AuxiliaryMaterialMasterPage = lazy(() => import("./pages/auxiliary/AuxiliaryMaterialMasterPage"));
@@ -141,11 +142,6 @@ import { PLASTIC_SUPPLIER_DOC_CONFIGS } from "./pages/plastics/PlasticSupplierDo
 import { PLASTIC_RECEIPT_FORM_CONFIGS } from "./pages/plastics/PlasticReceiptFormConfigs";
 const MaterialInventoryPage = lazy(() => import("./pages/materials/MaterialInventoryPage"));
 const MaterialLabelQueryPage = lazy(() => import("./pages/materials/MaterialLabelQueryPage"));
-const PurchaseReceiptQueryPage = lazy(() => import("./pages/materials/PurchaseReceiptQueryPage"));
-const PurchaseReturnQueryPage = lazy(() => import("./pages/materials/PurchaseReturnQueryPage"));
-const MaterialIssueQueryPage = lazy(() => import("./pages/materials/MaterialIssueQueryPage"));
-const MaterialReturnQueryPage = lazy(() => import("./pages/materials/MaterialReturnQueryPage"));
-const MaterialScrapQueryPage = lazy(() => import("./pages/materials/MaterialScrapQueryPage"));
 const MaterialStocktakeQueryPage = lazy(() => import("./pages/materials/MaterialStocktakeQueryPage"));
 const CuttingPage = lazy(() => import("./pages/workshop/CuttingPage"));
 const PieceworkPage = lazy(() => import("./pages/workshop/PieceworkPage"));
@@ -153,8 +149,7 @@ const PieceworkSummaryPage = lazy(() => import("./pages/workshop/PieceworkSummar
 const OutsourcePage = lazy(() => import("./pages/workshop/OutsourcePage"));
 const OutsourceReturnPage = lazy(() => import("./pages/workshop/OutsourceReturnPage"));
 const OutsourceReconcilePage = lazy(() => import("./pages/workshop/OutsourceReconcilePage"));
-const FinishedReceiptPage = lazy(() => import("./pages/warehouse/FinishedReceiptPage"));
-const FinishedReceiptQueryPage = lazy(() => import("./pages/warehouse/FinishedReceiptQueryPage"));
+const FinishedReceiptCenterPage = lazy(() => import("./pages/warehouse/FinishedReceiptCenterPage"));
 const FinishedIssuePage = lazy(() => import("./pages/warehouse/FinishedIssuePage"));
 const FinishedStocktakePage = lazy(() => import("./pages/warehouse/FinishedStocktakePage"));
 const FinishedInventoryPage = lazy(() => import("./pages/warehouse/FinishedInventoryPage"));
@@ -213,7 +208,7 @@ export default function App() {
           <Route path="assembly-factory-category-monthly" element={<AssemblyFactoryCategoryMonthlyPage />} />
           <Route path="assembly-material-setup" element={<BomSetupPage />} />
           <Route path="semi-finished-common-materials" element={<SemiFinishedCommonMaterialsPage />} />
-          <Route path="semi-finished-label-orders" element={<SemiFinishedLabelOrderPage />} />
+          <Route path="semi-finished-label-orders" element={<DocQueryTabs docLabel="半成品标签单" queryLabel="半成品标签查询" doc={<SemiFinishedLabelOrderPage />} query={<SemiLabelQueryPage />} />} />
           <Route path="semi-finished-shortage-analysis" element={<SemiFinishedShortageAnalysisPage />} />
           <Route path="assembly-material-summary" element={<AssemblyMaterialSummaryPage />} />
           <Route path="assembly-material-tracking" element={<AssemblyMaterialTrackingPage />} />
@@ -222,8 +217,8 @@ export default function App() {
           <Route path="assembly-purchase-query" element={<AssemblyPurchaseQueryPage />} />
           <Route path="assembly-required-material-detail" element={<AssemblyRequiredMaterialDetailPage />} />
           <Route path="orders" element={<OrdersPage />} />
-          <Route path="production" element={<ProductionNoticePage />} />
-          <Route path="production-query" element={<ProductionQueryPage />} />
+          <Route path="production" element={<DocQueryTabs docLabel="生产通知单" queryLabel="查询生产单" doc={<ProductionNoticePage />} query={<ProductionQueryPage />} />} />
+          <Route path="production-query" element={<Navigate to="/production?tab=query" replace />} />
           <Route path="production-tracking" element={<ProductionTrackingPage />} />
           <Route path="bom-material-query" element={<BomMaterialQueryPage />} />
           <Route path="bom-style-query" element={<BomStyleQueryPage />} />
@@ -239,12 +234,12 @@ export default function App() {
           <Route path="purchase-order-query" element={<PurchaseOrderQueryPage />} />
           <Route path="order-progress" element={<OrderProgressPage />} />
           <Route path="order-progress-detail" element={<ProgressDetailPage />} />
-          <Route path="materials/:doc" element={<MaterialDocRouter />} />
+          <Route path="materials/:doc" element={<MaterialsDocCenter />} />
           <Route path="material-create" element={<MaterialCreateWizard />} />
           <Route path="material-master" element={<MaterialMasterPage />} />
           <Route path="auxiliary-material-master" element={<AuxiliaryMaterialMasterPage />} />
           <Route path="auxiliary-purchase-analysis" element={<AuxiliaryPurchaseAnalysisPage />} />
-          <Route path="auxiliary-purchase-order" element={<AuxiliaryPurchaseOrderPage />} />
+          <Route path="auxiliary-purchase-order" element={<DocQueryTabs docLabel="辅料采购订单" queryLabel="辅料采购订单查询" doc={<AuxiliaryPurchaseOrderPage />} query={<AuxiliaryPurchaseOrderQueryPage />} />} />
           <Route path="auxiliary-purchase-progress" element={<AuxiliaryPurchaseProgressPage />} />
           <Route path="auxiliary-issue-progress" element={<AuxiliaryIssueProgressPage />} />
           <Route path="auxiliary-inventory" element={<AuxiliaryInventoryPage />} />
@@ -252,35 +247,35 @@ export default function App() {
           <Route path="auxiliary-order-receipt-stats" element={<AuxiliaryOrderReceiptStatsPage />} />
           <Route path="auxiliary-progress-detail" element={<AuxiliaryProgressDetailPage />} />
           <Route path="auxiliary-issue-detail" element={<AuxiliaryIssueDetailPage />} />
-          <Route path="auxiliary-purchase-order-query" element={<AuxiliaryPurchaseOrderQueryPage />} />
-          <Route path="auxiliary-receipt-query" element={<AuxiliaryReceiptQueryPage />} />
-          <Route path="auxiliary-stock-issue-query" element={<AuxiliaryStockIssueQueryPage />} />
-          <Route path="auxiliary-stock-return-query" element={<AuxiliaryStockReturnQueryPage />} />
-          <Route path="auxiliary-stocktake-query" element={<AuxiliaryStocktakeQueryPage />} />
-          <Route path="auxiliary-receipts" element={<AuxiliaryReceiptPage />} />
-          <Route path="auxiliary-purchase-returns" element={<AuxiliaryPurchaseReturnPage />} />
-          <Route path="auxiliary-issues" element={<AuxiliaryIssuePage />} />
+          <Route path="auxiliary-purchase-order-query" element={<Navigate to="/auxiliary-purchase-order?tab=query" replace />} />
+          <Route path="auxiliary-receipt-query" element={<Navigate to="/auxiliary-receipts?tab=query" replace />} />
+          <Route path="auxiliary-stock-issue-query" element={<Navigate to="/auxiliary-issues?tab=query" replace />} />
+          <Route path="auxiliary-stock-return-query" element={<Navigate to="/auxiliary-purchase-returns?tab=query" replace />} />
+          <Route path="auxiliary-stocktake-query" element={<Navigate to="/auxiliary-stocktakes?tab=query" replace />} />
+          <Route path="auxiliary-receipts" element={<DocQueryTabs docLabel="辅料入仓单" queryLabel="辅料入仓查询" doc={<AuxiliaryReceiptPage />} query={<AuxiliaryReceiptQueryPage />} />} />
+          <Route path="auxiliary-purchase-returns" element={<DocQueryTabs docLabel="辅料退仓单" queryLabel="辅料退仓查询" doc={<AuxiliaryPurchaseReturnPage />} query={<AuxiliaryStockReturnQueryPage />} />} />
+          <Route path="auxiliary-issues" element={<DocQueryTabs docLabel="辅料出库单" queryLabel="辅料出库查询" doc={<AuxiliaryIssuePage />} query={<AuxiliaryStockIssueQueryPage />} />} />
           <Route path="auxiliary-returns" element={<AuxiliaryReturnPage />} />
-          <Route path="auxiliary-stocktakes" element={<AuxiliaryStocktakePage />} />
+          <Route path="auxiliary-stocktakes" element={<DocQueryTabs docLabel="辅料盘点单" queryLabel="辅料盘点查询" doc={<AuxiliaryStocktakePage />} query={<AuxiliaryStocktakeQueryPage />} />} />
           <Route path="plastic-material-master" element={<PlasticMaterialMasterPage />} />
           <Route path="plastic-raw-material-master" element={<PlasticRawMaterialMasterPage />} />
           <Route path="plastic-common-materials" element={<PlasticCommonMaterialPage />} />
           <Route path="plastic-molds" element={<PlasticMoldPage />} />
           <Route path="plastic-material-analysis" element={<PlasticMaterialAnalysisPage />} />
-          <Route path="plastic-receipts" element={<PlasticReceiptFormPage cfg={PLASTIC_RECEIPT_FORM_CONFIGS["plastic-receipts"]} />} />
-          <Route path="plastic-issues" element={<PlasticIssueFormPage />} />
-          <Route path="plastic-returns" element={<PlasticSupplierDocFormPage cfg={PLASTIC_SUPPLIER_DOC_CONFIGS["plastic-returns"]} />} />
-          <Route path="plastic-warehouse-returns" element={<PlasticReceiptFormPage cfg={PLASTIC_RECEIPT_FORM_CONFIGS["plastic-warehouse-returns"]} />} />
-          <Route path="plastic-scraps" element={<PlasticSupplierDocFormPage cfg={PLASTIC_SUPPLIER_DOC_CONFIGS["plastic-scraps"]} />} />
-          <Route path="plastic-stocktakes" element={<PlasticStocktakePage />} />
+          <Route path="plastic-receipts" element={<DocQueryTabs docLabel="塑胶入仓单" queryLabel="塑胶入仓查询" doc={<PlasticReceiptFormPage cfg={PLASTIC_RECEIPT_FORM_CONFIGS["plastic-receipts"]} />} query={<PlasticReceiptQueryPage />} />} />
+          <Route path="plastic-issues" element={<DocQueryTabs docLabel="塑胶领料单" queryLabel="塑胶领料查询" doc={<PlasticIssueFormPage />} query={<PlasticIssueQueryPage />} />} />
+          <Route path="plastic-returns" element={<DocQueryTabs docLabel="塑胶退料单" queryLabel="塑胶退料查询" doc={<PlasticSupplierDocFormPage cfg={PLASTIC_SUPPLIER_DOC_CONFIGS["plastic-returns"]} />} query={<PlasticReturnQueryPage />} />} />
+          <Route path="plastic-warehouse-returns" element={<DocQueryTabs docLabel="塑胶退仓单" queryLabel="塑胶退仓查询" doc={<PlasticReceiptFormPage cfg={PLASTIC_RECEIPT_FORM_CONFIGS["plastic-warehouse-returns"]} />} query={<PlasticWarehouseReturnQueryPage />} />} />
+          <Route path="plastic-scraps" element={<DocQueryTabs docLabel="塑胶报废单" queryLabel="塑胶报废查询" doc={<PlasticSupplierDocFormPage cfg={PLASTIC_SUPPLIER_DOC_CONFIGS["plastic-scraps"]} />} query={<PlasticScrapQueryPage />} />} />
+          <Route path="plastic-stocktakes" element={<DocQueryTabs docLabel="塑胶盘点单" queryLabel="塑胶盘点查询" doc={<PlasticStocktakePage />} query={<PlasticStocktakeQueryPage />} />} />
           <Route path="plastic-inventory" element={<PlasticInventoryPage />} />
           <Route path="plastic-in-out" element={<PlasticInOutReportPage />} />
           <Route path="plastic-analysis-detail" element={<PlasticAnalysisDetailPage />} />
           <Route path="plastic-order-make" element={<PlasticOrderMakePage />} />
           <Route path="plastic-process-order-make" element={<PlasticProcessOrderMakePage />} />
           <Route path="plastic-purchase-orders" element={<PlasticPurchaseOrderPage />} />
-          <Route path="plastic-process-purchase-orders" element={<PlasticProcessPurchaseOrderPage />} />
-          <Route path="plastic-process-purchase-query" element={<PlasticProcessPurchaseQueryPage />} />
+          <Route path="plastic-process-purchase-orders" element={<DocQueryTabs docLabel="塑胶加工采购单" queryLabel="加工采购查询" doc={<PlasticProcessPurchaseOrderPage />} query={<PlasticProcessPurchaseQueryPage />} />} />
+          <Route path="plastic-process-purchase-query" element={<Navigate to="/plastic-process-purchase-orders?tab=query" replace />} />
           <Route path="plastic-process-purchase-progress" element={<PlasticProcessPurchaseProgressPage />} />
           <Route path="plastic-process-purchase-detail" element={<PlasticProcessPurchaseDetailPage />} />
           <Route path="plastic-process-issue-progress" element={<PlasticProcessIssueProgressPage />} />
@@ -290,11 +285,11 @@ export default function App() {
           <Route path="plastic-raw-material-demand-summary" element={<PlasticRawMaterialDemandSummaryPage />} />
           <Route path="plastic-raw-material-purchase-analysis" element={<PlasticRawMaterialPurchaseAnalysisPage />} />
           <Route path="plastic-raw-material-purchase-order" element={<PlasticRawMaterialPurchaseOrderPage />} />
-          <Route path="plastic-raw-material-receipt" element={<PlasticRawMaterialReceiptPage />} />
-          <Route path="plastic-raw-material-return" element={<PlasticRawMaterialReturnPage />} />
-          <Route path="plastic-raw-material-stock-return" element={<PlasticRawMaterialStockReturnPage />} />
-          <Route path="plastic-raw-material-stock-issue" element={<PlasticRawMaterialStockIssuePage />} />
-          <Route path="plastic-raw-material-stocktake" element={<PlasticRawMaterialStocktakePage />} />
+          <Route path="plastic-raw-material-receipt" element={<DocQueryTabs docLabel="原料入仓单" queryLabel="原料入仓查询" doc={<PlasticRawMaterialReceiptPage />} query={<PlasticRawMaterialReceiptQueryPage />} />} />
+          <Route path="plastic-raw-material-return" element={<DocQueryTabs docLabel="原料退仓单" queryLabel="原料退仓查询" doc={<PlasticRawMaterialReturnPage />} query={<PlasticRawMaterialReturnQueryPage />} />} />
+          <Route path="plastic-raw-material-stock-return" element={<DocQueryTabs docLabel="原料退库表" queryLabel="原料退库查询" doc={<PlasticRawMaterialStockReturnPage />} query={<PlasticRawMaterialStockReturnQueryPage />} />} />
+          <Route path="plastic-raw-material-stock-issue" element={<DocQueryTabs docLabel="原料出库表" queryLabel="原料出库查询" doc={<PlasticRawMaterialStockIssuePage />} query={<PlasticRawMaterialStockIssueQueryPage />} />} />
+          <Route path="plastic-raw-material-stocktake" element={<DocQueryTabs docLabel="原料盘点单" queryLabel="原料盘点查询" doc={<PlasticRawMaterialStocktakePage />} query={<PlasticRawMaterialStocktakeQueryPage />} />} />
           <Route path="plastic-purchase-progress" element={<PlasticPurchaseProgressPage />} />
           <Route path="plastic-customer-type-stats" element={<PlasticCustomerTypeStatsPage />} />
           <Route path="plastic-raw-material-inventory" element={<PlasticRawMaterialInventoryPage />} />
@@ -304,58 +299,58 @@ export default function App() {
           <Route path="plastic-raw-material-issue-progress-detail" element={<PlasticRawMaterialIssueProgressDetailPage />} />
           <Route path="plastic-raw-material-outsource-shortage" element={<PlasticRawMaterialOutsourceShortagePage />} />
           <Route path="plastic-raw-material-purchase-order-query" element={<PlasticRawMaterialPurchaseOrderQueryPage />} />
-          <Route path="plastic-raw-material-receipt-query" element={<PlasticRawMaterialReceiptQueryPage />} />
-          <Route path="plastic-raw-material-return-query" element={<PlasticRawMaterialReturnQueryPage />} />
-          <Route path="plastic-raw-material-stock-issue-query" element={<PlasticRawMaterialStockIssueQueryPage />} />
-          <Route path="plastic-raw-material-stock-return-query" element={<PlasticRawMaterialStockReturnQueryPage />} />
-          <Route path="plastic-raw-material-stocktake-query" element={<PlasticRawMaterialStocktakeQueryPage />} />
+          <Route path="plastic-raw-material-receipt-query" element={<Navigate to="/plastic-raw-material-receipt?tab=query" replace />} />
+          <Route path="plastic-raw-material-return-query" element={<Navigate to="/plastic-raw-material-return?tab=query" replace />} />
+          <Route path="plastic-raw-material-stock-issue-query" element={<Navigate to="/plastic-raw-material-stock-issue?tab=query" replace />} />
+          <Route path="plastic-raw-material-stock-return-query" element={<Navigate to="/plastic-raw-material-stock-return?tab=query" replace />} />
+          <Route path="plastic-raw-material-stocktake-query" element={<Navigate to="/plastic-raw-material-stocktake?tab=query" replace />} />
           <Route path="plastic-raw-material-summary" element={<PlasticRawMaterialSummaryPage />} />
           <Route path="plastic-order-query" element={<PlasticOrderQueryPage />} />
-          <Route path="plastic-issue-query" element={<PlasticIssueQueryPage />} />
-          <Route path="plastic-return-query" element={<PlasticReturnQueryPage />} />
-          <Route path="plastic-scrap-query" element={<PlasticScrapQueryPage />} />
-          <Route path="plastic-receipt-query" element={<PlasticReceiptQueryPage />} />
-          <Route path="plastic-warehouse-return-query" element={<PlasticWarehouseReturnQueryPage />} />
-          <Route path="plastic-stocktake-query" element={<PlasticStocktakeQueryPage />} />
-          <Route path="plastic-label-query" element={<PlasticLabelQueryPage />} />
+          <Route path="plastic-issue-query" element={<Navigate to="/plastic-issues?tab=query" replace />} />
+          <Route path="plastic-return-query" element={<Navigate to="/plastic-returns?tab=query" replace />} />
+          <Route path="plastic-scrap-query" element={<Navigate to="/plastic-scraps?tab=query" replace />} />
+          <Route path="plastic-receipt-query" element={<Navigate to="/plastic-receipts?tab=query" replace />} />
+          <Route path="plastic-warehouse-return-query" element={<Navigate to="/plastic-warehouse-returns?tab=query" replace />} />
+          <Route path="plastic-stocktake-query" element={<Navigate to="/plastic-stocktakes?tab=query" replace />} />
+          <Route path="plastic-label-query" element={<Navigate to="/plastic-label-orders?tab=query" replace />} />
           <Route path="material-inventory" element={<MaterialInventoryPage />} />
-          <Route path="material-label-query" element={<MaterialLabelQueryPage />} />
-          <Route path="purchase-receipt-query" element={<PurchaseReceiptQueryPage />} />
-          <Route path="purchase-return-query" element={<PurchaseReturnQueryPage />} />
-          <Route path="material-issue-query" element={<MaterialIssueQueryPage />} />
-          <Route path="material-return-query" element={<MaterialReturnQueryPage />} />
-          <Route path="material-scrap-query" element={<MaterialScrapQueryPage />} />
-          <Route path="material-stocktake-query" element={<MaterialStocktakeQueryPage />} />
+          <Route path="material-label-query" element={<Navigate to="/material-label-orders?tab=query" replace />} />
+          <Route path="purchase-receipt-query" element={<Navigate to="/materials/purchase-receipts?tab=query" replace />} />
+          <Route path="purchase-return-query" element={<Navigate to="/materials/purchase-returns?tab=query" replace />} />
+          <Route path="material-issue-query" element={<Navigate to="/materials/material-issues?tab=query" replace />} />
+          <Route path="material-return-query" element={<Navigate to="/materials/material-returns?tab=query" replace />} />
+          <Route path="material-scrap-query" element={<Navigate to="/materials/material-scraps?tab=query" replace />} />
+          <Route path="material-stocktake-query" element={<Navigate to="/materials/material-stocktake?tab=query" replace />} />
           <Route path="cuttings" element={<CuttingPage />} />
           <Route path="piecework" element={<PieceworkPage />} />
           <Route path="piecework-summary" element={<PieceworkSummaryPage />} />
           <Route path="outsourcing" element={<OutsourcePage />} />
           <Route path="outsourcing-returns" element={<OutsourceReturnPage />} />
           <Route path="outsourcing-reconcile" element={<OutsourceReconcilePage />} />
-          <Route path="finished-receipts" element={<FinishedReceiptPage />} />
-          <Route path="finished-receipt-query" element={<FinishedReceiptQueryPage />} />
+          <Route path="finished-receipts" element={<FinishedReceiptCenterPage />} />
+          <Route path="finished-receipt-query" element={<Navigate to="/finished-receipts?tab=query" replace />} />
           <Route path="finished-issues" element={<FinishedIssuePage />} />
           <Route path="finished-stocktakes" element={<FinishedStocktakePage />} />
           <Route path="finished-inventory" element={<FinishedInventoryPage />} />
           <Route path="finished-transfers" element={<FinishedTransferPage />} />
           <Route path="finished-sales-returns" element={<FinishedSalesReturnPage />} />
           <Route path="finished-vendor-returns" element={<FinishedVendorReturnPage />} />
-          <Route path="semi-receipts" element={<SemiReceiptPage />} />
-          <Route path="semi-warehouse-returns" element={<SemiWarehouseReturnPage />} />
-          <Route path="semi-issues" element={<SemiIssuePage />} />
-          <Route path="semi-stock-returns" element={<SemiStockReturnPage />} />
-          <Route path="semi-scraps" element={<SemiScrapPage />} />
-          <Route path="semi-stocktakes" element={<SemiStocktakePage />} />
-          <Route path="materials/material-stocktake" element={<MaterialStocktakePage />} />
+          <Route path="semi-receipts" element={<DocQueryTabs docLabel="半成品入仓单" queryLabel="半成品入仓查询" doc={<SemiReceiptPage />} query={<SemiReceiptQueryPage />} />} />
+          <Route path="semi-warehouse-returns" element={<DocQueryTabs docLabel="半成品退仓单" queryLabel="半成品退仓查询" doc={<SemiWarehouseReturnPage />} query={<SemiWhReturnQueryPage />} />} />
+          <Route path="semi-issues" element={<DocQueryTabs docLabel="半成品出库单" queryLabel="半成品出库查询" doc={<SemiIssuePage />} query={<SemiIssueQueryPage />} />} />
+          <Route path="semi-stock-returns" element={<DocQueryTabs docLabel="半成品退库单" queryLabel="半成品退库查询" doc={<SemiStockReturnPage />} query={<SemiStockReturnQueryPage />} />} />
+          <Route path="semi-scraps" element={<DocQueryTabs docLabel="半成品报废单" queryLabel="半成品报废查询" doc={<SemiScrapPage />} query={<SemiScrapQueryPage />} />} />
+          <Route path="semi-stocktakes" element={<DocQueryTabs docLabel="半成品盘点单" queryLabel="半成品盘点查询" doc={<SemiStocktakePage />} query={<SemiStocktakeQueryPage />} />} />
+          <Route path="materials/material-stocktake" element={<DocQueryTabs docLabel="库存盘点单" queryLabel="库存盘点查询" doc={<MaterialStocktakePage />} query={<MaterialStocktakeQueryPage />} />} />
           <Route path="semi-inventory" element={<SemiInventoryPage />} />
           <Route path="semi-inventory-monthly" element={<SemiMonthlyReportPage />} />
-          <Route path="semi-label-query" element={<SemiLabelQueryPage />} />
-          <Route path="semi-receipt-query" element={<SemiReceiptQueryPage />} />
-          <Route path="semi-warehouse-return-query" element={<SemiWhReturnQueryPage />} />
-          <Route path="semi-issue-query" element={<SemiIssueQueryPage />} />
-          <Route path="semi-stock-return-query" element={<SemiStockReturnQueryPage />} />
-          <Route path="semi-scrap-query" element={<SemiScrapQueryPage />} />
-          <Route path="semi-stocktake-query" element={<SemiStocktakeQueryPage />} />
+          <Route path="semi-label-query" element={<Navigate to="/semi-finished-label-orders?tab=query" replace />} />
+          <Route path="semi-receipt-query" element={<Navigate to="/semi-receipts?tab=query" replace />} />
+          <Route path="semi-warehouse-return-query" element={<Navigate to="/semi-warehouse-returns?tab=query" replace />} />
+          <Route path="semi-issue-query" element={<Navigate to="/semi-issues?tab=query" replace />} />
+          <Route path="semi-stock-return-query" element={<Navigate to="/semi-stock-returns?tab=query" replace />} />
+          <Route path="semi-scrap-query" element={<Navigate to="/semi-scraps?tab=query" replace />} />
+          <Route path="semi-stocktake-query" element={<Navigate to="/semi-stocktakes?tab=query" replace />} />
           <Route path="month-end" element={<MonthEnd />} />
           <Route path="sales-shipments" element={<SalesShipmentPage />} />
           <Route path="sales-returns" element={<SalesReturnPage />} />
@@ -393,9 +388,9 @@ export default function App() {
           <Route path="plastic-purchase-progress-detail" element={<PlasticPurchaseProgressDetailPage />} />
           <Route path="plastic-raw-material-purchase-progress" element={<PlasticRawMaterialPurchaseProgressPage />} />
           <Route path="plastic-raw-material-issue-progress" element={<PlasticRawMaterialIssueProgressPage />} />
-          <Route path="plastic-label-orders" element={<PlasticLabelOrderPage />} />
+          <Route path="plastic-label-orders" element={<DocQueryTabs docLabel="塑胶标签单" queryLabel="塑胶标签查询" doc={<PlasticLabelOrderPage />} query={<PlasticLabelQueryPage />} />} />
           <Route path="plastic-material-settings" element={<PlasticMaterialSettingsPage />} />
-          <Route path="material-label-orders" element={<MaterialLabelOrderPage />} />
+          <Route path="material-label-orders" element={<DocQueryTabs docLabel="来料标签单" queryLabel="来料标签查询" doc={<MaterialLabelOrderPage />} query={<MaterialLabelQueryPage />} />} />
           <Route path="purchase-material-settings" element={<PurchaseMaterialSettingsPage />} />
           <Route path="_todo/:name" element={<PlaceholderPage />} />
         </Route>

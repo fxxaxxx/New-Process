@@ -6,19 +6,12 @@ const leaves = MENU_TREE.flatMap((group) => group.children);
 const byLabel = (label: string): MenuLeaf | undefined => leaves.find((item) => item.label === label);
 
 describe("辅料报表菜单", () => {
-  it("辅料退仓查询使用已实现的本地旧版页面入口", () => {
-    expect(byLabel("辅料退仓查询")).toMatchObject({
-      path: "/auxiliary-stock-return-query",
-      perm: "辅料退仓查询",
-    });
-    expect(byLabel("辅料退库查询")).toBeUndefined();
+  it("辅料菜单项已从菜单移除(辅料仓分组已删除),页面仍保留路由", () => {
+    expect(byLabel("辅料退仓查询")).toBeUndefined();
+    expect(byLabel("辅料盘点查询")).toBeUndefined();
   });
 
-  it("registers the auxiliary stocktake query menu and route", () => {
-    expect(byLabel("辅料盘点查询")).toMatchObject({
-      path: "/auxiliary-stocktake-query",
-      perm: "辅料盘点查询",
-    });
+  it("auxiliary stocktake query route is still registered", () => {
     expect(appSource).toContain('path="auxiliary-stocktake-query"');
     expect(appSource).toContain("AuxiliaryStocktakeQueryPage");
   });
