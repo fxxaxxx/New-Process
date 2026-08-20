@@ -113,6 +113,8 @@ vi.mock("antd", () => {
       return createElement("form", null, children);
     },
     {
+      // 与真实 antd 一致的最小实现:返回当前字段值
+      useWatch: (name: string) => activeForm?.values[name],
       useForm: () => {
         const [, rerender] = useState(0);
         const valuesRef = useRef<Record<string, unknown>>({});

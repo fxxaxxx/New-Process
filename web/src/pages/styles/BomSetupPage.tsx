@@ -11,7 +11,7 @@ import {
   UploadOutlined,
 } from "@ant-design/icons";
 import dayjs, { type Dayjs } from "dayjs";
-import { stylesApi, type BomSave, type SemiOption, type StyleListItem } from "../../api/styles";
+import { stylesApi, type BomHeaderOption, type BomSave, type SemiOption, type StyleListItem } from "../../api/styles";
 import { api } from "../../api/client";
 import { masterApi } from "../../api/master";
 import { can } from "../../auth/permissions";
@@ -190,6 +190,8 @@ export default function BomSetupPage() {
 
   const [customers, setCustomers] = useState<CustomerPick[]>([]);
   const [styles, setStyles] = useState<StyleListItem[]>([]);
+  const [bomHeaders, setBomHeaders] = useState<BomHeaderOption[]>([]);
+  const watchedCustomer = Form.useWatch("客户编号", form);
   const [quoteCategories, setQuoteCategories] = useState<string[]>([]);
 
   const [openModal, setOpenModal] = useState(false);
@@ -269,6 +271,8 @@ export default function BomSetupPage() {
         ]);
         setCustomers(customerResult.items as CustomerPick[]);
         setStyles(styleResult.items);
+        // 款号→客户的归属(BOM 单头),用于产品货号下拉按客户过滤;失败降级为不过滤
+        stylesApi.bomHeaders().then(setBomHeaders).catch(() => {});
       } catch {
         message.error("加载客户/产品货号资料失败");
       }
@@ -295,11 +299,18 @@ export default function BomSetupPage() {
       `${s.款号} ${s.款式 ?? ""} ${s.类别 ?? ""}`.toLowerCase().includes(kw));
   }, [semiOptions, pickKw]);
 
-  const productOptions = useMemo(() =>
-    styles
+  const productOptions = useMemo(() => {
+    // 选中客户后,下拉只列该客户的款号(按 BOM 单头客户编号判断);未建过 BOM 的款号不限客户,仍可选用
+    const list = watchedCustomer
+      ? styles.filter(s => {
+          const h = bomHeaders.find(b => b.款号 === s.款号);
+          return !h || !h.客户编号 || h.客户编号 === watchedCustomer;
+        })
+      : styles;
+    return list
       .filter(s => s.款号)
-      .map(s => ({ value: s.款号!, label: `${s.款号} ${s.款式 ?? ""}` })),
-  [styles]);
+      .map(s => ({ value: s.款号!, label: `${s.款号} ${s.款式 ?? ""}` }));
+  }, [styles, bomHeaders, watchedCustomer]);
 
   const customerOptions = useMemo(() =>
     customers
