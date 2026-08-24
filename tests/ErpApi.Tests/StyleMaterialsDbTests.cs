@@ -25,6 +25,7 @@ public class StyleMaterialsDbTests(DbFixture fx)
     {
         using var c = fx.Open();
         c.Execute("DELETE FROM [款号物料明细表] WHERE [款号]='BOMK1'");
+        c.Execute("DELETE FROM [款号物料总表] WHERE [款号]='BOMK1'");
         c.Execute("DELETE FROM [款号总表] WHERE [款号]='BOMK1'");
         // 物料编号 有 FK→物料资料；客户编号 有 FK→客户资料；明细删净后再删父
         c.Execute("DELETE FROM [物料资料] WHERE [物料编号] IN ('M1','M2')");

@@ -27,8 +27,9 @@ public class StyleCopyDbTests(DbFixture fx)
         c.Execute("DELETE FROM [装配物料报价] WHERE [产品货号] IN ('BOMCSRC','BOMCDST')");
         c.Execute("DELETE FROM [半成品共用物料设置] WHERE [产品货号] IN ('BOMCSRC','BOMCDST')");
         c.Execute("DELETE FROM [款号物料明细表] WHERE [款号] IN ('BOMCSRC','BOMCDST')");
+        c.Execute("DELETE FROM [款号物料总表] WHERE [款号] IN ('BOMCSRC','BOMCDST')");
         c.Execute("DELETE FROM [款号总表] WHERE [款号] IN ('BOMCSRC','BOMCDST')");
-        // 物料编号 有 FK→物料资料；客户编号 有 FK→客户资料；明细删净后再删父
+        // 物料编号 有 FK→物料资料；客户编号 有 FK→客户资料(FK_129 经 款号物料总表)；明细删净后再删父
         c.Execute("DELETE FROM [物料资料] WHERE [物料编号] IN ('M1','M2')");
         c.Execute("DELETE FROM [客户资料] WHERE [客户编号]='C001'");
     }

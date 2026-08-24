@@ -60,6 +60,7 @@ public sealed class SemiHierarchyDbTests(DbFixture fx)
         c.Execute("DELETE FROM [生产制单货号] WHERE [BOM款号] IN (N'SH-FIN',N'SH-SEM')");
         c.Execute("DELETE FROM [生产制单] WHERE [款号] IN (N'SH-FIN',N'SH-SEM')");
         c.Execute("DELETE FROM [款号物料明细表] WHERE [款号] IN (N'SH-FIN',N'SH-SEM')");
+        c.Execute("DELETE FROM [款号物料总表] WHERE [款号] IN (N'SH-FIN',N'SH-SEM')");
         c.Execute("DELETE FROM [半成品共用物料设置] WHERE [产品货号] IN (N'SH-FIN',N'SH-SEM')");
         c.Execute("DELETE FROM [款号总表] WHERE [款号] IN (N'SH-FIN',N'SH-SEM')");
         c.Execute("DELETE FROM [物料资料] WHERE [物料编号] IN (N'SH-MAT-1',N'SH-SEM')");
