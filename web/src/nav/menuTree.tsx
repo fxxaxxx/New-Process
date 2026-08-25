@@ -126,7 +126,6 @@ export const MENU_TREE: MenuGroup[] = [
     M("BOM订单制作", "/material-order-make", "生产制单"),
     M("采购订单", "/purchase-orders", "采购订单"),
     M("订单进度表", "/order-progress", "采购订单"),
-    M("进度明细表", "/order-progress-detail", "采购订单"),
     // 仓库管理
     M("物料资料", "/material-master", "物料资料"),
     M("来料标签单", "/material-label-orders", "来料标签单"),
