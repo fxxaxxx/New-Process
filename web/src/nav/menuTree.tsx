@@ -1,11 +1,12 @@
 // 菜单树·按部门组织(以用户提供的原系统部门菜单截图为准)。
 // leaf.path 有值=已建页面路由(可选 perm=9位权限菜单名,无权限则隐藏);无 path=占位(功能开发中)。
+// leaf.path 为完整 URL(http 开头)=外部系统入口,点击新标签打开(MainLayout 判断),不挂权限全员可见。
 // 空分组不显示(如喷油部暂无功能,未列出)。
 // 维护提示:新增/补全菜单以原系统截图为准;已建功能对上某项就把 path/perm 补上。
 
 export interface MenuLeaf {
   label: string;
-  path?: string;   // 已建路由;缺省=占位
+  path?: string;   // 已建路由,或 http 开头的完整 URL=外部系统(新标签打开);缺省=占位
   perm?: string;   // 9位权限菜单名(用于 can(perms,perm,"打开") 隐藏);缺省=不按权限隐藏
 }
 export interface MenuGroup {
@@ -15,6 +16,10 @@ export interface MenuGroup {
 }
 
 const M = (label: string, path?: string, perm?: string): MenuLeaf => ({ label, path, perm });
+
+// RR-Portal 门户(云服务器)上的外部系统入口;↗ 标记新标签打开
+const PORTAL = "http://8.148.146.194";
+const X = (label: string, urlPath: string): MenuLeaf => ({ label: `${label}↗`, path: `${PORTAL}${urlPath}` });
 
 export const MENU_TREE: MenuGroup[] = [
   // ① 基础设置
@@ -45,6 +50,10 @@ export const MENU_TREE: MenuGroup[] = [
     M("BOM物料设置", "/bom-setup", "款号资料"),
     M("BOM物料查询", "/bom-material-query", "生产制单"),
     M("生产通知单", "/production", "生产制单"),
+    // 外部系统(RR-Portal)
+    X("工程啤办单", "/rr/"),
+    X("模具手办采购订单", "/figure-mold-cost-system/"),
+    X("A-doc生成系统", "/zouhuo/"),
   ]},
   // ③ 装配部(生产部)
   { key: "g-prod", label: "装配部(生产部)", children: [
@@ -71,6 +80,8 @@ export const MENU_TREE: MenuGroup[] = [
     M("装配需领明细表", "/assembly-required-material-detail", "款号资料"),
     M("加工厂分类月报表", "/assembly-factory-category-monthly", "款号资料"),
     M("加工厂分类明细表", "/assembly-factory-category-detail", "款号资料"),
+    // 外部系统(RR-Portal)
+    X("生产计划排拉系统", "/production-plan/"),
   ]},
   // ④ 半成品仓
   { key: "g-semi", label: "半成品仓", children: [
@@ -98,8 +109,15 @@ export const MENU_TREE: MenuGroup[] = [
     M("加工领料进度表", "/plastic-process-issue-progress", "加工领料进度表"),
     M("物料发外欠数表", "/plastic-process-shortage", "物料发外欠数表"),
     M("生产加工缺料表", "/process-shortage", "生产制单"),
+    // 外部系统(RR-Portal)
+    X("注塑啤机排产系统", "/paiji/"),
+    X("啤机外发系统", "/pi-outsource/"),
   ]},
-  // ⑥ 喷油部 —— 暂无已建功能,不显示
+  // ⑥ 喷油部(ERP 暂无已建功能,先挂 RR-Portal 外部系统入口)
+  { key: "g-spray", label: "喷油部", children: [
+    X("喷油排产系统(建设中)", "/sprayplan"),
+    X("喷油部生产管理", "/penyou/"),
+  ]},
   // ⑦ 来料仓(含主料采购)
   { key: "g-wh", label: "来料仓", children: [
     // 采购管理
@@ -156,12 +174,19 @@ export const MENU_TREE: MenuGroup[] = [
   // ⑨ 船务部(成品仓;入仓单/查询已合并为一页)
   { key: "g-ship", label: "船务部", children: [
     M("成品入仓单", "/finished-receipts", "成品入仓"),
+    // 外部系统(RR-Portal)
+    X("船务管理系统", "/shipping/"),
   ]},
   // ⑩ 业务部
   { key: "g-biz", label: "业务部", children: [
     M("客户排期表", "/scheduling", "生产排期"),
     M("客户资料", "/master/客户资料", "客户资料"),
     M("调价", "/master/调价", "调价"),
+    // 外部系统(RR-Portal)
+    X("ZURU接单表入单系统", "/zuru-order-system/"),
+    X("报价系统", "/baojia/"),
+    X("内部报价系统", "/internal-quote/"),
+    X("TOMY排期核对系统", "/tomy-paiqi/"),
   ]},
   // ⑪ 原料仓
   { key: "g-raw", label: "原料仓", children: [
@@ -186,5 +211,19 @@ export const MENU_TREE: MenuGroup[] = [
     M("出库进度明细表", "/plastic-raw-material-issue-progress-detail"),
     M("原料发外欠数表", "/plastic-raw-material-outsource-shortage"),
     M("原料采购订单查询", "/plastic-raw-material-purchase-order-query"),
+  ]},
+  // ⑫ 品质部(全部为 RR-Portal 外部系统入口)
+  { key: "g-qa", label: "品质部", children: [
+    X("QA测试报告周结", "/qa-weekly-report/"),
+    X("QC成品报告系统", "/qc-report/"),
+    X("品质管理系统(QMS)", "/qc/"),
+  ]},
+  // ⑬ PMC仓务(外部系统入口)
+  { key: "g-pmc", label: "PMC仓务", children: [
+    X("加工厂月度评审", "/factory-review/"),
+  ]},
+  // ⑭ 印尼小组(外部系统入口)
+  { key: "g-indo", label: "印尼小组", children: [
+    X("印尼走货明细(印尼专用)", "/indo-shipping/"),
   ]},
 ];

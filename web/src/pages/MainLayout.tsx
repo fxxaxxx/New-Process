@@ -3,7 +3,6 @@ import { Layout, Menu, Button, Avatar, Tooltip } from "antd";
 import {
   AppstoreOutlined, SearchOutlined, HomeOutlined, PlusSquareOutlined, RocketOutlined,
   ShoppingCartOutlined, InboxOutlined, ExportOutlined, DatabaseOutlined, MenuUnfoldOutlined, MenuFoldOutlined,
-  ScheduleOutlined,
 } from "@ant-design/icons";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { can } from "../auth/permissions";
@@ -18,7 +17,6 @@ const { Sider, Header, Content } = Layout;
 // perm 对应菜单权限；页面本身也有权限兜底，没权限点进去会提示。
 const SIMPLE_MENU: { label: string; path: string; perm?: string; icon: React.ReactNode }[] = [
   { label: "首页", path: "/", icon: <HomeOutlined /> },
-  { label: "客户排期表", path: "/scheduling", perm: "生产排期", icon: <ScheduleOutlined /> },
   { label: "物料建档", path: "/material-create", perm: "物料资料", icon: <PlusSquareOutlined /> },
   { label: "生产通知单", path: "/production", perm: "生产制单", icon: <RocketOutlined /> },
   { label: "采购订单", path: "/purchase-orders", icon: <ShoppingCartOutlined /> },
@@ -132,7 +130,12 @@ export default function MainLayout() {
           onOpenChange={(k) => setOpenKeys(k as string[])}
           selectedKeys={selectedKeys}
           items={items}
-          onClick={(e) => nav(e.key.split("#")[0])}
+          onClick={(e) => {
+            const k = e.key.split("#")[0];
+            // http 开头=外部系统入口(RR-Portal),新标签打开,不走内部路由
+            if (k.startsWith("http")) { window.open(k, "_blank", "noopener"); return; }
+            nav(k);
+          }}
           style={{ borderInlineEnd: 0, background: "transparent" }}
         />
       </Sider>
