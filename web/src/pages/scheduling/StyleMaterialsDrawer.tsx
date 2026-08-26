@@ -1,8 +1,9 @@
 // 排期行货号 → BOM 物料弹窗:展开该货号的物料清单,勾选后按供应商分组生成物料采购单
 // 复用现有能力:BOM 数据 stylesApi.materials(同 BOM物料设置页),下单 purchaseOrderApi.create(同采购订单)
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button, Drawer, Empty, InputNumber, Modal, Select, Space, Table, Tag, message } from "antd";
-import { ShoppingCartOutlined } from "@ant-design/icons";
+import { ShoppingCartOutlined, PlusOutlined } from "@ant-design/icons";
 import { stylesApi, type StyleBomLine } from "../../api/styles";
 import { masterApi } from "../../api/master";
 import { purchaseOrderApi } from "../../api/purchaseOrders";
@@ -29,10 +30,11 @@ interface Row {
 }
 
 export default function StyleMaterialsDrawer({ ctx, onClose }: {
-  ctx: { 货号: string; 数量?: number; 排期客户?: string; PO号?: string } | null;
+  ctx: { 货号: string; 品名?: string; 数量?: number; 排期客户?: string; 客户名称?: string; PO号?: string } | null;
   onClose: () => void;
 }) {
   const perms = usePerms();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const [rows, setRows] = useState<Row[]>([]);
@@ -208,7 +210,12 @@ export default function StyleMaterialsDrawer({ ctx, onClose }: {
         <Empty description={
           <span>该货号还没有建 BOM 物料清单<br />
             <span style={{ color: "#888", fontSize: 12 }}>请先到「工程部 → BOM物料设置」为款号 {ctx?.货号} 建 BOM,再回来下单</span>
-          </span>} />
+          </span>}>
+          <Button type="primary" icon={<PlusOutlined />}
+            onClick={() => navigate(`/bom-setup?款号=${encodeURIComponent(ctx?.货号 ?? "")}&品名=${encodeURIComponent(ctx?.品名 ?? "")}&客户名称=${encodeURIComponent(ctx?.排期客户 ?? ctx?.客户名称 ?? "")}&return=${encodeURIComponent("/scheduling")}`)}>
+            去建 BOM
+          </Button>
+        </Empty>
       ) : (
         <Space direction="vertical" size={8} style={{ width: "100%" }}>
           <Table

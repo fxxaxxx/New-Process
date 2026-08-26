@@ -18,7 +18,6 @@ import { can } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
 import { toDocCurrency, useFeatureSettings } from "../../auth/featureSettings";
 import ImageNotesPanel from "../../components/ImageNotesPanel";
-import { codeName } from "../../utils/codeName";
 import {
   decodeCsvBuffer, parseBomImport, validateBomImportRows,
   type BomImportCheckedRow,
@@ -171,6 +170,9 @@ export default function BomSetupPage() {
   const defaultCurrency = toDocCurrency(useFeatureSettings().默认货币);
   const 款号Param = sp.get("款号");
   const returnTo = sp.get("return");
+  // 排期"去建 BOM"跳转带入:品名→产品名称,客户名称→按名称匹配客户资料回填客户编号
+  const 品名Param = sp.get("品名");
+  const 客户Param = sp.get("客户名称");
   const isAssembly = loc.pathname.includes("assembly");
   const pageTitle = isAssembly ? "装配物料设置" : "BOM物料设置";
 
@@ -192,6 +194,7 @@ export default function BomSetupPage() {
   const [styles, setStyles] = useState<StyleListItem[]>([]);
   const [bomHeaders, setBomHeaders] = useState<BomHeaderOption[]>([]);
   const watchedCustomer = Form.useWatch("客户编号", form);
+  const watchedProductNo = Form.useWatch("产品货号", form);
   const [quoteCategories, setQuoteCategories] = useState<string[]>([]);
 
   const [openModal, setOpenModal] = useState(false);
@@ -315,7 +318,7 @@ export default function BomSetupPage() {
   const customerOptions = useMemo(() =>
     customers
       .filter(c => c.客户编号)
-      .map(c => ({ value: c.客户编号!, label: codeName(c.客户编号, c.客户名称) })),
+      .map(c => ({ value: c.客户编号!, label: c.客户名称 ?? c.客户编号! })),
   [customers]);
 
   const rowsFromMaterials = (materials: MaterialPick[]) => {
@@ -408,7 +411,16 @@ export default function BomSetupPage() {
       setPartnerForQuote(null);
       setOpenModal(false);
     } catch (e) {
-      if (requestVersion === loadVersion.current) message.error(errMsg(e, "产品货号不存在或加载失败"));
+      if (requestVersion === loadVersion.current) {
+        const status = (e as { response?: { status?: number } })?.response?.status;
+        if (status === 404) {
+          // 货号尚未建 BOM(排期页"去建 BOM"跳转/手输新款号):预填已知信息,录入物料后直接保存即建档
+          form.setFieldsValue({ 产品货号: key, 产品名称: 品名Param || undefined });
+          message.info(`货号 ${key} 尚未建 BOM,录入物料后直接保存即可建档`);
+        } else {
+          message.error(errMsg(e, "产品货号不存在或加载失败"));
+        }
+      }
     }
   }, [currentUser, form, isAssembly]);
 
@@ -416,6 +428,14 @@ export default function BomSetupPage() {
     if (款号Param) loadDoc(款号Param);
     else reset();
   }, [款号Param, loadDoc, reset]);
+
+  // 排期"去建 BOM"带入的客户名称:客户资料加载后按名称/编号匹配,回填客户编号(选中后客户名称自动带出)
+  useEffect(() => {
+    const name = 客户Param?.trim();
+    if (!name || form.getFieldValue("客户编号")) return;
+    const hit = customers.find(c => c.客户名称 === name || c.客户编号 === name);
+    if (hit) form.setFieldsValue({ 客户编号: hit.客户编号, 客户名称: hit.客户名称 });
+  }, [customers, 客户Param, form]);
 
   // 客户与产品货号已解除级联：客户独立赋值，不再清空货号/明细
   const onCustomerChange = (customerNo?: string) => {
@@ -962,11 +982,11 @@ export default function BomSetupPage() {
     },
     { title: "序号", width: 58, render: (_v, _r, i) => i + 1 },
     {
-      title: "物料编号", width: 130,
+      title: "物料编号", width: 180,
       render: (_v, r) => <Input disabled={readOnly} value={r.物料编号} onChange={e => patch(r.key, { 物料编号: e.target.value })} />,
     },
     {
-      title: "物料名称", width: 230,
+      title: "物料名称", width: 300,
       render: (_v, r) => (
          <Input.Search
            value={r.物料名称}
@@ -978,11 +998,11 @@ export default function BomSetupPage() {
         />
       ),
     },
-    textCol("工模编号", "工模编号", 120),
-    textCol("规格", "规格", 130),
-    textCol("材料", "材料", 120),
-    textCol("颜色", "颜色", 100),
-    textCol("单位", "单位", 80),
+    textCol("工模编号", "工模编号", 140),
+    textCol("规格", "规格", 150),
+    textCol("材料", "材料", 140),
+    textCol("颜色", "颜色", 120),
+    textCol("单位", "单位", 90),
     {
       title: "用量", width: 110,
       render: (_v, r) => (
@@ -994,7 +1014,7 @@ export default function BomSetupPage() {
         />
       ),
     },
-    textCol("备注", "备注", 160),
+    textCol("备注", "备注", 220),
     {
       title: "", width: 76, align: "center",
       render: (_v, r) => (r.物料编号.trim() && semiSet.has(r.物料编号.trim())
@@ -1154,7 +1174,7 @@ export default function BomSetupPage() {
         }}
       >
         <Row gutter={12}>
-          <Col span={3}>
+          <Col span={6}>
             <Form.Item name="客户编号" label="客户">
               <Select
                 showSearch
@@ -1167,12 +1187,15 @@ export default function BomSetupPage() {
               />
             </Form.Item>
           </Col>
-          <Col span={3}><Form.Item name="客户名称" label="客户名称"><Input disabled /></Form.Item></Col>
-          <Col span={4}>
+          {/* 客户名称不单独占格：下拉已显示“编号+名称”，此处仅保持表单字段注册供保存取值 */}
+          <Form.Item name="客户名称" hidden><Input /></Form.Item>
+          {/* 产品货号宽度随内容长短自适应（ch 计字符宽，预留清除按钮与内边距），不再截断 */}
+          <Col style={{ width: `min(max(${(String(watchedProductNo ?? "").length || 14) + 4}ch, 180px), 45%)` }}>
             <Form.Item name="产品货号" label="产品货号" rules={[{ required: true, message: "请选择产品货号" }]}>
               <AutoComplete
                 allowClear
                 placeholder="直接录入或选择产品货号"
+                style={{ width: "100%" }}
                 options={productOptions}
                 filterOption={(input, option) =>
                   String(option?.label ?? "").toLowerCase().includes(input.toLowerCase())}
@@ -1259,10 +1282,11 @@ export default function BomSetupPage() {
             key: "mat",
             label: "物料与加工厂供应商",
             children: (
-              <Row gutter={12}>
-                <Col span={15}>{matGrid}</Col>
-                <Col span={9}>{quoteGrid}</Col>
-              </Row>
+              // 上下排列：物料表全宽，报价/供应商面板放下方
+              <Space direction="vertical" size={16} style={{ width: "100%" }}>
+                {matGrid}
+                {quoteGrid}
+              </Space>
             ),
           },
           { key: "img", label: "尺寸图片备注", children: <ImageNotesPanel 模块="BOM" 单号={loaded款号} canEdit={canSave} emptyHint="请先打开一个产品货号" /> },

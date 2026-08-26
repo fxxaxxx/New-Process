@@ -1,7 +1,8 @@
 // 排期行 → 生产通知单:按排期行预填(货号/数量/客户/走货期),复用 productionApi.create(同生产通知单页)
 // 前提:货号已建 BOM(bom-headers 只返回已做 BOM 物料设置的款号);未建则引导去「工程部 → BOM物料设置」
 import { useEffect, useState } from "react";
-import { DatePicker, Empty, Form, Input, InputNumber, Modal, message } from "antd";
+import { useNavigate } from "react-router-dom";
+import { Button, DatePicker, Empty, Form, Input, InputNumber, Modal, message } from "antd";
 import dayjs from "dayjs";
 import { stylesApi, type BomHeaderOption } from "../../api/styles";
 import { productionApi } from "../../api/production";
@@ -24,6 +25,7 @@ export default function ScheduleProductionModal({ ctx, onClose }: {
   onClose: () => void;
 }) {
   const [form] = Form.useForm<FormValues>();
+  const navigate = useNavigate();
   const [bom, setBom] = useState<BomHeaderOption | null>(null);
   const [checking, setChecking] = useState(false);
   const [noBom, setNoBom] = useState(false);
@@ -98,7 +100,12 @@ export default function ScheduleProductionModal({ ctx, onClose }: {
         <Empty description={
           <span>该货号还没有建 BOM,无法生成生产通知单<br />
             <span style={{ color: "#888", fontSize: 12 }}>请先到「工程部 → BOM物料设置」为款号 {ctx?.货号} 建 BOM,再回来下单</span>
-          </span>} />
+          </span>}>
+          <Button type="primary"
+            onClick={() => navigate(`/bom-setup?款号=${encodeURIComponent(ctx?.货号 ?? "")}&品名=${encodeURIComponent(ctx?.品名 ?? "")}&客户名称=${encodeURIComponent(ctx?.排期客户 ?? ctx?.客户名称 ?? "")}&return=${encodeURIComponent("/scheduling")}`)}>
+            去建 BOM
+          </Button>
+        </Empty>
       ) : (
         <Form form={form} layout="vertical" style={{ marginTop: 12 }}>
           <Form.Item name="数量" label="计划数量（排期数量,可改）" rules={[{ required: true, message: "请填写数量" }]}>

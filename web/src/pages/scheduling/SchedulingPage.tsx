@@ -47,12 +47,12 @@ export default function SchedulingPage() {
   const [importing, setImporting] = useState(false);
   const [showBatches, setShowBatches] = useState(false);
   const [view, setView] = useState<"rows" | "files">("rows");
-  const [styleCtx, setStyleCtx] = useState<{ 货号: string; 数量?: number; 排期客户?: string; PO号?: string } | null>(null);
+  const [styleCtx, setStyleCtx] = useState<{ 货号: string; 品名?: string; 数量?: number; 排期客户?: string; 客户名称?: string; PO号?: string } | null>(null);
   const [prodCtx, setProdCtx] = useState<ScheduleProductionCtx | null>(null);
 
   // 点货号 → 弹 BOM 物料清单下采购单
-  const pick货号 = (r: { 货号?: string; 数量?: number; 排期客户?: string; PO号?: string }) =>
-    r.货号 && setStyleCtx({ 货号: r.货号, 数量: r.数量, 排期客户: r.排期客户, PO号: r.PO号 });
+  const pick货号 = (r: { 货号?: string; 品名?: string; 数量?: number; 排期客户?: string; 客户名称?: string; PO号?: string }) =>
+    r.货号 && setStyleCtx({ 货号: r.货号, 品名: r.品名, 数量: r.数量, 排期客户: r.排期客户, 客户名称: r.客户名称, PO号: r.PO号 });
 
   // 生产下单 → 按排期行预填生成生产通知单
   const pick生产 = (r: ScheduleRow) =>
