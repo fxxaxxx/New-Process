@@ -1,7 +1,7 @@
 // 菜单树·按部门组织(以用户提供的原系统部门菜单截图为准)。
 // leaf.path 有值=已建页面路由(可选 perm=9位权限菜单名,无权限则隐藏);无 path=占位(功能开发中)。
 // leaf.path 为完整 URL(http 开头)=外部系统入口,点击新标签打开(MainLayout 判断),不挂权限全员可见。
-// 空分组不显示(如喷油部暂无功能,未列出)。
+// 空分组不显示(分组下至少要有 1 个叶子才会渲染)。
 // 维护提示:新增/补全菜单以原系统截图为准;已建功能对上某项就把 path/perm 补上。
 
 export interface MenuLeaf {
@@ -96,24 +96,26 @@ export const MENU_TREE: MenuGroup[] = [
     M("半成品库存统计表", "/semi-inventory", "半成品库存"),
     M("半成品库存月报表", "/semi-inventory-monthly", "半成品库存"),
   ]},
-  // ⑤ 啤机部(含发外加工)
+  // ⑤ 啤机部(流程:PMC下采购单→原料仓领料→白件入塑胶仓;外发啤另外下加工订单)
   { key: "g-inj", label: "啤机部", children: [
-    M("加工厂资料", "/master/加工厂资料", "加工厂资料"),
+    // 厂内啤机
+    M("原料领料单", "/plastic-raw-material-stock-issue", "原料出库表"),
+    M("白件入仓单", "/plastic-receipts", "塑胶入仓单"),
+    // 外发啤机(另外下订单)
     M("塑胶加工订单制作", "/plastic-process-order-make", "塑胶加工订单制作"),
     M("塑胶加工采购单", "/plastic-process-purchase-orders", "塑胶加工采购单"),
     M("白件领料单", "/plastic-white-part-issue", "白件领料单"),
-    M("加工入仓单", "/plastic-receipts", "塑胶入仓单"),
-    M("采购加工进度表", "/plastic-process-purchase-progress", "采购加工进度表"),
-    M("采购加工明细表", "/plastic-process-purchase-detail", "采购加工明细表"),
-    M("加工领料进度表", "/plastic-process-issue-progress", "加工领料进度表"),
-    M("物料发外欠数表", "/plastic-process-shortage", "物料发外欠数表"),
-    M("生产加工缺料表", "/process-shortage", "生产制单"),
+    M("加工厂资料", "/master/加工厂资料", "加工厂资料"),
     // 外部系统(RR-Portal)
     X("注塑啤机排产系统", "/paiji/"),
     X("啤机外发系统", "/pi-outsource/"),
   ]},
-  // ⑥ 喷油部(ERP 暂无已建功能,先挂 RR-Portal 外部系统入口)
+  // ⑥ 喷油部(流程:PMC下订单→喷油领白件→喷油件入仓;复用现有加工订单/白件领料/加工入仓功能,加工内容选喷油;另挂 RR-Portal 外部系统入口)
   { key: "g-spray", label: "喷油部", children: [
+    M("喷油加工订单", "/plastic-process-order-make", "塑胶加工订单制作"),
+    M("喷油领料单", "/plastic-white-part-issue", "白件领料单"),
+    M("喷油件入仓单", "/plastic-receipts", "塑胶入仓单"),
+    // 外部系统(RR-Portal)
     X("喷油排产系统(建设中)", "/sprayplan"),
     X("喷油部生产管理", "/penyou/"),
   ]},
