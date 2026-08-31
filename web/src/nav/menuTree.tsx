@@ -60,14 +60,6 @@ export const MENU_TREE: MenuGroup[] = [
     M("生产通知单", "/production", "生产制单"),
     M("生产单跟踪表", "/production-tracking", "生产制单"),
     M("货号接单汇总表", "/order-summary", "生产制单"),
-    // 生产报表
-    M("采购超数查询", "/purchase-over-query", "生产制单"),
-    M("领料超数查询", "/issue-over-query", "生产制单"),
-    M("制单用量查询", "/material-usage-query", "生产制单"),
-    M("采购分析明细查询", "/purchase-analysis-query", "生产制单"),
-    M("采购领料分析表", "/purchase-issue-analysis", "生产制单"),
-    M("成品余料统计表", "/finished-leftover", "生产制单"),
-    M("合同余料统计表", "/contract-leftover", "生产制单"),
     // 外发装配
     M("装配物料设置", "/assembly-material-setup", "款号资料"),
     M("装配物料汇总表", "/assembly-material-summary", "款号资料"),
@@ -96,16 +88,11 @@ export const MENU_TREE: MenuGroup[] = [
     M("半成品库存统计表", "/semi-inventory", "半成品库存"),
     M("半成品库存月报表", "/semi-inventory-monthly", "半成品库存"),
   ]},
-  // ⑤ 啤机部(流程:PMC下采购单→原料仓领料→白件入塑胶仓;外发啤另外下加工订单)
+  // ⑤ 啤机部(流程:PMC下采购单→原料仓领料→白件入塑胶仓;外发啤由PMC/塑胶仓另外下加工订单,不挂啤机部)
   { key: "g-inj", label: "啤机部", children: [
     // 厂内啤机
     M("原料领料单", "/plastic-raw-material-stock-issue", "原料出库表"),
     M("白件入仓单", "/plastic-receipts", "塑胶入仓单"),
-    // 外发啤机(另外下订单)
-    M("塑胶加工订单制作", "/plastic-process-order-make", "塑胶加工订单制作"),
-    M("塑胶加工采购单", "/plastic-process-purchase-orders", "塑胶加工采购单"),
-    M("白件领料单", "/plastic-white-part-issue", "白件领料单"),
-    M("加工厂资料", "/master/加工厂资料", "加工厂资料"),
     // 外部系统(RR-Portal)
     X("注塑啤机排产系统", "/paiji/"),
     X("啤机外发系统", "/pi-outsource/"),
