@@ -16,9 +16,10 @@ const today = () => {
 };
 const currentUser = () => localStorage.getItem("erp_user") ?? "";
 
-export default function MaterialDocCreateDrawer({ cfg, open, onClose, onCreated, initial }: {
+export default function MaterialDocCreateDrawer({ cfg, open, onClose, onCreated, initial, basis }: {
   cfg: MaterialDocCfg; open: boolean; onClose: () => void; onCreated: () => void;
   initial?: { header: Record<string, string>; lines: DocLine[] };   // 复制单时预填
+  basis?: string;   // 下推入口：生产通知单带过来的生产单号,自动带入应领明细
 }) {
   const perms = usePerms();
   const priceHidden = hidePrice(perms, cfg.menu);
@@ -97,6 +98,7 @@ export default function MaterialDocCreateDrawer({ cfg, open, onClose, onCreated,
       />
       <MaterialLineTable value={lines} onChange={setLines} hidePriceCols={priceHidden}
         enableOrderPicker={cfg.orderPicker} usageCols={cfg.usageCols} 供应商={供应商编号 as string | undefined}
+        initialBasis={basis}
         onSupplier={(编号, 名称) => {
           // 整单带入顺带带出供应商:仅表头供应商编号为空时回写,不覆盖已填
           if (!(form.getFieldValue("供应商编号") as string)) form.setFieldsValue({ 供应商编号: 编号, 供应商名称: 名称 });

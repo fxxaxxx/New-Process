@@ -1,4 +1,4 @@
-import { useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { Button, Input, InputNumber, Modal, Space, Table, message } from "antd";
 import { PlusOutlined, SearchOutlined } from "@ant-design/icons";
 import { lineAmount, productionLinePatch, type DocLine } from "../../utils/materialLines";
@@ -17,7 +17,7 @@ import type { ProductionTrackingRow } from "../../api/productionReports";
 // 减动作：orderPicker 模式提供「整单带入」(按采购单号带入全部欠数行,数量=欠数)；
 //   usageCols 模式提供「按生产单带入」(issue-basis 应领量)。两者均丢弃空白行后追加。
 // onSupplier: 整单带入时表头供应商为空则顺带带出(由父抽屉回写)。
-export default function MaterialLineTable({ value, onChange, hidePriceCols, enableOrderPicker, usageCols, 供应商, onSupplier }: {
+export default function MaterialLineTable({ value, onChange, hidePriceCols, enableOrderPicker, usageCols, 供应商, onSupplier, initialBasis }: {
   value: DocLine[];
   onChange: Dispatch<SetStateAction<DocLine[]>>;
   hidePriceCols: boolean;
@@ -25,6 +25,7 @@ export default function MaterialLineTable({ value, onChange, hidePriceCols, enab
   usageCols?: boolean;
   供应商?: string;
   onSupplier?: (供应商编号: string, 供应商名称?: string) => void;
+  initialBasis?: string;   // 下推入口：从生产通知单跳入时自动按该生产单带入应领明细
 }) {
   const setLine = (i: number, patch: Partial<DocLine>) =>
     onChange(prev => prev.map((l, j) => (j === i ? { ...l, ...patch } : l)));
@@ -100,6 +101,15 @@ export default function MaterialLineTable({ value, onChange, hidePriceCols, enab
     } catch { message.error("按生产单带入失败"); }
     finally { setBasisLoading(false); }
   };
+
+  // 下推入口：URL ?basis=生产单号 跳入时自动带入一次应领明细
+  const basisFired = useRef(false);
+  useEffect(() => {
+    if (!usageCols || !initialBasis || basisFired.current) return;
+    basisFired.current = true;
+    bringIssueBasis(initialBasis);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usageCols, initialBasis]);
 
   const fillFromProduction = (row: ProductionTrackingRow) => {
     if (prodPickFor === null) return;

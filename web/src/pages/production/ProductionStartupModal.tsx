@@ -75,8 +75,11 @@ export default function ProductionStartupModal({ open, 生产单号, onClose }: 
           <Button icon={<ShoppingCartOutlined />} onClick={() => { onClose(); nav("/purchase-material-analysis"); }}>
             去采购分析（补缺口）
           </Button>
+          <Button icon={<SendOutlined />} onClick={() => { onClose(); nav(`/materials/material-issues?basis=${encodeURIComponent(生产单号)}`); }}>
+            下推领料·来料仓
+          </Button>
           <Button type="primary" icon={<SendOutlined />} onClick={() => { onClose(); nav(`/plastic-issues?basis=${encodeURIComponent(生产单号)}`); }}>
-            下推领料（按应领量）
+            下推领料·塑胶仓
           </Button>
         </Space>
       }>

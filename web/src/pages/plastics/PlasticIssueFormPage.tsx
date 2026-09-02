@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Card, Checkbox, Col, Form, Input, InputNumber, Modal, Popconfirm, Row, Select, Space, Statistic, Table, Tag, message } from "antd";
-import { SearchOutlined } from "@ant-design/icons";
 import { useSearchParams } from "react-router-dom";
 import { plasticIssueApi, type PIHeader, type PILine } from "../../api/plasticIssue";
 import { plasticInventoryApi } from "../../api/plasticInventory";
@@ -8,7 +7,6 @@ import { plasticMaterialSettingsApi } from "../../api/plasticMaterialSettings";
 import { productionApi } from "../../api/production";
 import type { PlasticMaterialRow } from "../../api/plasticMaterialMaster";
 import { prefillDefaultWarehouse } from "../../utils/plasticSettings";
-import EmployeePicker from "../materials/EmployeePicker";
 import PlasticIssueLineTable from "./PlasticIssueLineTable";
 import { can } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
@@ -25,7 +23,6 @@ export default function PlasticIssueFormPage() {
   const [rows, setRows] = useState<PIHeader[]>([]);
   const [opened, setOpened] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [empPickFor, setEmpPickFor] = useState<string | null>(null);
   const [basisOpen, setBasisOpen] = useState(false);     // 按生产单带入弹窗
   const [basisNo, setBasisNo] = useState("");
   const [basisLoading, setBasisLoading] = useState(false);
@@ -161,9 +158,8 @@ export default function PlasticIssueFormPage() {
   }, [lines, stock]);
 
   const empField = (name: string, label: string, required?: boolean) => (
-    <Form.Item name={name} label={label} rules={required ? [{ required: true, message: `请选${label}` }] : undefined}>
-      <Input readOnly placeholder="点🔍选人"
-        suffix={readOnly ? null : <SearchOutlined style={{ cursor: "pointer", color: "#1677ff" }} onClick={() => setEmpPickFor(name)} />} />
+    <Form.Item name={name} label={label} rules={required ? [{ required: true, message: `请填${label}` }] : undefined}>
+      <Input placeholder={`直接填写${label}`} disabled={readOnly} />
     </Form.Item>
   );
   const numField = (name: string, label: string) => (
@@ -264,9 +260,6 @@ export default function PlasticIssueFormPage() {
           rowSelection={{ selectedRowKeys, onChange: ks => setSelectedRowKeys(ks as number[]) }} />
       </div>
 
-      <EmployeePicker open={empPickFor !== null}
-        onPick={姓名 => { if (empPickFor) form.setFieldValue(empPickFor, 姓名); }}
-        onClose={() => setEmpPickFor(null)} />
       <Modal title="按生产单带入应领明细" open={basisOpen} onCancel={() => setBasisOpen(false)} footer={null} width={420}>
         <Input.Search placeholder="输入生产单号,回车带入" enterButton="带入" loading={basisLoading}
           value={basisNo} onChange={e => setBasisNo(e.target.value)} onSearch={bringIssueBasis} />

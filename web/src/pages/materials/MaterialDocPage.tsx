@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Button, Card, Input, Popconfirm, Space, Table, Tag, message } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
 import { materialDocApi, type MaterialDocHeader } from "../../api/materialDocs";
@@ -21,6 +22,18 @@ export default function MaterialDocPage({ cfg }: { cfg: MaterialDocCfg }) {
   const [copyInitial, setCopyInitial] = useState<ReturnType<typeof buildCopyInitial> | null>(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]); // 勾选的单据 id
   const [batchApproving, setBatchApproving] = useState(false);          // 批量审核中
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [basis, setBasis] = useState<string>();                         // 下推领料带过来的生产单号
+
+  // 下推入口：URL 带 ?basis=生产单号 时自动打开新建抽屉并带入应领明细（从生产通知单「下推领料」跳入）
+  useEffect(() => {
+    const b = searchParams.get("basis");
+    if (!b || !cfg.usageCols) return;
+    setCopyInitial(null);
+    setBasis(b);
+    setCreating(true);
+    setSearchParams({}, { replace: true });   // 先清参数，避免刷新/返回重复带入
+  }, [searchParams, cfg.usageCols, setSearchParams]);
 
   const load = useCallback(async () => {
     try { const r = await dapi.list(page, 10, keyword); setRows(r.items); setTotal(r.total); }
@@ -88,8 +101,8 @@ export default function MaterialDocPage({ cfg }: { cfg: MaterialDocCfg }) {
       <Table rowKey="id" size="middle" dataSource={rows} columns={columns} scroll={{ x: "max-content", y: "calc(100vh - 300px)" }}
         rowSelection={{ selectedRowKeys, onChange: ks => setSelectedRowKeys(ks as number[]) }}
         pagination={{ current: page, pageSize: 10, total, onChange: setPage, showTotal: t => `共 ${t} 条` }} />
-      <MaterialDocCreateDrawer cfg={cfg} open={creating} initial={copyInitial ?? undefined}
-        onClose={() => { setCreating(false); setCopyInitial(null); }} onCreated={load} />
+      <MaterialDocCreateDrawer cfg={cfg} open={creating} initial={copyInitial ?? undefined} basis={basis}
+        onClose={() => { setCreating(false); setCopyInitial(null); setBasis(undefined); }} onCreated={load} />
       <MaterialDocDetailDrawer cfg={cfg} 单号={viewing} onClose={() => setViewing(null)}
         onCopy={detail => { setCopyInitial(buildCopyInitial(cfg.headerFields, detail)); setViewing(null); setCreating(true); }} />
     </Card>

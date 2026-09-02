@@ -352,7 +352,10 @@ export default function ProductionNoticePage() {
         <Button type="primary" icon={<RocketOutlined />} onClick={() => setStartupOpen(true)}>一键启动</Button>
       )}
       {isView && (
-        <Button icon={<SendOutlined />} onClick={() => navigate(`/plastic-issues?basis=${encodeURIComponent(生产单号)}`)}>下推领料</Button>
+        <Button icon={<SendOutlined />} onClick={() => navigate(`/materials/material-issues?basis=${encodeURIComponent(生产单号)}`)}>下推领料(来料仓)</Button>
+      )}
+      {isView && (
+        <Button icon={<SendOutlined />} onClick={() => navigate(`/plastic-issues?basis=${encodeURIComponent(生产单号)}`)}>下推领料(塑胶仓)</Button>
       )}
       <Button icon={<PrinterOutlined />} onClick={() => window.print()}>打印</Button>
     </Space>

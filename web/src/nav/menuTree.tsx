@@ -60,6 +60,9 @@ export const MENU_TREE: MenuGroup[] = [
     M("生产通知单", "/production", "生产制单"),
     M("生产单跟踪表", "/production-tracking", "生产制单"),
     M("货号接单汇总表", "/order-summary", "生产制单"),
+    // 生产领料(装配部向来料仓/塑胶仓下领料单)
+    M("领料单(来料仓)", "/materials/material-issues", "领料单"),
+    M("塑胶领料单(塑胶仓)", "/plastic-issues", "塑胶领料单"),
     // 外发装配
     M("装配物料设置", "/assembly-material-setup", "款号资料"),
     M("装配物料汇总表", "/assembly-material-summary", "款号资料"),
