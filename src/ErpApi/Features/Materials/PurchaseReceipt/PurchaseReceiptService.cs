@@ -25,7 +25,16 @@ public sealed class PurchaseReceiptService(ISqlConnectionFactory factory, IDocum
         await c.OpenAsync();
         using var tx = c.BeginTransaction();
 
-        var 单号 = await docNo.NextAsync(DocType, Prefix, docDate, c, tx);
+        var 单号 = string.IsNullOrWhiteSpace(dto.单号)
+            ? await docNo.NextAsync(DocType, Prefix, docDate, c, tx)
+            : dto.单号.Trim();
+        // 送货单号全表唯一：同一张送货单不能重复入仓
+        if (!string.IsNullOrWhiteSpace(dto.单号))
+        {
+            var dup = await c.ExecuteScalarAsync<int>(
+                "SELECT COUNT(*) FROM [采购入仓单] WHERE [单号]=@单号", new { 单号 }, tx);
+            if (dup > 0) throw new InvalidOperationException($"入仓单号「{单号}」已存在，同一张送货单不能重复入仓。");
+        }
 
         await c.ExecuteAsync(@"
 INSERT INTO [采购入仓单]([单号],[日期],[供应商编号],[供应商名称],[仓库],[付款方式],[数量],[金额],[操作员],[审核],[备注])

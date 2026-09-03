@@ -7,6 +7,7 @@ public sealed class MaterialIssueCreateDto
     public string? 领料人 { get; set; }
     public DateTime? 日期 { get; set; }
     public string? 仓库 { get; set; }
+    public string? 接受人 { get; set; }   // 仓管/PMC(职称),经理审核完后消息只发给该接受人
     public string? 备注 { get; set; }
     public List<MaterialDocLineDto> 明细 { get; set; } = [];
 }
@@ -24,13 +25,38 @@ public sealed class MaterialIssueHeaderDto
     public string? 操作员 { get; set; }
     public string? 审核 { get; set; }
     public string? 审核人 { get; set; }
+    public string? 主管审核 { get; set; }        // 三级流转第一级：部门主管审核('1'=已审)
+    public string? 主管审核人 { get; set; }
+    public string? 经理审核 { get; set; }        // 三级流转第二级：部门经理审核
+    public string? 经理审核人 { get; set; }
+    public string? 接受人 { get; set; }          // 开单选定的仓管/PMC,经理审完后接收该单
     public string? 备注 { get; set; }
 }
+
 
 public sealed class MaterialIssueDetailDto
 {
     public MaterialIssueHeaderDto? 单头 { get; set; }
     public List<MaterialDocLineDto> 明细 { get; set; } = [];
+}
+
+// 分次出库提交行：行ID=领料明细单.ID，数量=本次出库数量(≤ 申请数量−已出数量)
+public sealed class MaterialIssueOutboundLineDto
+{
+    public long 行ID { get; set; }
+    public decimal 数量 { get; set; }
+}
+
+public sealed class MaterialIssueOutboundDto
+{
+    public List<MaterialIssueOutboundLineDto> 明细 { get; set; } = [];
+}
+
+public sealed class MaterialIssueOutboundResult
+{
+    public string? 单号 { get; set; }
+    public int 出库行数 { get; set; }
+    public bool 完成 { get; set; }   // true=全部行已出完(自动置审核='1')
 }
 
 // 领料单查询·明细行：一条领料明细(无价格;双击 单号 看整单)。

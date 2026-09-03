@@ -9,10 +9,11 @@ export function buildCopyInitial(headerFields: DocFieldCfg[], detail: MaterialDo
   header: Record<string, string>; lines: DocLine[];
 } {
   const h = (detail.单头 ?? {}) as Record<string, unknown>;
-  const copyable = (t?: string) => t === undefined || t === "text" || t === "employee";
+  const copyable = (f: DocFieldCfg) =>
+    (f.type === undefined || f.type === "text" || f.type === "employee") && !f.noCopy;
   const header: Record<string, string> = {};
   for (const f of headerFields) {
-    if (!copyable(f.type)) continue;
+    if (!copyable(f)) continue;
     const v = h[f.name];
     if (v != null && v !== "") header[f.name] = String(v);
   }

@@ -103,6 +103,18 @@ ORDER BY [排期客户],[状态];");
         return items.AsList();
     }
 
+    // 销售出货审核联动：把指定货号下仍为"在排"的排期行置为"已走货"。
+    // 只按货号匹配(货号为各客户产品专属,成品出货明细的物料编号即货号);客户排期 Excel 重导仍是权威源,可回正。
+    // 反审核不自动回退状态。
+    public async Task<int> MarkShippedBy货号Async(string 货号, string user)
+    {
+        if (string.IsNullOrWhiteSpace(货号)) return 0;
+        using var c = factory.Create();
+        return await c.ExecuteAsync(@"
+UPDATE [生产排期] SET [状态]=N'已走货', [操作员]=@user
+WHERE [状态]=N'在排' AND [货号]=@货号", new { 货号 = 货号.Trim(), user });
+    }
+
     // 导入：同一事务内 建批次 → 逐行按自然键 更新或插入 → 回填批次计数
     public async Task<ScheduleImportResult> ImportAsync(ScheduleImportRequest req, string user)
     {

@@ -13,6 +13,8 @@ public class PurchaseOrderDbTests(DbFixture fx)
     private const string 生产单号 = "POMO0001";
     private const string 物料1 = "POM01";
     private const string 物料2 = "POM02";
+    private const string 塑胶物料 = "POM03";
+    private const string 未建档物料 = "POM99";
 
     private ISqlConnectionFactory Factory()
     {
@@ -62,6 +64,34 @@ public class PurchaseOrderDbTests(DbFixture fx)
             Assert.Equal(供应商编号, rows[0].供应商编号);
         }
         finally { Cleanup(c); }
+    }
+
+    // 来料仓口径：物料类别含「塑胶」的行 + 未在物料资料建档的行 都不带出；合同号随行返回（前端自动填 PO号）。
+    [SkippableFact]
+    public async Task Basis_excludes_plastic_and_unfiled_materials_and_returns_contract_no()
+    {
+        Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
+        using var c = fx.Open();
+        Seed(c);
+        c.Execute("UPDATE [生产制单] SET [合同号]=N'HT-001' WHERE [生产单号]=@mo", new { mo = 生产单号 });
+        c.Execute("INSERT INTO [物料资料]([物料编号],[物料名称],[规格],[单位],[单价],[物料类别]) VALUES(N'POM03',N'PO胶壳',N'规格C',N'PCS',1,N'ZURU塑胶')");
+        c.Execute(@"INSERT INTO [生产BOM物料清单]([生产单号],[物料编号],[物料名称],[规格],[颜色],[单位],[总数量],[库存数量],[可用库存],[需订数量],[预算单价])
+                    VALUES(@mo,N'POM03',N'PO胶壳',N'规格C',N'',N'PCS',10,0,0,10,1),
+                          (@mo,N'POM99',N'未建档胶件',N'',N'',N'PCS',5,0,0,5,1)",
+            new { mo = 生产单号 });
+        try
+        {
+            var rows = await Svc().BasisAsync(生产单号);
+            Assert.Equal(2, rows.Count);
+            Assert.DoesNotContain(rows, r => r.物料编号 == 塑胶物料 || r.物料编号 == 未建档物料);
+            Assert.All(rows, r => Assert.Equal("HT-001", r.合同号));
+        }
+        finally
+        {
+            c.Execute("DELETE FROM [生产BOM物料清单] WHERE [生产单号]=@mo AND [物料编号] IN (N'POM03',N'POM99')", new { mo = 生产单号 });
+            c.Execute("DELETE FROM [物料资料] WHERE [物料编号]=N'POM03'");
+            Cleanup(c);
+        }
     }
 
     [SkippableFact]

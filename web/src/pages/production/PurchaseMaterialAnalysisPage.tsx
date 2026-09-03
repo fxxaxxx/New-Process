@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { Card, Input, Space, Table, Tag, message } from "antd";
+import { Card, Input, Space, Table, Tag, Tooltip, message } from "antd";
+import { useNavigate } from "react-router-dom";
 import { productionApi, type ProductionHeader } from "../../api/production";
 import { can } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
@@ -12,6 +13,7 @@ const d10 = (v?: string) => v?.slice(0, 10);
 export default function PurchaseMaterialAnalysisPage() {
   const perms = usePerms();
   const canOpen = can(perms, MENU, "打开");
+  const navigate = useNavigate();
 
   // 列表查询态
   const [keyword, setKeyword] = useState("");
@@ -57,7 +59,14 @@ export default function PurchaseMaterialAnalysisPage() {
     { title: "交货日期", dataIndex: "交货日期", width: 110, render: d10 },
     {
       title: "生产单号", dataIndex: "生产单号", width: 140,
-      render: (v: string) => <a className="erp-num">{v}</a>,
+      render: (v: string) => (
+        <Tooltip title="打开生产通知单（未审核可编辑修改）">
+          <a className="erp-num" onClick={e => {
+            e.stopPropagation();
+            navigate(`/production?mo=${encodeURIComponent(v)}`);
+          }}>{v}</a>
+        </Tooltip>
+      ),
     },
     { title: "款号", dataIndex: "款号", width: 120 },
     { title: "款式", dataIndex: "款式", width: 140 },

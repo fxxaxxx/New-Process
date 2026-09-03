@@ -2,6 +2,7 @@
 // 排期页真实渲染冒烟(真 antd,非 mock):表格必须渲染出列头与数据行——防"空白表格"回归
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // jsdom 环境补齐 antd 需要的浏览器 API
@@ -61,7 +62,7 @@ describe("排期页真实渲染(真 antd)", () => {
   });
 
   it("表格渲染出列头与数据行(不空白)", async () => {
-    await act(async () => { root = createRoot(container); root.render(<SchedulingPage />); });
+    await act(async () => { root = createRoot(container); root.render(<MemoryRouter><SchedulingPage /></MemoryRouter>); });
     await act(async () => { await new Promise(r => setTimeout(r, 300)); });
     const text = container.textContent ?? "";
     // 列头

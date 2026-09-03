@@ -8,7 +8,7 @@ import {
   FolderOpenOutlined, PrinterOutlined, SaveOutlined, SendOutlined, RocketOutlined,
 } from "@ant-design/icons";
 import dayjs, { type Dayjs } from "dayjs";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   productionApi, type MoLine, type ProductionDetail, type ProductionHeader, type ProductionNoticeCreate,
 } from "../../api/production";
@@ -59,6 +59,8 @@ interface MoRow {
 const newMoRow = (): MoRow => ({ key: uid() });
 
 interface HeaderForm {
+  生产单号?: string;
+  接单数量?: number;
   订单类型?: string; 客户款号?: string; 客户编号?: string; 客户名称?: string;
   交货日期?: Dayjs; 标识?: string; 装箱方式?: string; 订单总箱数?: number;
   下单日期?: Dayjs; 跟单员?: string; 默认单价?: string; 备注?: string; 合同号?: string;
@@ -67,6 +69,7 @@ interface HeaderForm {
 export default function ProductionNoticePage() {
   const perms = usePerms();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const priceHidden = hidePrice(perms, MENU);
   const [form] = Form.useForm<HeaderForm>();
 
@@ -159,6 +162,8 @@ export default function ProductionNoticePage() {
       setLoaded(d);
       const h = d.单头;
       form.setFieldsValue({
+        生产单号: h?.生产单号,
+        接单数量: h?.接单数量 ?? undefined,
         订单类型: h?.订单类型, 客户款号: h?.客户款号, 客户编号: h?.客户编号, 客户名称: h?.客户名称,
         交货日期: h?.交货日期 ? dayjs(h.交货日期) : undefined,
         标识: h?.标识, 装箱方式: h?.装箱方式, 订单总箱数: h?.订单总箱数 ?? undefined,
@@ -198,6 +203,13 @@ export default function ProductionNoticePage() {
       setOpenModal(false);
     } catch { message.error("加载生产单失败"); }
   };
+
+  // URL 带 ?mo=生产单号(排期下单/其他页面跳入)时直接打开该单;仅进入页面时消费一次
+  useEffect(() => {
+    const mo = searchParams.get("mo");
+    if (mo) void loadDoc(mo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // —— 货号网格操作（仅新建态可编辑） ——
   const patchGoods = (key: number, patch: Partial<GoodsRow>) =>
@@ -262,6 +274,8 @@ export default function ProductionNoticePage() {
     if (lines.some(l => l.数量明细.length === 0)) { message.error("每个货号必须录入至少一格色码数量"); return; }
 
     const body: ProductionNoticeCreate = {
+      生产单号: v.生产单号?.trim() || undefined,   // 手动输入生产单号;留空后端自动生成
+      接单数量: v.接单数量 ?? 接单数量,            // 手输优先;留空回落为明细合计
       订单类型: v.订单类型 || undefined,
       标识: v.标识 || undefined,
       装箱方式: v.装箱方式 || undefined,
@@ -328,6 +342,31 @@ export default function ProductionNoticePage() {
 
   // —— 工具条 ——
   const editable = !isView;
+  // 表头可改：新建态 或 已打开但未审核(可补跟单员/单价/备注等,保存走 PUT 表头更新)
+  const canEditHeader = !isView || 审核 !== "1";
+  const saveHeader = async () => {
+    if (!生产单号) return;
+    let v: HeaderForm;
+    try { v = await form.validateFields(); }
+    catch { return; }
+    setSaving(true);
+    try {
+      await productionApi.update(生产单号, {
+        订单类型: v.订单类型 || undefined, 标识: v.标识 || undefined,
+        装箱方式: v.装箱方式 || undefined, 订单总箱数: v.订单总箱数,
+        默认单价: v.默认单价 || undefined, 客户编号: v.客户编号 || undefined,
+        客户名称: v.客户名称 || undefined, 客户款号: v.客户款号 || undefined,
+        合同号: v.合同号 || undefined, 跟单员: v.跟单员 || undefined,
+        备注: v.备注 || undefined, 接单数量: v.接单数量 ?? undefined,
+        交货日期: v.交货日期 ? v.交货日期.format("YYYY-MM-DD") : undefined,
+        下单日期: v.下单日期 ? v.下单日期.format("YYYY-MM-DD") : undefined,
+        货号明细: [],   // 表头修改不动物料明细
+      });
+      message.success("表头已保存");
+      await loadDoc(生产单号);
+    } catch (e) { message.error(errMsg(e) ?? "保存失败"); }
+    finally { setSaving(false); }
+  };
   const toolbar = (
     <Space wrap>
       {can(perms, MENU, "保存") && (
@@ -336,6 +375,9 @@ export default function ProductionNoticePage() {
       <Button icon={<FolderOpenOutlined />} onClick={onOpen}>打开</Button>
       {can(perms, MENU, "保存") && (
         <Button type="primary" icon={<SaveOutlined />} loading={saving} disabled={isView} onClick={save}>保存</Button>
+      )}
+      {isView && 审核 !== "1" && can(perms, MENU, "保存") && (
+        <Button type="primary" icon={<SaveOutlined />} loading={saving} onClick={saveHeader}>保存修改</Button>
       )}
       {isView && 审核 !== "1" && can(perms, MENU, "删除") && (
         <Popconfirm title="确认删除该生产单?" onConfirm={() => act(() => productionApi.remove(生产单号), "已删除", "reset")}>
@@ -361,6 +403,14 @@ export default function ProductionNoticePage() {
     </Space>
   );
 
+  // BOM款号 候选 = 与该行货号「同款式」的款号(含货号自身;如 92125A-S001 → 92125A-S001/92125暹罗猫/紫猫/橘猫…);
+  // 货号未匹配到款式(手输的新货号)时给全部候选,仍可自由输入。
+  const bomOptsFor = (r: GoodsRow) => {
+    const mine = styleOpts.find(o => o.value === r.货号);
+    if (!mine?.款式) return styleOpts;
+    return styleOpts.filter(o => o.款式 === mine.款式);
+  };
+
   // —— 货号明细网格列 ——
   const goodsColumns = [
     { title: "序号", width: 56, render: (_: unknown, __: GoodsRow, i: number) => i + 1 },
@@ -370,6 +420,7 @@ export default function ProductionNoticePage() {
         editable ? (
           <AutoComplete
             value={v} options={styleOpts} placeholder="选择或输入货号"
+            popupMatchSelectWidth={false}
             filterOption={(input, opt) => (opt?.label ?? "").toLowerCase().includes(input.toLowerCase())}
             onChange={val => patchGoods(r.key, { 货号: val })}
             onSelect={val => {
@@ -377,7 +428,8 @@ export default function ProductionNoticePage() {
               patchGoods(r.key, {
                 货号: val,
                 款号名称: st?.款式 ?? r.款号名称,
-                BOM款号: r.BOM款号 || val,
+                // 选中货号即以其为准:BOM款号重置为货号自身,下方物料清单立即显示该货号的 BOM
+                BOM款号: val,
                 分析: true, // 旧系统:选货号后分析默认打勾
               });
               // 选中已设 BOM 的款号:单头信息回填到生产通知单表头(客户款号=货号,与旧系统一致)
@@ -396,7 +448,8 @@ export default function ProductionNoticePage() {
       render: (v: string, r: GoodsRow) =>
         editable ? (
           <AutoComplete
-            value={v} options={styleOpts} placeholder="选择或输入BOM款号"
+            value={v} options={bomOptsFor(r)} placeholder="按上方货号选择BOM款号"
+            popupMatchSelectWidth={false}
             filterOption={(input, opt) => (opt?.label ?? "").toLowerCase().includes(input.toLowerCase())}
             onChange={val => patchGoods(r.key, { BOM款号: val })}
           />
@@ -480,9 +533,30 @@ export default function ProductionNoticePage() {
   const procRows = isView && selected
     ? (loaded?.工序 ?? []).filter(p => p.货号 === selected.货号)
     : [];
-  const matRows = isView && selected
+
+  // 新建态:选中货号行后实时预览其 BOM 物料(选完即见,不用等保存);查看态仍用已展开快照。
+  // 预览款号:货号本身是已建BOM的款号→用货号;否则回落 BOM款号(手工货号可手填BOM款号)。
+  const [bomPreview, setBomPreview] = useState<{ 物料编号?: string; 物料名称?: string; 规格?: string | null; 颜色?: string | null; 单位?: string; 使用数量?: number | null }[] | null>(null);
+  useEffect(() => {
+    if (isView) { setBomPreview(null); return; }
+    if (!selected) { setBomPreview(null); return; }
+    const hh = selected.货号?.trim();
+    const k = (hh && styleOpts.some(o => o.value === hh) ? hh : selected.BOM款号?.trim()) ?? "";
+    if (!k) { setBomPreview(null); return; }
+    let dead = false;
+    stylesApi.materials(k)
+      .then(v => { if (!dead) setBomPreview((v.物料 ?? []).filter(l => (l.物料编号 ?? "").trim() !== "")); })
+      .catch(() => { if (!dead) setBomPreview([]); });
+    return () => { dead = true; };
+  }, [isView, selected?.货号, selected?.BOM款号, selected, styleOpts]);
+
+  const matRows: {
+    货号?: string; 物料编号?: string; 物料名称?: string; 规格?: string | null; 颜色?: string | null; 单位?: string;
+    总数量?: number; 库存数量?: number; 需订数量?: number; 预算单价?: number | null; 金额?: number | null; 供应商名称?: string;
+    使用数量?: number | null;
+  }[] = isView && selected
     ? (loaded?.物料 ?? []).filter(m => m.货号 === selected.货号)
-    : [];
+    : (!isView && selected && bomPreview) || [];
 
   // —— MO单录入页签 ——
   const moTab = !生产单号 ? (
@@ -592,7 +666,16 @@ export default function ProductionNoticePage() {
             <Table
               size="small" rowKey={(_, i) => `mat-${i}`} pagination={false} scroll={{ x: true }}
               dataSource={matRows}
-              columns={[
+              title={!isView && selected ? () => `BOM 预览（${matRows.length} 项 · 保存后按数量展开）` : undefined}
+              columns={!isView ? [
+                // 新建态:BOM 实时预览(编号/名称/规格/颜色/单位/用量)
+                { title: "物料编号", dataIndex: "物料编号" },
+                { title: "物料名称", dataIndex: "物料名称" },
+                { title: "规格", dataIndex: "规格" },
+                { title: "颜色", dataIndex: "颜色" },
+                { title: "单位", dataIndex: "单位" },
+                { title: "BOM用量", dataIndex: "使用数量" },
+              ] : [
                 { title: "物料编号", dataIndex: "物料编号" },
                 { title: "物料名称", dataIndex: "物料名称" },
                 { title: "规格", dataIndex: "规格" },
@@ -628,17 +711,17 @@ export default function ProductionNoticePage() {
       <Form form={form} layout="vertical" size="small">
         <Row gutter={12}>
           <Col span={6}>
-            <Form.Item label="生产单号">
-              <Input value={生产单号} disabled placeholder={isView ? "" : "保存后生成"} />
+            <Form.Item name="生产单号" label="生产单号">
+              <Input disabled={isView} placeholder={isView ? "" : "留空保存后自动生成"} />
             </Form.Item>
           </Col>
           <Col span={6}>
             <Form.Item name="订单类型" label="订单类型">
-              <Select allowClear disabled={isView}
+              <Select allowClear disabled={!canEditHeader}
                 options={["正式单", "样品单", "返单"].map(v => ({ value: v, label: v }))} />
             </Form.Item>
           </Col>
-          <Col span={6}><Form.Item name="客户款号" label="客户款号"><Input disabled={isView} /></Form.Item></Col>
+          <Col span={6}><Form.Item name="客户款号" label="客户款号"><Input disabled={!canEditHeader} /></Form.Item></Col>
           <Col span={6}>
             <Form.Item label="制单日期">
               <Input value={(loaded?.单头?.日期 ?? dayjs().format("YYYY-MM-DD")).slice(0, 10)} disabled />
@@ -646,35 +729,38 @@ export default function ProductionNoticePage() {
           </Col>
         </Row>
         <Row gutter={12}>
-          <Col span={6}><Form.Item name="客户编号" label="客户编号"><Input disabled={isView} /></Form.Item></Col>
-          <Col span={6}><Form.Item name="客户名称" label="客户名称"><Input disabled={isView} /></Form.Item></Col>
-          <Col span={6}><Form.Item name="交货日期" label="交货日期"><DatePicker style={{ width: "100%" }} disabled={isView} /></Form.Item></Col>
-          <Col span={6}><Form.Item name="标识" label="标识"><Input disabled={isView} /></Form.Item></Col>
+          <Col span={6}><Form.Item name="客户编号" label="客户编号"><Input disabled={!canEditHeader} /></Form.Item></Col>
+          <Col span={6}><Form.Item name="客户名称" label="客户名称"><Input disabled={!canEditHeader} /></Form.Item></Col>
+          <Col span={6}><Form.Item name="交货日期" label="交货日期"><DatePicker style={{ width: "100%" }} disabled={!canEditHeader} /></Form.Item></Col>
+          <Col span={6}><Form.Item name="标识" label="标识"><Input disabled={!canEditHeader} /></Form.Item></Col>
         </Row>
         <Row gutter={12}>
           <Col span={6}>
-            <Form.Item label="接单数量"><Input value={接单数量} disabled /></Form.Item>
+            <Form.Item name="接单数量" label="接单数量">
+              <InputNumber min={0} style={{ width: "100%" }} disabled={!canEditHeader}
+                placeholder={isView ? "" : `默认同明细合计 ${接单数量}`} />
+            </Form.Item>
           </Col>
-          <Col span={6}><Form.Item name="装箱方式" label="装箱方式"><Input disabled={isView} placeholder="PCS/CTN" /></Form.Item></Col>
-          <Col span={6}><Form.Item name="订单总箱数" label="订单总箱数"><InputNumber min={0} style={{ width: "100%" }} disabled={isView} /></Form.Item></Col>
-          <Col span={6}><Form.Item name="下单日期" label="下单日期"><DatePicker style={{ width: "100%" }} disabled={isView} /></Form.Item></Col>
+          <Col span={6}><Form.Item name="装箱方式" label="装箱方式"><Input disabled={!canEditHeader} placeholder="PCS/CTN" /></Form.Item></Col>
+          <Col span={6}><Form.Item name="订单总箱数" label="订单总箱数"><InputNumber min={0} style={{ width: "100%" }} disabled={!canEditHeader} /></Form.Item></Col>
+          <Col span={6}><Form.Item name="下单日期" label="下单日期"><DatePicker style={{ width: "100%" }} disabled={!canEditHeader} /></Form.Item></Col>
         </Row>
         <Row gutter={12}>
           <Col span={6}>
             <Form.Item name="跟单员" label="跟单员">
               <AutoComplete
-                disabled={isView} placeholder="选择或输入(部门人事)"
+                disabled={!canEditHeader} placeholder="选择或输入(部门人事)"
                 options={empOpts}
                 filterOption={(input, opt) => (opt?.label ?? "").toLowerCase().includes(input.toLowerCase())}
               />
             </Form.Item>
           </Col>
-          <Col span={6}><Form.Item name="默认单价" label="默认单价"><Input disabled={isView} placeholder="HK LCL" /></Form.Item></Col>
+          <Col span={6}><Form.Item name="默认单价" label="默认单价"><Input disabled={!canEditHeader} placeholder="HK LCL" /></Form.Item></Col>
           <Col span={6}><Form.Item label="制单人"><Input value={loaded?.单头?.制单人 ?? currentUser} disabled /></Form.Item></Col>
-          <Col span={6}><Form.Item name="合同号" label="合同号"><Input disabled={isView} /></Form.Item></Col>
+          <Col span={6}><Form.Item name="合同号" label="合同号"><Input disabled={!canEditHeader} /></Form.Item></Col>
         </Row>
         <Row gutter={12}>
-          <Col span={24}><Form.Item name="备注" label="订单备注"><Input.TextArea rows={2} disabled={isView} /></Form.Item></Col>
+          <Col span={24}><Form.Item name="备注" label="订单备注"><Input.TextArea rows={2} disabled={!canEditHeader} /></Form.Item></Col>
         </Row>
       </Form>
 

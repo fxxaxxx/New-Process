@@ -160,7 +160,7 @@ export default function SemiReceiptPage() {
     </Row>
     <Space size={42} style={{ marginTop: 14 }} wrap><Statistic title="数量" value={totals.qty} /><Statistic title="金额" value={totals.amount} precision={2} /><Button onClick={() => setLines(current => { const actual = current.filter(line => line.配件编号.trim()); return [...actual, blankLine(actual.length + 1)]; })}>删除空白行</Button></Space>
     <SemiFinishedLabelProductPicker open={productOpen} onPick={pickProducts} onClose={() => setProductOpen(false)} loadProducts={semiReceiptApi.products} permissionMenu={MENU} />
-    <SupplierPicker open={supplierOpen} onPick={pickSupplier} onClose={() => setSupplierOpen(false)} />
+    <SupplierPicker open={supplierOpen} onPick={pickSupplier} onClose={() => setSupplierOpen(false)} withAssembly />
     <SemiReceiptOrderPicker open={orderOpen} onPick={no => { setOrderOpen(false); void openDocument(no); }} onClose={() => setOrderOpen(false)} />
   </Card>;
 }

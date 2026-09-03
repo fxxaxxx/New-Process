@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using ErpApi.Engines.Authorization;
 using ErpApi.Engines.Posting;
+using ErpApi.Features.Scheduling;
 using ErpApi.Infrastructure.Db;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -12,7 +13,7 @@ namespace ErpApi.Features.Sales;
 [Authorize]
 [Route("api/sales-shipments")]
 public sealed class SalesShipmentController(
-    SalesShipmentService svc, IPostingEngine posting, IPermissionService perms,
+    SalesShipmentService svc, SchedulingService sched, IPostingEngine posting, IPermissionService perms,
     IAuditLogger audit, ISqlConnectionFactory factory) : ControllerBase
 {
     private const string Menu = "销售出货";
@@ -71,6 +72,11 @@ public sealed class SalesShipmentController(
         if (!await AllowAsync(PermissionAction.审核)) return Forbid();
         if (!await posting.ApproveAsync(Table, 单号, CurrentUser))
             return Conflict(new { 消息 = "审核失败：单不存在或已审核。" });
+        // 出货联动排期:该单涉及的货号,其在排行置"已走货"(排期页状态标签/统计即时可见)
+        var d = await svc.GetAsync(单号);
+        if (d is not null)
+            foreach (var 货号 in d.明细.Select(l => (l.物料编号 ?? "").Trim()).Where(s => s.Length > 0).Distinct())
+                await sched.MarkShippedBy货号Async(货号, CurrentUser);
         return NoContent();
     }
 

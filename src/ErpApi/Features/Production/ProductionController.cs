@@ -81,6 +81,18 @@ public sealed class ProductionController(
         return CreatedAtAction(nameof(Get), new { 生产单号 }, new { 生产单号 });
     }
 
+    [HttpPut("{生产单号}")]
+    public async Task<IActionResult> Update(string 生产单号, [FromBody] ProductionNoticeCreateDto dto)
+    {
+        if (!await AllowAsync(PermissionAction.保存)) return Forbid();
+        bool ok;
+        try { ok = await svc.UpdateHeaderAsync(生产单号, dto, CurrentUser); }
+        catch (InvalidOperationException ex) { return Conflict(new { 消息 = ex.Message }); }
+        if (!ok) return NotFound();
+        await AuditAsync("修改", $"单号={生产单号}");
+        return NoContent();
+    }
+
     [HttpDelete("{生产单号}")]
     public async Task<IActionResult> Delete(string 生产单号)
     {

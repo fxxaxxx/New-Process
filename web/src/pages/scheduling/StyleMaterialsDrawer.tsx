@@ -1,16 +1,19 @@
-// 排期行货号 → BOM 物料弹窗:展开该货号的物料清单,勾选后按供应商分组生成物料采购单
-// 复用现有能力:BOM 数据 stylesApi.materials(同 BOM物料设置页),下单 purchaseOrderApi.create(同采购订单)
+// 排期行货号 → BOM 物料弹窗:展开该货号的物料清单,按「物料类别」分两个仓下单——
+// 类别含「塑胶」的行 → 塑胶仓·塑胶采购订单(plasticPurchaseOrderApi);其余行 → 来料仓·采购订单(purchaseOrderApi)。
+// 复用现有能力:BOM 数据 stylesApi.materials(同 BOM物料设置页),两仓各只看/只下自己的物料行。
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button, Drawer, Empty, InputNumber, Modal, Select, Space, Table, Tag, message } from "antd";
+import { Button, Drawer, Empty, InputNumber, Modal, Select, Space, Table, Tabs, Tag, message } from "antd";
 import { ShoppingCartOutlined, PlusOutlined } from "@ant-design/icons";
 import { stylesApi, type StyleBomLine } from "../../api/styles";
 import { masterApi } from "../../api/master";
 import { purchaseOrderApi } from "../../api/purchaseOrders";
+import { plasticPurchaseOrderApi } from "../../api/plasticPurchaseOrder";
 import { can, hidePrice } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
 
 const PO_MENU = "采购订单";
+const PPO_MENU = "塑胶采购订单";
 
 interface Supplier { 编号: string; 名称: string }
 
@@ -29,6 +32,9 @@ interface Row {
   供应商名称?: string;
 }
 
+// BOM 行「物料类别」含"塑胶"(如 ZURU塑胶)→ 塑胶仓下单;其余(外购件/纸箱/说明书等)→ 来料仓下单
+const isPlastic = (r: Row) => (r.物料类别 ?? "").includes("塑胶");
+
 export default function StyleMaterialsDrawer({ ctx, onClose }: {
   ctx: { 货号: string; 品名?: string; 数量?: number; 排期客户?: string; 客户名称?: string; PO号?: string } | null;
   onClose: () => void;
@@ -38,7 +44,8 @@ export default function StyleMaterialsDrawer({ ctx, onClose }: {
   const [loading, setLoading] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const [rows, setRows] = useState<Row[]>([]);
-  const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
+  const [selNormal, setSelNormal] = useState<string[]>([]);
+  const [selPlastic, setSelPlastic] = useState<string[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
@@ -58,7 +65,7 @@ export default function StyleMaterialsDrawer({ ctx, onClose }: {
   // 载入 BOM 物料 + 报价默认供应商/单价
   useEffect(() => {
     if (!ctx) return;
-    setLoading(true); setNotFound(false); setRows([]); setSelectedKeys([]);
+    setLoading(true); setNotFound(false); setRows([]); setSelNormal([]); setSelPlastic([]);
     stylesApi.materials(ctx.货号)
       .then(v => {
         const quoteOf = new Map<string, { 编号?: string; 名称?: string; 价?: number }>();
@@ -87,7 +94,8 @@ export default function StyleMaterialsDrawer({ ctx, onClose }: {
             };
           });
         setRows(rs);
-        setSelectedKeys(rs.map(r => r.key));
+        setSelNormal(rs.filter(r => !isPlastic(r)).map(r => r.key));
+        setSelPlastic(rs.filter(isPlastic).map(r => r.key));
         if (rs.length === 0) setNotFound(true);
       })
       .catch(() => setNotFound(true))
@@ -99,10 +107,15 @@ export default function StyleMaterialsDrawer({ ctx, onClose }: {
 
   const maskPrice = hidePrice(perms, PO_MENU);
   const canCreate = can(perms, PO_MENU, "保存");
+  const canCreatePlastic = can(perms, PPO_MENU, "保存");
 
-  const columns = useMemo(() => [
+  const normalRows = useMemo(() => rows.filter(r => !isPlastic(r)), [rows]);
+  const plasticRows = useMemo(() => rows.filter(isPlastic), [rows]);
+
+  const buildColumns = (withPrice: boolean) => [
     { title: "物料编号", dataIndex: "物料编号", width: 120, ellipsis: true },
     { title: "物料名称", dataIndex: "物料名称", width: 130, ellipsis: true },
+    { title: "物料类别", dataIndex: "物料类别", width: 90, ellipsis: true },
     { title: "规格", dataIndex: "规格", width: 100, ellipsis: true },
     { title: "颜色", dataIndex: "颜色", width: 80 },
     { title: "单位", dataIndex: "单位", width: 60 },
@@ -114,13 +127,13 @@ export default function StyleMaterialsDrawer({ ctx, onClose }: {
           onChange={n => patch(r.key, { 需求数量: n ?? 0 })} />
       ),
     },
-    ...(maskPrice ? [] : [{
+    ...(withPrice && !maskPrice ? [{
       title: "单价", dataIndex: "单价", width: 100, align: "right" as const,
       render: (v: number | undefined, r: Row) => (
         <InputNumber size="small" min={0} value={v} style={{ width: 90 }}
           onChange={n => patch(r.key, { 单价: n ?? undefined })} />
       ),
-    }]),
+    }] : []),
     {
       title: "供应商", dataIndex: "供应商编号", width: 200,
       render: (_: unknown, r: Row) => (
@@ -137,61 +150,124 @@ export default function StyleMaterialsDrawer({ ctx, onClose }: {
         />
       ),
     },
-  ], [排期数量, maskPrice, suppliers]);
+  ];
+  const normalColumns = useMemo(() => buildColumns(true), [排期数量, maskPrice, suppliers]);
+  const plasticColumns = useMemo(() => buildColumns(false), [排期数量, suppliers]);
 
-  const generate = () => {
-    const selected = rows.filter(r => selectedKeys.includes(r.key));
-    if (selected.length === 0) { message.warning("请先勾选要下单的物料行"); return; }
-    const withSupplier = selected.filter(r => (r.供应商编号 ?? "").trim() !== "");
-    const skipped = selected.length - withSupplier.length;
-    if (withSupplier.length === 0) { message.warning("勾选的物料行均未选供应商,无法生成采购订单"); return; }
-
-    // 按供应商分组,一供应商一张采购订单(采购订单单头只有单供应商)
+  // 按供应商分组(两种单的头都只有一个供应商)
+  const groupBySupplier = (selected: Row[]) => {
     const groups = new Map<string, { 编号: string; 名称?: string; rows: Row[] }>();
-    for (const r of withSupplier) {
+    for (const r of selected) {
       const key = r.供应商编号!.trim();
       let g = groups.get(key);
       if (!g) { g = { 编号: key, 名称: r.供应商名称, rows: [] }; groups.set(key, g); }
       g.rows.push(r);
     }
+    return groups;
+  };
+
+  const head备注 = `排期下单:${ctx?.排期客户 ?? ""}${ctx?.PO号 ? ` PO=${ctx.PO号}` : ""} 货号=${ctx?.货号 ?? ""}`.trim();
+
+  const generate = (kind: "normal" | "plastic") => {
+    const pool = kind === "plastic" ? plasticRows : normalRows;
+    const selected = pool.filter(r => (kind === "plastic" ? selPlastic : selNormal).includes(r.key));
+    const doc名 = kind === "plastic" ? "塑胶采购订单" : "采购订单";
+    if (selected.length === 0) { message.warning("请先勾选要下单的物料行"); return; }
+    const withSupplier = selected.filter(r => (r.供应商编号 ?? "").trim() !== "");
+    const skipped = selected.length - withSupplier.length;
+    if (withSupplier.length === 0) { message.warning(`勾选的物料行均未选供应商,无法生成${doc名}`); return; }
+    const groups = groupBySupplier(withSupplier);
 
     Modal.confirm({
-      title: "生成物料采购单",
-      content: `将按供应商生成 ${groups.size} 张采购订单（共 ${withSupplier.length} 行物料${skipped > 0 ? `,另 ${skipped} 行未选供应商将跳过` : ""}）。确认生成？`,
+      title: `生成${doc名}`,
+      content: `将按供应商生成 ${groups.size} 张${doc名}（共 ${withSupplier.length} 行物料${skipped > 0 ? `,另 ${skipped} 行未选供应商将跳过` : ""}）。确认生成？`,
       okText: "生成", cancelText: "取消",
       onOk: async () => {
         setSubmitting(true);
         try {
           const created: string[] = [];
           for (const g of groups.values()) {
-            const res = await purchaseOrderApi.create({
-              供应商编号: g.编号,
-              供应商名称: g.名称,
-              款号: ctx?.货号,
-              备注: `排期下单:${ctx?.排期客户 ?? ""}${ctx?.PO号 ? ` PO=${ctx.PO号}` : ""} 货号=${ctx?.货号 ?? ""}`.trim(),
-              明细: g.rows.map(r => ({
-                物料编号: r.物料编号,
-                物料名称: r.物料名称,
-                物料类别: r.物料类别 ?? undefined,
-                规格: r.规格 ?? undefined,
-                颜色: r.颜色 ?? undefined,
-                单位: r.单位,
-                数量: r.需求数量,
-                单价: r.单价,
+            if (kind === "plastic") {
+              const res = await plasticPurchaseOrderApi.create({
+                供应商编号: g.编号,
+                供应商名称: g.名称,
+                客户名称: ctx?.排期客户 ?? ctx?.客户名称,
+                编号: ctx?.PO号 ?? undefined,   // 排期 PO号 自动填入单头「编号」
+                备注: head备注,
+                明细: g.rows.map(r => ({
+                  款号: ctx?.货号,
+                  物料编号: r.物料编号,
+                  物料名称: r.物料名称,
+                  颜色: r.颜色 ?? undefined,
+                  用量: r.使用数量 ?? undefined,
+                  数量: r.需求数量,
+                  备注: `排期用量=${r.使用数量 ?? 0}`,
+                })),
+              });
+              created.push(res.单号);
+            } else {
+              const res = await purchaseOrderApi.create({
+                供应商编号: g.编号,
+                供应商名称: g.名称,
                 款号: ctx?.货号,
-                备注: `排期用量=${r.使用数量 ?? 0}`,
-              })),
-            });
-            created.push(res.单号);
+                PO号: ctx?.PO号 ?? undefined,   // 排期 PO号 自动填入单头「PO号」
+                备注: head备注,
+                明细: g.rows.map(r => ({
+                  物料编号: r.物料编号,
+                  物料名称: r.物料名称,
+                  物料类别: r.物料类别 ?? undefined,
+                  规格: r.规格 ?? undefined,
+                  颜色: r.颜色 ?? undefined,
+                  单位: r.单位,
+                  数量: r.需求数量,
+                  单价: r.单价,
+                  款号: ctx?.货号,
+                  备注: `排期用量=${r.使用数量 ?? 0}`,
+                })),
+              });
+              created.push(res.单号);
+            }
           }
-          message.success(`已生成 ${created.length} 张采购订单:${created.join("、")}（采购订单页可审核）`);
+          message.success(`已生成 ${created.length} 张${doc名}:${created.join("、")}（${kind === "plastic" ? "塑胶仓→塑胶采购订单" : "采购订单"}页可审核）`);
           onClose();
         } catch (e) {
           const msg = (e as { response?: { data?: { 消息?: string } } }).response?.data?.消息;
-          message.error(msg ?? "生成采购订单失败");
+          message.error(msg ?? `生成${doc名}失败`);
         } finally { setSubmitting(false); }
       },
     });
+  };
+
+  const renderTab = (kind: "normal" | "plastic") => {
+    const pool = kind === "plastic" ? plasticRows : normalRows;
+    const sel = kind === "plastic" ? selPlastic : selNormal;
+    const setSel = kind === "plastic" ? setSelPlastic : setSelNormal;
+    const allowed = kind === "plastic" ? canCreatePlastic : canCreate;
+    if (pool.length === 0)
+      return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE}
+        description={kind === "plastic" ? "该 BOM 没有塑胶类物料" : "该 BOM 没有来料仓物料（全部为塑胶类）"} />;
+    return (
+      <Space direction="vertical" size={8} style={{ width: "100%" }}>
+        <Table
+          rowKey="key" size="small" loading={loading} dataSource={pool}
+          columns={kind === "plastic" ? plasticColumns : normalColumns}
+          pagination={false} scroll={{ x: "max-content", y: "calc(100vh - 320px)" }}
+          rowSelection={{ selectedRowKeys: sel, onChange: k => setSel(k as string[]) }}
+        />
+        <Space style={{ justifyContent: "flex-end", width: "100%" }}>
+          <span style={{ color: "#888", fontSize: 12 }}>
+            已勾 {sel.length}/{pool.length} 行;需求数量 = 排期数量 × BOM 用量,可改
+          </span>
+          {allowed && (
+            <Button type="primary" icon={<ShoppingCartOutlined />}
+              loading={submitting} disabled={sel.length === 0}
+              onClick={() => generate(kind)}>
+              {kind === "plastic" ? "生成塑胶采购订单" : "生成物料采购单"}
+            </Button>
+          )}
+        </Space>
+      </Space>
+    );
   };
 
   return (
@@ -217,25 +293,13 @@ export default function StyleMaterialsDrawer({ ctx, onClose }: {
           </Button>
         </Empty>
       ) : (
-        <Space direction="vertical" size={8} style={{ width: "100%" }}>
-          <Table
-            rowKey="key" size="small" loading={loading} dataSource={rows} columns={columns}
-            pagination={false} scroll={{ x: "max-content", y: "calc(100vh - 260px)" }}
-            rowSelection={{ selectedRowKeys: selectedKeys, onChange: k => setSelectedKeys(k as string[]) }}
-          />
-          <Space style={{ justifyContent: "flex-end", width: "100%" }}>
-            <span style={{ color: "#888", fontSize: 12 }}>
-              已勾 {selectedKeys.length}/{rows.length} 行;需求数量 = 排期数量 × BOM 用量,可改
-            </span>
-            {canCreate && (
-              <Button type="primary" icon={<ShoppingCartOutlined />}
-                loading={submitting} disabled={selectedKeys.length === 0}
-                onClick={generate}>
-                生成物料采购单
-              </Button>
-            )}
-          </Space>
-        </Space>
+        <Tabs
+          defaultActiveKey={normalRows.length > 0 ? "normal" : "plastic"}
+          items={[
+            { key: "normal", label: `来料仓下单（${normalRows.length}）`, children: renderTab("normal") },
+            { key: "plastic", label: `塑胶仓下单（${plasticRows.length}）`, children: renderTab("plastic") },
+          ]}
+        />
       )}
     </Drawer>
   );

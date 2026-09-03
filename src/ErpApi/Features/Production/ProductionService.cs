@@ -28,6 +28,8 @@ public sealed class ProductionService(
         }
 
         var 计划数量 = dto.货号明细.Sum(line => line.数量明细.Sum(q => q.数量));
+        // 接单数量可手动输入;留空回落为明细合计(计划数量)
+        var 接单数量 = dto.接单数量 ?? 计划数量;
         // 代表款号/款式：取第一个货号行（兼容列表/下游仍读单头.款号）
         var 代表款号 = dto.货号明细[0].BOM款号;
         var 代表款式 = dto.货号明细[0].款号名称;
@@ -38,25 +40,34 @@ public sealed class ProductionService(
         await c.OpenAsync();
         using var tx = c.BeginTransaction();
 
-        var 生产单号 = await docNo.NextAsync(DocType, Prefix, now, c, tx);
+        // 生产单号可手动指定(如沿用客户单号);留空则自动生成。手动指定时查重。
+        string 生产单号;
+        if (!string.IsNullOrWhiteSpace(dto.生产单号))
+        {
+            生产单号 = dto.生产单号.Trim();
+            var dup = await c.ExecuteScalarAsync<int>(
+                "SELECT COUNT(*) FROM [生产制单] WHERE [生产单号]=@生产单号", new { 生产单号 }, tx);
+            if (dup > 0) throw new ArgumentException($"生产单号 [{生产单号}] 已存在");
+        }
+        else 生产单号 = await docNo.NextAsync(DocType, Prefix, now, c, tx);
 
         // 1. 单头（含新字段；工序数/工序单价/物料金额 先置 0，逐货号展开后汇总回写）
         await c.ExecuteAsync(@"
 INSERT INTO [生产制单]([生产单号],[款号],[款式],[合同号],[客户款号],[客户编号],[客户名称],
     [加工厂编号],[加工厂名称],[日期],[交货日期],[制单人],[跟单员],[操作员],
-    [计划数量],[工序数],[工序单价],[物料金额],[出货单价],
+    [计划数量],[接单数量],[工序数],[工序单价],[物料金额],[出货单价],
     [订单类型],[标识],[装箱方式],[订单总箱数],[默认单价],
     [审核],[完成],[工序审核],[BOM审核],[下单日期],[备注])
 VALUES(@生产单号,@款号,@款式,@合同号,@客户款号,@客户编号,@客户名称,
     @加工厂编号,@加工厂名称,@日期,@交货日期,@制单人,@跟单员,@制单人,
-    @计划数量,0,0,0,NULL,
+    @计划数量,@接单数量,0,0,0,NULL,
     @订单类型,@标识,@装箱方式,@订单总箱数,@默认单价,
     '0',N'否','0','0',@下单日期,@备注)",
             new
             {
                 生产单号, 款号 = 代表款号, 款式 = 代表款式, dto.合同号, dto.客户款号, dto.客户编号, dto.客户名称,
                 dto.加工厂编号, dto.加工厂名称, 日期 = now, dto.交货日期, 制单人 = user, dto.跟单员,
-                计划数量, dto.订单类型, dto.标识, dto.装箱方式, dto.订单总箱数, dto.默认单价, 下单日期, dto.备注
+                计划数量, 接单数量, dto.订单类型, dto.标识, dto.装箱方式, dto.订单总箱数, dto.默认单价, 下单日期, dto.备注
             }, tx);
 
         decimal 工序数合计 = 0, 工序单价合计 = 0, 物料金额合计 = 0;
@@ -124,6 +135,36 @@ WHERE [生产单号]=@生产单号",
         return 生产单号;
     }
 
+    // 表头修改：仅未审核可改(已审核 409,请先反审核)。只更新单头字段;货号明细/工序/BOM 已按下单快照固化,不在此改。
+    public async Task<bool> UpdateHeaderAsync(string 生产单号, ProductionNoticeCreateDto dto, string user)
+    {
+        using var c = factory.Create();
+        await c.OpenAsync();
+        using var tx = c.BeginTransaction();
+        var 审核 = await c.ExecuteScalarAsync<string?>(
+            "SELECT ISNULL([审核],'0') FROM [生产制单] WITH (UPDLOCK, HOLDLOCK) WHERE [生产单号]=@生产单号", new { 生产单号 }, tx);
+        if (审核 is null) return false;
+        if (审核 == "1") throw new InvalidOperationException("已审核的生产通知单不能修改，请先反审核。");
+
+        await c.ExecuteAsync(@"
+UPDATE [生产制单] SET
+    [订单类型]=@订单类型,[标识]=@标识,[装箱方式]=@装箱方式,[订单总箱数]=@订单总箱数,
+    [默认单价]=@默认单价,[客户编号]=@客户编号,[客户名称]=@客户名称,[客户款号]=@客户款号,[合同号]=@合同号,
+    [加工厂编号]=@加工厂编号,[加工厂名称]=@加工厂名称,[交货日期]=@交货日期,[下单日期]=@下单日期,
+    [跟单员]=@跟单员,[备注]=@备注,
+    [接单数量]=CASE WHEN @接单数量 IS NULL THEN [接单数量] ELSE @接单数量 END
+WHERE [生产单号]=@生产单号",
+            new
+            {
+                生产单号, dto.订单类型, dto.标识, dto.装箱方式, dto.订单总箱数, dto.默认单价,
+                dto.客户编号, dto.客户名称, dto.客户款号, dto.合同号,
+                dto.加工厂编号, dto.加工厂名称, dto.交货日期, dto.下单日期,
+                dto.跟单员, dto.备注, dto.接单数量
+            }, tx);
+        tx.Commit();
+        return true;
+    }
+
     // 分页列表（单头；关键字模糊匹配 生产单号/款号/款式/客户名称/合同号）
     // 领料应领明细:按生产单 BOM 展开快照取 应领=Σ总数量(需求侧,不扣库存)。
     // 档=来料 只留 物料资料 存在的行;档=塑胶 只留 物料资料 不存在的行(塑胶/未知档案)。
@@ -158,7 +199,7 @@ SELECT COUNT(*) FROM [生产制单]
 WHERE @kw IS NULL OR [生产单号] LIKE @kw OR [款号] LIKE @kw OR [款式] LIKE @kw
    OR [客户名称] LIKE @kw OR [合同号] LIKE @kw;
 SELECT [ID],[生产单号],[款号],[款式],[合同号],[客户编号],[客户名称],[加工厂编号],[加工厂名称],
-       [日期],[交货日期],[制单人],[跟单员],[计划数量],[工序数],[工序单价],[物料金额],[出货单价],
+       [日期],[交货日期],[制单人],[跟单员],[计划数量],[接单数量],[工序数],[工序单价],[物料金额],[出货单价],
        [审核],[审核人],[完成],[备注]
 FROM [生产制单]
 WHERE @kw IS NULL OR [生产单号] LIKE @kw OR [款号] LIKE @kw OR [款式] LIKE @kw
@@ -177,7 +218,7 @@ OFFSET (@page-1)*@size ROWS FETCH NEXT @size ROWS ONLY;",
         using var c = factory.Create();
         using var multi = await c.QueryMultipleAsync(@"
 SELECT [ID],[生产单号],[款号],[款式],[合同号],[客户编号],[客户名称],[客户款号],[加工厂编号],[加工厂名称],
-       [日期],[交货日期],[下单日期],[制单人],[跟单员],[计划数量],[工序数],[工序单价],[物料金额],[出货单价],
+       [日期],[交货日期],[下单日期],[制单人],[跟单员],[计划数量],[接单数量],[工序数],[工序单价],[物料金额],[出货单价],
        [订单类型],[标识],[装箱方式],[订单总箱数],[默认单价],[审核],[审核人],[完成],[备注]
 FROM [生产制单] WHERE [生产单号]=@生产单号;
 SELECT [ID],[序号],[货号],[BOM款号],[款号名称],[数量],[比例],[分析]

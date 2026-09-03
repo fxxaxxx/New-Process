@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, Input, Space, Table, Tree, message } from "antd";
 import { materialInventoryApi, type MaterialStockRow } from "../../api/materialInventory";
-import { materialMasterApi, type MaterialCategoryNode } from "../../api/materialMaster";
+import type { MaterialCategoryNode } from "../../api/materialMaster";
 
 const ALL = "__ALL__";
 
@@ -17,17 +17,17 @@ export default function MaterialInventoryPage() {
   const load = useCallback(async () => {
     try { setRows(await materialInventoryApi.list(仓库 || undefined, keyword || undefined, 类别)); }
     catch { message.error("加载物料库存失败"); }
+    // 树与主表同频刷新：入仓/领料等操作后重新进来，计数自动更新；新类别自动出现
+    materialInventoryApi.categories().then(setCats).catch(() => { /* 树取数失败不阻塞主表 */ });
   }, [仓库, keyword, 类别]);
+
   useEffect(() => { load(); }, [load]);
 
-  useEffect(() => {
-    materialMasterApi.categories().then(setCats).catch(() => { /* 树取数失败不阻塞主表 */ });
-  }, []);
-
+  const totalCount = cats.reduce((s, c) => s + (c.数量 || 0), 0);
   const treeData = useMemo(() => [{
-    title: "全部物料", key: ALL,
+    title: `全部物料（${totalCount}）`, key: ALL,
     children: cats.map(c => ({ title: `${c.类别}（${c.数量}）`, key: c.类别 ?? "", isLeaf: true })),
-  }], [cats]);
+  }], [cats, totalCount]);
 
   const columns = [
     { title: "物料编号", dataIndex: "物料编号", render: (v: string) => <span className="erp-num">{v}</span> },

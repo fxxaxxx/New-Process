@@ -93,6 +93,7 @@ public sealed class PurchaseReceiptController(
         string 单号;
         try { 单号 = await svc.CreateAsync(dto, CurrentUser); }
         catch (ArgumentException ex) { return BadRequest(new { 消息 = ex.Message }); }
+        catch (InvalidOperationException ex) { return Conflict(new { 消息 = ex.Message }); }
         catch (SqlException ex) when (ex.Number == 547) { return BadRequest(new { 消息 = "关联数据不存在(供应商/款号/生产单号)。" }); }
         await AuditAsync("新增", $"单号={单号}");
         return CreatedAtAction(nameof(Get), new { 单号 }, new { 单号 });

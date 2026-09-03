@@ -43,6 +43,7 @@ export default function DepartmentPersonnelPage() {
   const [deptModalOpen, setDeptModalOpen] = useState(false);
   const [deptForm] = Form.useForm();
   const [deptSaving, setDeptSaving] = useState(false);
+  const [editingDept, setEditingDept] = useState<Row | null>(null); // null=新增；否则为编辑中的部门行
 
   const loadDepts = useCallback(async () => {
     try {
@@ -148,14 +149,30 @@ export default function DepartmentPersonnelPage() {
   };
 
   // 新增部门
-  const openDeptCreate = () => { deptForm.resetFields(); setDeptModalOpen(true); };
+  const openDeptCreate = () => { setEditingDept(null); deptForm.resetFields(); setDeptModalOpen(true); };
+  // 双击部门行：打开编辑（编号不可改——人员按 部门编号 引用，改编号会让人员失联；要改编号请先转移人员）
+  const openDeptEdit = async (d: Row) => {
+    try {
+      const full = await departments.get(d.ID);
+      setEditingDept(d);
+      deptForm.resetFields();
+      deptForm.setFieldsValue(full);
+      setDeptModalOpen(true);
+    } catch { message.error("加载部门详情失败"); }
+  };
   const submitDept = async () => {
     const v = await deptForm.validateFields();
     setDeptSaving(true);
     try {
-      await departments.create(v);
-      message.success("部门已保存");
+      if (editingDept && editingDept.ID > 0) {
+        await departments.update(editingDept.ID, { ...v, 编号: String(editingDept.编号 ?? "") });
+        message.success("部门已保存");
+      } else {
+        await departments.create(v);
+        message.success("部门已保存");
+      }
       setDeptModalOpen(false);
+      setEditingDept(null);
       await loadDepts();
     } catch (e) {
       message.error((e as { response?: { data?: { 消息?: string } } }).response?.data?.消息 ?? "部门保存失败");
@@ -218,6 +235,9 @@ export default function DepartmentPersonnelPage() {
             新增部门
           </Button>
         )}
+        {canDeptSave && (
+          <div style={{ color: "#999", fontSize: 11, marginBottom: 6 }}>双击部门名称可编辑</div>
+        )}
         <div
           onClick={() => setSelDept(ALL)}
           style={{
@@ -234,6 +254,8 @@ export default function DepartmentPersonnelPage() {
             <div
               key={d.ID}
               onClick={() => setSelDept(code)}
+              onDoubleClick={() => { if (canDeptSave) void openDeptEdit(d); }}
+              title={canDeptSave ? "双击编辑该部门" : undefined}
               style={{
                 padding: "5px 8px", cursor: "pointer", borderRadius: 4,
                 display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -380,15 +402,15 @@ export default function DepartmentPersonnelPage() {
         </Form>
       </Modal>
 
-      {/* 新增部门弹窗 */}
+      {/* 部门弹窗（新增/编辑；编辑时编号锁定） */}
       <Modal
-        title="新增部门"
-        open={deptModalOpen} onCancel={() => setDeptModalOpen(false)} onOk={submitDept}
+        title={editingDept ? "编辑部门" : "新增部门"}
+        open={deptModalOpen} onCancel={() => { setDeptModalOpen(false); setEditingDept(null); }} onOk={submitDept}
         confirmLoading={deptSaving} destroyOnClose width={420}
       >
         <Form form={deptForm} layout="vertical">
           <Form.Item name="编号" label="编号" rules={[{ required: true, message: "请输入编号" }]}>
-            <Input />
+            <Input disabled={!!editingDept} placeholder={editingDept ? "编号被人员引用,不可修改" : undefined} />
           </Form.Item>
           <Form.Item name="部门" label="部门" rules={[{ required: true, message: "请输入部门名称" }]}>
             <Input />

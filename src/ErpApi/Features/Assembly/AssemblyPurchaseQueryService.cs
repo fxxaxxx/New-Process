@@ -522,10 +522,19 @@ WITH src AS (
     FROM [款号物料总表] h
     JOIN [款号物料明细表] d ON d.[款号] = h.[款号]
     OUTER APPLY (
-        SELECT TOP 1 [生产单号], [产品名称], [接单数量]
-        FROM [生产通知单MO单] mo
-        WHERE mo.[产品货号] = h.[款号]
-        ORDER BY mo.[接单日期] DESC, mo.[ID] DESC
+        SELECT TOP 1 x.[生产单号], x.[产品名称], x.[接单数量]
+        FROM (
+            SELECT mo.[生产单号], mo.[产品名称], mo.[接单数量], mo.[接单日期] AS [排序日期], mo.[ID], 0 AS [优先级]
+            FROM [生产通知单MO单] mo
+            WHERE mo.[产品货号] = h.[款号]
+            UNION ALL
+            -- MO 单未录入时回退到生产制单(本系统生产单主表),否则按生产单号搜索不到
+            SELECT p.[生产单号], p.[款式], p.[接单数量], p.[日期], p.[ID], 1
+            FROM [生产制单] p
+            WHERE p.[款号] = h.[款号]
+        ) x
+        ORDER BY CASE WHEN @kw IS NOT NULL AND x.[生产单号] LIKE @kw THEN -1 ELSE x.[优先级] END,
+                 x.[优先级], x.[排序日期] DESC, x.[ID] DESC
     ) mo
     OUTER APPLY (
         SELECT TOP 1 [加工厂编号], [加工厂名称]

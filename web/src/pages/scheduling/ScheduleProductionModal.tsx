@@ -80,7 +80,8 @@ export default function ScheduleProductionModal({ ctx, onClose }: {
           数量明细: [{ 数量: v.数量 }], // 排期无色码,一条无色码数量行(同通知单页手输数量)
         }],
       });
-      message.success(`生产通知单已创建：${r.生产单号}（工序/物料已自动展开,生产通知单页可审核）`);
+      message.success(`生产通知单已创建：${r.生产单号}（工序/物料已自动展开）`);
+      navigate(`/production?mo=${encodeURIComponent(r.生产单号)}`);
       onClose();
     } catch (e) {
       const msg = (e as { response?: { data?: { 消息?: string } } }).response?.data?.消息;

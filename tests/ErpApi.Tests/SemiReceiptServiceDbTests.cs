@@ -35,7 +35,7 @@ public class SemiReceiptServiceDbTests(DbFixture fx)
         var 单号 = await Svc().CreateAsync(Dto(), "tester");
         try
         {
-            Assert.StartsWith("BR", 单号);
+            Assert.StartsWith("BCP", 单号);
             Assert.Equal(100m, c.ExecuteScalar<decimal>("SELECT [数量] FROM [半成品入仓单] WHERE [单号]=@n", new { n = 单号 }));
             Assert.Equal(1000m, c.ExecuteScalar<decimal>("SELECT [金额] FROM [半成品入仓单] WHERE [单号]=@n", new { n = 单号 }));
             Assert.Equal(2, c.ExecuteScalar<int>("SELECT COUNT(*) FROM [半成品入仓明细单] WHERE [单号]=@n", new { n = 单号 }));

@@ -12,6 +12,8 @@ export interface ProductionGoodsLine {
 
 // 单据创建 DTO（一单多货号）
 export interface ProductionNoticeCreate {
+  生产单号?: string;   // 留空则后端自动生成;可手动指定(如沿用客户单号)
+  接单数量?: number;   // 留空回落为明细合计(计划数量)
   订单类型?: string; 标识?: string; 装箱方式?: string; 订单总箱数?: number; 默认单价?: string;
   客户编号?: string; 客户名称?: string; 客户款号?: string; 合同号?: string;
   加工厂编号?: string; 加工厂名称?: string; 交货日期?: string; 跟单员?: string;
@@ -23,7 +25,7 @@ export interface ProductionHeader {
   id: number; 生产单号?: string; 款号?: string; 款式?: string; 合同号?: string;
   客户编号?: string; 客户名称?: string; 客户款号?: string; 加工厂编号?: string; 加工厂名称?: string;
   订单类型?: string; 标识?: string; 装箱方式?: string; 订单总箱数?: number | null; 默认单价?: string;
-  日期?: string; 下单日期?: string; 交货日期?: string; 制单人?: string; 跟单员?: string; 备注?: string;
+  日期?: string; 下单日期?: string; 交货日期?: string; 接单数量?: number | null; 制单人?: string; 跟单员?: string; 备注?: string;
   订单单号?: string;
   计划数量?: number | null; 工序数?: number | null; 工序单价?: number | null;
   物料金额?: number | null; 出货单价?: number | null; 审核?: string; 完成?: string;
@@ -73,6 +75,8 @@ export const productionApi = {
     api.get<Paged<ProductionHeader>>("/production", { params: { page, size, keyword } }).then(r => r.data),
   get: (生产单号: string) => api.get<ProductionDetail>(`/production/${enc(生产单号)}`).then(r => r.data),
   create: (body: ProductionNoticeCreate) => api.post<{ 生产单号: string }>("/production", body).then(r => r.data),
+  // 表头修改(仅未审核可改):货号明细/工序/BOM 不在此更新
+  update: (生产单号: string, body: ProductionNoticeCreate) => api.put(`/production/${enc(生产单号)}`, body),
   remove: (生产单号: string) => api.delete(`/production/${enc(生产单号)}`),
   approve: (生产单号: string) => api.post(`/production/${enc(生产单号)}/approve`),
   unapprove: (生产单号: string) => api.post(`/production/${enc(生产单号)}/unapprove`),

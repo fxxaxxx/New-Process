@@ -144,7 +144,8 @@ export default function PlasticReceiptFormPage({ cfg }: { cfg: PlasticReceiptFor
       const h = d.单头 ?? {} as PSDHeader;
       form.setFieldsValue({
         供应商编号: h.供应商编号, 供应商名称: h.供应商名称, 仓库: h.仓库, 备注: h.备注,
-        日期: h.日期?.slice(0, 10), 操作员: h.操作员, 入仓单号: h.入仓单号, 电脑单号: h.电脑单号, 订单单号: h.订单单号,
+        日期: h.日期?.slice(0, 10), 操作员: h.操作员, 单号: h.单号,
+        入仓单号: h.入仓单号, 电脑单号: h.电脑单号, 订单单号: h.订单单号,
       });
       setLines(d.明细 ?? []); setOpened(单号);
     } catch { message.error("打开单据失败"); }
@@ -229,8 +230,17 @@ export default function PlasticReceiptFormPage({ cfg }: { cfg: PlasticReceiptFor
             </Form.Item>
             <Form.Item name="供应商编号" hidden><Input /></Form.Item>
           </Col>
-          <Col span={4}><Form.Item name="日期" label="日期"><Input disabled /></Form.Item></Col>
-          <Col span={5}>
+          <Col span={3}><Form.Item name="日期" label="日期"><Input disabled /></Form.Item></Col>
+          {cfg.resource === "plastic-receipts" && (
+            <Col span={4}>
+              {/* 塑胶入仓单单号=供应商送货单号：新建手填必填，全表唯一(后端校验) */}
+              <Form.Item name="单号" label="送货单号"
+                rules={readOnly ? undefined : [{ required: true, message: "请填写送货单号" }]}>
+                <Input disabled={readOnly} placeholder="供应商送货单号" />
+              </Form.Item>
+            </Col>
+          )}
+          <Col span={4}>
             <Form.Item name="入仓单号" label="入库单号">
               {cfg.allowReceiptPick
                 ? <Input readOnly placeholder="点🔍选入仓单带出"
@@ -238,8 +248,8 @@ export default function PlasticReceiptFormPage({ cfg }: { cfg: PlasticReceiptFor
                 : <Input disabled={readOnly} />}
             </Form.Item>
           </Col>
-          <Col span={5}><Form.Item name="订单单号" label="订单单号"><Input disabled={readOnly} /></Form.Item></Col>
-          <Col span={4}><Form.Item name="电脑单号" label="电脑单号"><Input disabled /></Form.Item></Col>
+          <Col span={4}><Form.Item name="订单单号" label="订单单号"><Input disabled={readOnly} /></Form.Item></Col>
+          <Col span={3}><Form.Item name="电脑单号" label="电脑单号"><Input disabled /></Form.Item></Col>
         </Row>
         <Row gutter={12}>
           <Col span={3}><Form.Item name="仓库" label="仓库" rules={[{ required: true, message: "请填仓库" }]}><Input disabled={readOnly} /></Form.Item></Col>

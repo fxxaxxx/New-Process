@@ -9,6 +9,7 @@ import DocQueryTabs from "./components/DocQueryTabs";
 import MasterRouter from "./pages/master/MasterRouter";
 import Dashboard from "./pages/Dashboard";
 const ChangePasswordPage = lazy(() => import("./pages/ChangePasswordPage"));
+const MessagesPage = lazy(() => import("./pages/MessagesPage"));
 const CompanyProfilePage = lazy(() => import("./pages/system/CompanyProfilePage"));
 const FeatureSettingsPage = lazy(() => import("./pages/system/FeatureSettingsPage"));
 const WarehouseLocationPage = lazy(() => import("./pages/system/WarehouseLocationPage"));
@@ -202,6 +203,7 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<RequireAuth><PermissionProvider><MainLayout /></PermissionProvider></RequireAuth>}>
           <Route index element={<Dashboard />} />
+          <Route path="messages" element={<MessagesPage />} />
           <Route path="master/:menu" element={<MasterRouter />} />
           <Route path="scheduling" element={<SchedulingPage />} />
           <Route path="styles/:styleNo" element={<StyleDetailPage />} />

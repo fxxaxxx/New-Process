@@ -75,4 +75,7 @@ dotnet run --project (Join-Path $root "tools\DbDeploy") -- $ConnectionString `
   (Join-Path $dir "69_production_schedule.sql") `
   (Join-Path $dir "70_production_schedule_widen.sql") `
   (Join-Path $dir "71_production_schedule_raw.sql") `
+  (Join-Path $dir "72_purchase_order_po.sql") `
+  (Join-Path $dir "73_production_order_order_qty.sql") `
+  (Join-Path $dir "74_production_order_remark_widen.sql") `
   (Join-Path $dir "seed_scheduling_perms.sql")

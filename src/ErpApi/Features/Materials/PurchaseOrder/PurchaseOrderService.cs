@@ -5,19 +5,36 @@ using ErpApi.Infrastructure.Db;
 namespace ErpApi.Features.Materials.PurchaseOrder;
 
 // 采购物料单/采购订单。两层：采购订单(单头) + 采购明细单(明细，主从 by 单号)。
-// 基准来源：生产BOM物料清单(按生产单号带料)。审核/反审核由过账引擎处理。
+// 基准来源：生产BOM物料清单(按生产单号带料，来料仓口径——不含塑胶类/未建档物料)。审核/反审核由过账引擎处理。
 public sealed class PurchaseOrderService(ISqlConnectionFactory factory, IDocumentNumberGenerator docNo)
 {
     public const string DocType = "采购订单";
     public const string Prefix = "PO";   // 采购订单号 = PO + yyyyMMdd + 3位流水
 
-    // 从生产单BOM带出采购基准行(物料类别 BOM清单无此列，留空)。
+    // 从生产单BOM带出采购基准行。
+    // 来料仓口径：只留 物料资料已建档 且 物料类别不含「塑胶」的行(塑胶类/未建档物料归塑胶仓，见领料应领明细 档=塑胶)。
+    // 顺带返回 生产制单.合同号(客户合同号即PO号，由前端自动填入采购订单表头) 与 已订数量(该生产单下 采购明细单 按 物料+颜色 累计，防重复下单)。
     public async Task<IReadOnlyList<PurchaseOrderBasisRow>> BasisAsync(string 生产单号)
     {
         using var c = factory.Create();
         var rows = await c.QueryAsync<PurchaseOrderBasisRow>(@"
-SELECT [物料编号],[物料名称],[规格],[颜色],[单位],[总数量],[库存数量],[可用库存],[需订数量],[预算单价],[供应商编号],[供应商名称]
-FROM [生产BOM物料清单] WHERE [生产单号]=@生产单号 ORDER BY [ID]", new { 生产单号 });
+SELECT b.[物料编号],b.[物料名称],m.[物料类别],b.[规格],b.[颜色],b.[单位],
+       b.[总数量],b.[库存数量],b.[可用库存],b.[需订数量],b.[预算单价],b.[供应商编号],b.[供应商名称],
+       h.[合同号],
+       ISNULL(od.[已订数量],0) AS 已订数量
+FROM [生产BOM物料清单] b
+JOIN [物料资料] m ON m.[物料编号]=b.[物料编号]
+JOIN [生产制单] h ON h.[生产单号]=b.[生产单号]
+LEFT JOIN (
+    SELECT d.[物料编号], ISNULL(d.[颜色],N'') AS 颜色键, SUM(d.[数量]) AS 已订数量
+    FROM [采购明细单] d
+    JOIN [采购订单] o ON o.[单号]=d.[单号]
+    WHERE d.[生产单号]=@生产单号
+    GROUP BY d.[物料编号], ISNULL(d.[颜色],N'')
+) od ON od.[物料编号]=b.[物料编号] AND od.[颜色键]=ISNULL(b.[颜色],N'')
+WHERE b.[生产单号]=@生产单号
+  AND (m.[物料类别] IS NULL OR m.[物料类别] NOT LIKE N'%塑胶%')
+ORDER BY b.[ID]", new { 生产单号 });
         return rows.AsList();
     }
 
@@ -388,10 +405,10 @@ ORDER BY d.[物料编号], d.[规格], d.[颜色];",
         var 单号 = await docNo.NextAsync(DocType, Prefix, now, c, tx);
 
         await c.ExecuteAsync(@"
-INSERT INTO [采购订单]([单号],[日期],[交货日期],[供应商编号],[供应商名称],[仓库],[数量],[金额],[操作员],[审核],[备注],[生产单号],[收件人],[打印次数])
-VALUES(@单号,@日期,@交货日期,@供应商编号,@供应商名称,@仓库,@数量,@金额,@操作员,'0',@备注,@生产单号,@收件人,0)",
+INSERT INTO [采购订单]([单号],[日期],[交货日期],[供应商编号],[供应商名称],[仓库],[数量],[金额],[操作员],[审核],[备注],[生产单号],[PO号],[收件人],[打印次数])
+VALUES(@单号,@日期,@交货日期,@供应商编号,@供应商名称,@仓库,@数量,@金额,@操作员,'0',@备注,@生产单号,@PO号,@收件人,0)",
             new { 单号, 日期, dto.交货日期, dto.供应商编号, dto.供应商名称, dto.仓库,
-                  数量 = 数量合计, 金额 = 金额合计, 操作员 = user, dto.备注, dto.生产单号, dto.收件人 }, tx);
+                  数量 = 数量合计, 金额 = 金额合计, 操作员 = user, dto.备注, dto.生产单号, dto.PO号, dto.收件人 }, tx);
 
         foreach (var l in dto.明细)
             await c.ExecuteAsync(@"
@@ -424,11 +441,11 @@ VALUES(@单号,@生产单号,@款号,@日期,@交货日期,@供应商编号,@供
 
         await c.ExecuteAsync(@"
 UPDATE [采购订单] SET [交货日期]=@交货日期,[供应商编号]=@供应商编号,[供应商名称]=@供应商名称,
-    [仓库]=@仓库,[数量]=@数量,[金额]=@金额,[备注]=@备注,[生产单号]=@生产单号,[收件人]=@收件人,
+    [仓库]=@仓库,[数量]=@数量,[金额]=@金额,[备注]=@备注,[生产单号]=@生产单号,[PO号]=@PO号,[收件人]=@收件人,
     [日期]=COALESCE(@日期,[日期])
 WHERE [单号]=@单号",
             new { 单号, dto.交货日期, dto.供应商编号, dto.供应商名称, dto.仓库,
-                  数量 = 数量合计, 金额 = 金额合计, dto.备注, dto.生产单号, dto.收件人, dto.日期 }, tx);
+                  数量 = 数量合计, 金额 = 金额合计, dto.备注, dto.生产单号, dto.PO号, dto.收件人, dto.日期 }, tx);
 
         await c.ExecuteAsync("DELETE FROM [采购明细单] WHERE [单号]=@单号", new { 单号 }, tx);
         var 日期 = dto.日期 ?? await c.ExecuteScalarAsync<DateTime?>(
@@ -464,7 +481,7 @@ SELECT [打印次数] FROM [采购订单] WHERE [单号]=@单号;", new { 单号
         using var multi = await c.QueryMultipleAsync(@"
 SELECT COUNT(*) FROM [采购订单]
 WHERE @kw IS NULL OR [单号] LIKE @kw OR [供应商名称] LIKE @kw OR [生产单号] LIKE @kw;
-SELECT [ID],[单号],[日期],[交货日期],[供应商编号],[供应商名称],[仓库],[数量],[金额],[操作员],[审核],[审核人],[备注],[生产单号],[收件人],[打印次数]
+SELECT [ID],[单号],[日期],[交货日期],[供应商编号],[供应商名称],[仓库],[数量],[金额],[操作员],[审核],[审核人],[备注],[生产单号],[PO号],[收件人],[打印次数]
 FROM [采购订单]
 WHERE @kw IS NULL OR [单号] LIKE @kw OR [供应商名称] LIKE @kw OR [生产单号] LIKE @kw
 ORDER BY [ID] DESC OFFSET (@page-1)*@size ROWS FETCH NEXT @size ROWS ONLY;",
@@ -478,7 +495,7 @@ ORDER BY [ID] DESC OFFSET (@page-1)*@size ROWS FETCH NEXT @size ROWS ONLY;",
     {
         using var c = factory.Create();
         using var multi = await c.QueryMultipleAsync(@"
-SELECT [ID],[单号],[日期],[交货日期],[供应商编号],[供应商名称],[仓库],[数量],[金额],[操作员],[审核],[审核人],[备注],[生产单号],[收件人],[打印次数]
+SELECT [ID],[单号],[日期],[交货日期],[供应商编号],[供应商名称],[仓库],[数量],[金额],[操作员],[审核],[审核人],[备注],[生产单号],[PO号],[收件人],[打印次数]
 FROM [采购订单] WHERE [单号]=@单号;
 SELECT [ID],[物料编号],[物料名称],[物料类别],[规格],[颜色],[材料],[单位],[数量],[单价],[金额],[预算数量],[生产单号],[款号],[备注]
 FROM [采购明细单] WHERE [单号]=@单号 ORDER BY [ID];",

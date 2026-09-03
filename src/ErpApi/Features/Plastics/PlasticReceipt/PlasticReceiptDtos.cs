@@ -66,6 +66,9 @@ public sealed class PlasticReceiptCreateLineDto
 
 public sealed class PlasticReceiptCreateDto
 {
+    // 入仓单号=供应商送货单号（手填）；留空则按 RJ+日期+流水 自动生成（兼容旧流程）。
+    // 手填时全表唯一：同一张送货单不能重复入仓。
+    public string? 单号 { get; set; }
     public string? 供应商编号 { get; set; }
     public string? 供应商名称 { get; set; }
     public string? 仓库 { get; set; }

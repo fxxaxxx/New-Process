@@ -40,6 +40,8 @@ public sealed class ProductionNoticeCreateDto
     public DateTime? 下单日期 { get; set; }
     public string? 备注 { get; set; }
     public string? 订单单号 { get; set; }
+    public string? 生产单号 { get; set; }   // 可手动指定(留空自动生成)
+    public decimal? 接单数量 { get; set; }  // 可手动输入;留空回落为明细合计(计划数量)
     public List<ProductionGoodsLineDto> 货号明细 { get; set; } = [];
 }
 
@@ -72,6 +74,7 @@ public sealed class ProductionHeaderDto
     public DateTime? 日期 { get; set; }
     public DateTime? 交货日期 { get; set; }
     public DateTime? 下单日期 { get; set; }
+    public decimal? 接单数量 { get; set; }
     public string? 客户款号 { get; set; }
     public string? 订单类型 { get; set; }
     public string? 标识 { get; set; }

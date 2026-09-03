@@ -1,22 +1,26 @@
-import { useState } from "react";
-import { Layout, Menu, Button, Avatar, Tooltip } from "antd";
+import { useEffect, useState } from "react";
+import { Layout, Menu, Button, Avatar, Badge, Tooltip } from "antd";
 import {
   AppstoreOutlined, SearchOutlined, HomeOutlined, PlusSquareOutlined, RocketOutlined,
   ShoppingCartOutlined, InboxOutlined, ExportOutlined, DatabaseOutlined, MenuUnfoldOutlined, MenuFoldOutlined,
+  ScheduleOutlined, CloseOutlined, BellOutlined,
 } from "@ant-design/icons";
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { can } from "../auth/permissions";
 import { usePerms } from "../auth/PermissionContext";
 import { useTheme } from "../theme/ThemeContext";
 import { MENU_TREE } from "../nav/menuTree";
+import { MSG_REFRESH_EVENT, messagesApi } from "../api/messages";
 import CommandPalette from "../components/CommandPalette";
+import { KeepAliveProvider, KeepAliveOutlet, useKeepAlive } from "../components/KeepAliveOutlet";
 
 const { Sider, Header, Content } = Layout;
 
-// 简易模式菜单：新手天天用的 7 个入口，其余收进「全部功能」。
+// 简易模式菜单：新手天天用的 8 个入口，其余收进「全部功能」。
 // perm 对应菜单权限；页面本身也有权限兜底，没权限点进去会提示。
 const SIMPLE_MENU: { label: string; path: string; perm?: string; icon: React.ReactNode }[] = [
   { label: "首页", path: "/", icon: <HomeOutlined /> },
+  { label: "客户排期", path: "/scheduling", perm: "生产排期", icon: <ScheduleOutlined /> },
   { label: "物料建档", path: "/material-create", perm: "物料资料", icon: <PlusSquareOutlined /> },
   { label: "生产通知单", path: "/production", perm: "生产制单", icon: <RocketOutlined /> },
   { label: "采购订单", path: "/purchase-orders", icon: <ShoppingCartOutlined /> },
@@ -26,6 +30,7 @@ const SIMPLE_MENU: { label: string; path: string; perm?: string; icon: React.Rea
 ];
 
 function titleFor(pathname: string): string {
+  if (pathname.startsWith("/messages")) return "消息中心";
   if (pathname.startsWith("/_todo/")) return decodeURIComponent(pathname.slice("/_todo/".length));
   for (const g of MENU_TREE) for (const leaf of g.children)
     if (leaf.path && pathname.startsWith(leaf.path)) return leaf.label;
@@ -35,13 +40,34 @@ function titleFor(pathname: string): string {
 }
 
 export default function MainLayout() {
+  // 页面缓存(keep-alive):切换菜单不丢各页已选/已填数据;「关闭」按钮清当前页缓存
+  return (
+    <KeepAliveProvider>
+      <MainLayoutInner />
+    </KeepAliveProvider>
+  );
+}
+
+function MainLayoutInner() {
   const perms = usePerms();
   const nav = useNavigate();
   const loc = useLocation();
+  const { drop } = useKeepAlive();
   const { theme } = useTheme();
   const [openKeys, setOpenKeys] = useState<string[]>([]);   // 默认全折叠,点击菜单组才展开
   // 简易模式：默认关闭(localStorage 记忆)，点按钮切到只显示 7 个核心入口的简易菜单
   const [simple, setSimple] = useState<boolean>(() => localStorage.getItem("erp_simple_menu") === "1");
+  // 顶栏铃铛未读数:进入布局拉一次;消息页标记已读/审批后 dispatch erp-msg-refresh 事件重拉
+  const [unread, setUnread] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    const pull = () => messagesApi.unreadCount()
+      .then(c => { if (alive) setUnread(c); })
+      .catch(() => { /* 未读数拉取失败不影响布局 */ });
+    pull();
+    window.addEventListener(MSG_REFRESH_EVENT, pull);
+    return () => { alive = false; window.removeEventListener(MSG_REFRESH_EVENT, pull); };
+  }, []);
 
   const toggleSimple = () => {
     setSimple(s => {
@@ -85,6 +111,12 @@ export default function MainLayout() {
     localStorage.removeItem("erp_token");
     localStorage.removeItem("erp_user");
     nav("/login");
+  };
+
+  // 关闭当前页:清掉该页缓存(已选/已填数据全部清空)并回到首页;下次进入重新加载
+  const closePage = () => {
+    drop(loc.pathname);
+    nav("/");
   };
 
   const primary = theme.antd.token?.colorPrimary as string;
@@ -153,6 +185,16 @@ export default function MainLayout() {
             {titleFor(loc.pathname)}
           </span>
           <span style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            {loc.pathname !== "/" && (
+              <Tooltip title="关闭当前页,并清空本页已选择和已填入的数据(下次进入重新加载)">
+                <Button size="small" icon={<CloseOutlined />} onClick={closePage}>关闭</Button>
+              </Tooltip>
+            )}
+            <Tooltip title="消息中心">
+              <Badge count={unread} size="small">
+                <Button size="small" icon={<BellOutlined />} onClick={() => nav("/messages")} />
+              </Badge>
+            </Tooltip>
             <Button size="small" icon={<SearchOutlined />} onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true }))}>
               搜索 <span style={{ opacity: 0.6, fontSize: 11 }}>Ctrl+K</span>
             </Button>
@@ -165,7 +207,7 @@ export default function MainLayout() {
         </Header>
 
         <Content className="erp-content" style={{ margin: 24 }}>
-          <Outlet />
+          <KeepAliveOutlet />
         </Content>
       </Layout>
       <CommandPalette />

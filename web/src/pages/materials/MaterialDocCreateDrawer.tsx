@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Button, Col, Drawer, Form, Input, Row, Space, Statistic, message } from "antd";
+import { Button, Col, Drawer, Form, Input, Row, Select, Space, Statistic, message } from "antd";
 import { SearchOutlined } from "@ant-design/icons";
 import { materialDocApi } from "../../api/materialDocs";
+import { masterApi } from "../../api/master";
 import { sumAmount, sumQty, validLines, type DocLine } from "../../utils/materialLines";
 import { hidePrice } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
@@ -25,9 +26,24 @@ export default function MaterialDocCreateDrawer({ cfg, open, onClose, onCreated,
   const priceHidden = hidePrice(perms, cfg.menu);
   const [form] = Form.useForm<Record<string, string>>();
   const 供应商编号 = Form.useWatch("供应商编号", form);
+  const 仓库 = Form.useWatch("仓库", form);
   const [lines, setLines] = useState<DocLine[]>([]);
   const [saving, setSaving] = useState(false);
   const [empPickFor, setEmpPickFor] = useState<string | null>(null); // 选人(退料人/领料人)的字段名
+  // 接受人候选：人事档案中 职称=仓管/PMC 的人（打开抽屉时加载一次）
+  const [recipients, setRecipients] = useState<string[]>([]);
+  useEffect(() => {
+    if (!open || !cfg.headerFields.some(f => f.type === "recipient")) return;
+    (async () => {
+      try {
+        const r = await masterApi("employees").list(1, 2000);
+        setRecipients((r.items as Record<string, unknown>[])
+          .filter(x => x.职称 === "仓管" || x.职称 === "PMC")
+          .map(x => String(x.姓名 ?? ""))
+          .filter(Boolean));
+      } catch { /* 候选人加载失败时下拉为空,保存时后端仍会校验 */ }
+    })();
+  }, [open, cfg.headerFields]);
 
   useEffect(() => {
     if (!open) return;
@@ -45,6 +61,13 @@ export default function MaterialDocCreateDrawer({ cfg, open, onClose, onCreated,
         return <Input disabled placeholder="保存后自动生成" />;
       case "operator":
         return <Input disabled />;
+      case "select":
+        return <Select allowClear={!f.required} options={(f.options ?? []).map(v => ({ value: v, label: v }))} />;
+      case "recipient":
+        return (
+          <Select showSearch optionFilterProp="label" placeholder="选择仓管/PMC"
+            options={recipients.map(v => ({ value: v, label: v }))} />
+        );
       case "employee":
         return (
           <Input readOnly placeholder="点🔍选人"
@@ -72,12 +95,13 @@ export default function MaterialDocCreateDrawer({ cfg, open, onClose, onCreated,
   };
 
   return (
-    <Drawer title={`${initial ? "复制新建" : "新建"}${cfg.title}单`} width={920} open={open} onClose={onClose}
+    <Drawer title={`${initial ? "复制新建" : "新建"}${cfg.title}单`} width={1360} open={open} onClose={onClose}
       extra={<Button type="primary" loading={saving} onClick={submit}>保存</Button>}>
       <Form form={form} layout="vertical" initialValues={Object.fromEntries(
         cfg.headerFields.flatMap(f =>
           f.type === "date-today" ? [[f.name, today()]]
           : f.type === "operator" ? [[f.name, currentUser()]]
+          : f.defaultValue != null ? [[f.name, f.defaultValue]]
           : [])
       )}>
         <Row gutter={16}>
@@ -99,6 +123,7 @@ export default function MaterialDocCreateDrawer({ cfg, open, onClose, onCreated,
       <MaterialLineTable value={lines} onChange={setLines} hidePriceCols={priceHidden}
         enableOrderPicker={cfg.orderPicker} usageCols={cfg.usageCols} 供应商={供应商编号 as string | undefined}
         initialBasis={basis}
+        仓库={仓库 as string | undefined}
         onSupplier={(编号, 名称) => {
           // 整单带入顺带带出供应商:仅表头供应商编号为空时回写,不覆盖已填
           if (!(form.getFieldValue("供应商编号") as string)) form.setFieldsValue({ 供应商编号: 编号, 供应商名称: 名称 });

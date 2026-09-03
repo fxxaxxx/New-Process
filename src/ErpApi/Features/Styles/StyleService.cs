@@ -498,16 +498,28 @@ INSERT INTO [款号尺码表]([款号],[款式],[尺码],[ID]) VALUES(@款号,@�
         tx.Commit();
     }
 
-    // 生产通知单 货号选择:已做 BOM 物料设置的款号(款号物料总表)及单头信息
+    // 生产通知单 货号/BOM款号 选择数据源:
+    // ① 款号物料总表(已做 BOM 物料设置的款号,带客户/默认单价等单头信息);
+    // ② 款号总表其余款号兜底(仅 款号/款式,无客户信息)——保证手工货号也有 BOM款号 可联动。
+    // 货号→BOM款号 的联动关系 = 同款式(如 货号92125A-S001 与 工程款号92125暹罗猫 同为"一窝蛋"),由前端按款式过滤。
     public async Task<IReadOnlyList<BomHeaderOptionDto>> ListBomHeadersAsync(string? keyword)
     {
         var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
         using var c = factory.Create();
         var rows = await c.QueryAsync<BomHeaderOptionDto>(@"
 SELECT [款号],[款式],[客户编号],[客户名称],[单位],[默认单价],[类型]
-FROM [款号物料总表]
-WHERE [款号] IS NOT NULL AND LTRIM(RTRIM([款号]))<>''
-  AND (@kw IS NULL OR [款号] LIKE @kw OR [款式] LIKE @kw OR [客户名称] LIKE @kw)
+FROM (
+    SELECT h.[款号],h.[款式],h.[客户编号],h.[客户名称],h.[单位],h.[默认单价],h.[类型], 0 AS [src]
+    FROM [款号物料总表] h
+    WHERE h.[款号] IS NOT NULL AND LTRIM(RTRIM(h.[款号]))<>''
+    UNION ALL
+    SELECT g.[款号],g.[款式],CAST(NULL AS nvarchar(20)),CAST(NULL AS nvarchar(60)),CAST(NULL AS nvarchar(10)),CAST(NULL AS nvarchar(30)),CAST(NULL AS nvarchar(10)), 1 AS [src]
+    FROM [款号总表] g
+    WHERE g.[款号] IS NOT NULL AND LTRIM(RTRIM(g.[款号]))<>''
+      AND NOT EXISTS (SELECT 1 FROM [款号物料总表] x WHERE x.[款号]=g.[款号])
+      AND EXISTS (SELECT 1 FROM [款号物料明细表] d WHERE d.[款号]=g.[款号])   -- 只列已建 BOM 明细的款号(与 BOM货号查询 口径一致)
+) u
+WHERE (@kw IS NULL OR [款号] LIKE @kw OR [款式] LIKE @kw OR [客户名称] LIKE @kw)
 ORDER BY [款号];", new { kw });
         return rows.AsList();
     }

@@ -11,6 +11,7 @@ public sealed class MaterialDocLineDto
     public string? 颜色 { get; set; }
     public string? 单位 { get; set; }
     public decimal 数量 { get; set; }
+    public decimal? 已出数量 { get; set; }   // 领料单:累计已出库数量(分次出库);创建时忽略
     public decimal? 单价 { get; set; }
     public decimal? 金额 { get; set; }
     public string? 备注 { get; set; }

@@ -1,4 +1,5 @@
 using Dapper;
+using ErpApi.Features.Materials.MaterialMaster;
 using ErpApi.Infrastructure.Db;
 using Microsoft.Data.SqlClient;
 namespace ErpApi.Engines.Inventory;
@@ -8,6 +9,7 @@ namespace ErpApi.Engines.Inventory;
 public sealed class MaterialInventoryService(ISqlConnectionFactory factory) : IMaterialInventoryService
 {
     // 三表符号法子查询（单一真相源；StockOfAsync 与 ListAsync 共用）。审核标志在单头，明细 JOIN 单头。
+    // 领料单分支按 已出数量 计(分次出库:出库即扣库存,与单据审核无关;审核/反审核动作会同步 已出数量)。
     private const string LedgerUnion = @"
 SELECT d.[物料编号],d.[物料名称],d.[规格],d.[单位],d.[仓库], d.[数量] AS 数量
     FROM [采购入仓明细单] d JOIN [采购入仓单] h ON h.[单号]=d.[单号] WHERE ISNULL(h.[审核],'0')='1'
@@ -15,8 +17,10 @@ UNION ALL
 SELECT d.[物料编号],d.[物料名称],d.[规格],d.[单位],d.[仓库], d.[数量]
     FROM [退料明细单] d JOIN [退料单] h ON h.[单号]=d.[单号] WHERE ISNULL(h.[审核],'0')='1'
 UNION ALL
-SELECT d.[物料编号],d.[物料名称],d.[规格],d.[单位],d.[仓库], d.[数量]*-1
-    FROM [领料明细单] d JOIN [领料单] h ON h.[单号]=d.[单号] WHERE ISNULL(h.[审核],'0')='1'
+SELECT d.[物料编号],d.[物料名称],d.[规格],d.[单位],d.[仓库],
+       (CASE WHEN d.[已出数量] IS NOT NULL THEN d.[已出数量] ELSE d.[数量] END) * -1
+    FROM [领料明细单] d JOIN [领料单] h ON h.[单号]=d.[单号]
+    WHERE ISNULL(d.[已出数量],0) > 0 OR ISNULL(h.[审核],'0')='1'
 UNION ALL
 SELECT d.[物料编号],d.[物料名称],d.[规格],d.[单位],d.[仓库], d.[数量]*-1
     FROM [采购退仓明细单] d JOIN [采购退仓单] h ON h.[单号]=d.[单号] WHERE ISNULL(h.[审核],'0')='1'
@@ -37,8 +41,10 @@ SELECT COALESCE(d.[日期],h.[日期]) AS 日期, N'入库' AS 方向,
     FROM [退料明细单] d JOIN [退料单] h ON h.[单号]=d.[单号] WHERE ISNULL(h.[审核],'0')='1'
 UNION ALL
 SELECT COALESCE(d.[日期],h.[日期]) AS 日期, N'出库' AS 方向,
-       d.[物料编号],d.[物料名称],d.[规格],d.[单位],d.[仓库], CAST(ISNULL(d.[数量],0) * -1 AS decimal(18,4))
-    FROM [领料明细单] d JOIN [领料单] h ON h.[单号]=d.[单号] WHERE ISNULL(h.[审核],'0')='1'
+       d.[物料编号],d.[物料名称],d.[规格],d.[单位],d.[仓库],
+       CAST((CASE WHEN d.[已出数量] IS NOT NULL THEN d.[已出数量] ELSE d.[数量] END) * -1 AS decimal(18,4))
+    FROM [领料明细单] d JOIN [领料单] h ON h.[单号]=d.[单号]
+    WHERE ISNULL(d.[已出数量],0) > 0 OR ISNULL(h.[审核],'0')='1'
 UNION ALL
 SELECT COALESCE(d.[日期],h.[日期]) AS 日期, N'出库' AS 方向,
        d.[物料编号],d.[物料名称],d.[规格],d.[单位],d.[仓库], CAST(ISNULL(d.[数量],0) * -1 AS decimal(18,4))
@@ -63,11 +69,37 @@ SELECT COALESCE(d.[日期],h.[日期]) AS 日期, N'盘点' AS 方向,
         return await c.ExecuteScalarAsync<decimal?>(sql, new { 物料编号 }) ?? 0;
     }
 
-    public async Task<IReadOnlyList<MaterialStockRow>> ListAsync(string? 仓库, string? keyword, string? 物料类别 = null)
+    public async Task<IReadOnlyList<MaterialStockRow>> ListAsync(string? 仓库, string? keyword, string? 物料类别 = null, bool 含零库存 = false)
     {
         var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
         var wh = string.IsNullOrWhiteSpace(仓库) ? null : 仓库.Trim();
         var cat = string.IsNullOrWhiteSpace(物料类别) ? null : 物料类别.Trim();
+        // 库存统计表口径：物料资料为主档 LEFT JOIN 非零库存——分类树计数=物料资料行数，点分类显示全部物料（无库存=0）。
+        // 与树计数逐类对齐：外购件(42) 就显示 42 行。
+        if (含零库存)
+        {
+            var sqlZero = $@"
+WITH 账 AS (
+    SELECT t.[物料编号], t.[仓库], SUM(t.[数量]) AS 库存数量
+    FROM ({LedgerUnion}) t
+    WHERE (@wh IS NULL OR t.[仓库]=@wh)
+    GROUP BY t.[物料编号], t.[仓库]
+    HAVING SUM(t.[数量]) <> 0
+)
+SELECT m.[物料编号], MAX(m.[物料名称]) AS 物料名称, MAX(m.[规格]) AS 规格, MAX(m.[单位]) AS 单位,
+       COALESCE(z.[仓库], @wh, N'') AS 仓库, ISNULL(z.[库存数量],0) AS 库存数量,
+       MAX(m.[货号]) AS 货号, MAX(m.[物料类别]) AS 物料类别,
+       MAX(m.[码换算]) AS 每单位数值, MAX(m.[仓库位置]) AS 仓库位置
+FROM [物料资料] m
+LEFT JOIN 账 z ON z.[物料编号]=m.[物料编号]
+WHERE (@cat IS NULL OR m.[物料类别]=@cat)
+  AND (@kw IS NULL OR m.[物料编号] LIKE @kw OR m.[物料名称] LIKE @kw OR m.[规格] LIKE @kw)
+GROUP BY m.[物料编号], z.[仓库], z.[库存数量]
+ORDER BY m.[物料编号], z.[仓库]";
+            using var cz = factory.Create();
+            var zeroRows = await cz.QueryAsync<MaterialStockRow>(sqlZero, new { wh, kw, cat });
+            return zeroRows.AsList();
+        }
         var sql = $@"
 SELECT t.[物料编号], MAX(t.[物料名称]) AS 物料名称, MAX(t.[规格]) AS 规格, MAX(t.[单位]) AS 单位,
        t.[仓库], SUM(t.[数量]) AS 库存数量,
@@ -85,6 +117,27 @@ HAVING SUM(t.[数量]) <> 0
 ORDER BY t.[物料编号], t.[仓库]";
         using var c = factory.Create();
         var rows = await c.QueryAsync<MaterialStockRow>(sql, new { wh, kw, cat });
+        return rows.AsList();
+    }
+
+    // 库存统计表左树：全部物料类别 + 各类别有库存(非零)的物料数（无库存的类别计数 0；新类别随物料资料自动出现）。
+    public async Task<IReadOnlyList<MaterialCategoryNode>> CategoryCountsAsync()
+    {
+        var sql = $@"
+WITH 账 AS (
+    SELECT t.[物料编号], SUM(t.[数量]) AS 库存数量
+    FROM ({LedgerUnion}) t
+    GROUP BY t.[物料编号]
+    HAVING SUM(t.[数量]) <> 0
+)
+SELECT m.[物料类别] AS 类别, COUNT(DISTINCT z.[物料编号]) AS 数量
+FROM [物料资料] m
+LEFT JOIN 账 z ON z.[物料编号]=m.[物料编号]
+WHERE m.[物料类别] IS NOT NULL AND LTRIM(RTRIM(m.[物料类别])) <> ''
+GROUP BY m.[物料类别]
+ORDER BY m.[物料类别]";
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<MaterialCategoryNode>(sql);
         return rows.AsList();
     }
 

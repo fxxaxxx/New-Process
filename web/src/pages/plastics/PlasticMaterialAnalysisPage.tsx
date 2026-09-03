@@ -7,7 +7,7 @@ import { productionApi, type ProductionHeader } from "../../api/production";
 import { masterApi } from "../../api/master";
 import { can, hidePrice } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
-import PlasticMaterialDocDrawer from "./PlasticMaterialDocDrawer";
+import PlasticPurchaseOrderDrawer from "./PlasticPurchaseOrderDrawer";
 
 const MENU = "塑胶物料单";
 const d10 = (v?: string) => v?.slice(0, 10);
@@ -197,7 +197,7 @@ export default function PlasticMaterialAnalysisPage() {
           onChange: p => { setPage(p); load(p); }, showTotal: t => `共 ${t} 条` }}
         onRow={r => ({ onClick: () => openDrawer(r.生产单号), style: { cursor: "pointer" } })}
       />
-      <PlasticMaterialDocDrawer open={drawerOpen} 生产单号={生产单号}
+      <PlasticPurchaseOrderDrawer open={drawerOpen} 生产单号={生产单号}
         onClose={() => setDrawerOpen(false)} onSaved={() => load(page)} />
     </Card>
   );

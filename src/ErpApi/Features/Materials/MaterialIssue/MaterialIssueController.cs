@@ -98,6 +98,46 @@ public sealed class MaterialIssueController(
         return NoContent();
     }
 
+    // 三级流转第一级：部门主管审核(装配部开单后→主管审核→经理审核→来料仓出库)
+    [HttpPost("{单号}/supervisor-approve")]
+    public async Task<IActionResult> SupervisorApprove(string 单号)
+    {
+        if (!await AllowAsync(PermissionAction.审核)) return Forbid();
+        try { await svc.SupervisorApproveAsync(单号, CurrentUser); }
+        catch (InvalidOperationException ex) { return Conflict(new { 消息 = ex.Message }); }
+        await AuditAsync("主管审核", $"单号={单号}");
+        return NoContent();
+    }
+
+    // 三级流转第二级：部门经理审核(需先主管审核)。经理审完后来料仓才可出库
+    [HttpPost("{单号}/manager-approve")]
+    public async Task<IActionResult> ManagerApprove(string 单号)
+    {
+        if (!await AllowAsync(PermissionAction.审核)) return Forbid();
+        try { await svc.ManagerApproveAsync(单号, CurrentUser); }
+        catch (KeyNotFoundException ex) { return NotFound(new { 消息 = ex.Message }); }
+        catch (InvalidOperationException ex) { return Conflict(new { 消息 = ex.Message }); }
+        await AuditAsync("经理审核", $"单号={单号}");
+        return NoContent();
+    }
+
+    [HttpPost("{单号}/outbound")]
+    public async Task<IActionResult> Outbound(string 单号, [FromBody] MaterialIssueOutboundDto dto)
+    {
+        if (!await AllowAsync(PermissionAction.审核)) return Forbid();
+        try { await periodLock.EnsureHeaderOpenAsync(口径, Table, 单号); }
+        catch (PeriodLockedException ex) { return Conflict(new { 消息 = ex.Message }); }
+        try
+        {
+            var r = await svc.OutboundAsync(单号, dto.明细, CurrentUser);
+            await AuditAsync("出库", $"单号={单号}");
+            return Ok(r);
+        }
+        catch (KeyNotFoundException ex) { return NotFound(new { 消息 = ex.Message }); }
+        catch (ArgumentException ex) { return BadRequest(new { 消息 = ex.Message }); }
+        catch (InvalidOperationException ex) { return Conflict(new { 消息 = ex.Message }); }
+    }
+
     [HttpPost("{单号}/approve")]
     public async Task<IActionResult> Approve(string 单号)
     {
@@ -106,6 +146,8 @@ public sealed class MaterialIssueController(
         catch (PeriodLockedException ex) { return Conflict(new { 消息 = ex.Message }); }
         if (!await posting.ApproveAsync(Table, 单号, CurrentUser))
             return Conflict(new { 消息 = "审核失败：单不存在或已审核。" });
+        // 整单审核 = 全部出库(与分次出库共用 已出数量 口径)
+        await svc.SyncIssuedWithAuditAsync(单号, true);
         return NoContent();
     }
 
@@ -117,6 +159,8 @@ public sealed class MaterialIssueController(
         catch (PeriodLockedException ex) { return Conflict(new { 消息 = ex.Message }); }
         if (!await posting.UnapproveAsync(Table, 单号, CurrentUser))
             return Conflict(new { 消息 = "反审核失败：单不存在或未审核。" });
+        // 反审核 = 撤销全部出库(库存随之回滚)
+        await svc.SyncIssuedWithAuditAsync(单号, false);
         return NoContent();
     }
 }

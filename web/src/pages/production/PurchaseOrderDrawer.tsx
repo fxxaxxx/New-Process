@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Button, Col, DatePicker, Descriptions, Drawer, Input, InputNumber, Modal, Popconfirm,
-  Row, Space, Table, Tag, message,
+  Row, Space, Table, Tag, Tooltip, message,
 } from "antd";
 import {
   CheckOutlined, CloseOutlined, DeleteOutlined, PlusOutlined, PrinterOutlined, SaveOutlined,
@@ -49,6 +49,9 @@ interface EditRow {
   数量?: number;
   单价?: number;
   需订数量?: number;   // basis 带出的需订数量，保存时作 预算数量 提交
+  供应商编号?: string; // BOM 默认供应商(选择供应商时自动勾选匹配行)
+  供应商名称?: string;
+  已订数量?: number;  // 该生产单下已下单数量（>0=已下单，默认不勾选，重复下单需确认）
   备注?: string;
 }
 
@@ -57,13 +60,14 @@ interface HeaderForm {
   供应商名称: string;
   日期?: Dayjs;
   交货日期?: Dayjs;
+  PO号: string;
   收件人: string;
   仓库: string;
   备注: string;
 }
 
 const emptyHeader = (): HeaderForm => ({
-  供应商编号: "", 供应商名称: "", 日期: dayjs(), 交货日期: undefined, 收件人: "", 仓库: "", 备注: "",
+  供应商编号: "", 供应商名称: "", 日期: dayjs(), 交货日期: undefined, PO号: "", 收件人: "", 仓库: "", 备注: "",
 });
 
 export interface PurchaseOrderDrawerProps {
@@ -90,6 +94,8 @@ export default function PurchaseOrderDrawer({
   // 编辑态
   const [header, setHeader] = useState<HeaderForm>(emptyHeader);
   const [rows, setRows] = useState<EditRow[]>([]);
+  // 勾选下单：只有勾选的行才进采购订单（多供应商分别下单）
+  const [sel, setSel] = useState<number[]>([]);
 
   // 已载入单据（已审核=查看态；未审核=回填编辑态并保留单头信息）
   const [detail, setDetail] = useState<PurchaseOrderDetail | null>(null);
@@ -117,8 +123,10 @@ export default function PurchaseOrderDrawer({
     数量: b.需订数量 ?? undefined,
     单价: b.预算单价 ?? undefined,
     需订数量: b.需订数量,
+    供应商编号: b.供应商编号,
+    供应商名称: b.供应商名称,
+    已订数量: b.已订数量 != null ? Number(b.已订数量) : undefined,
   });
-
   // 已有单明细 → 编辑行
   const lineToRow = (l: PurchaseOrderLine): EditRow => ({
     key: uid(),
@@ -150,11 +158,14 @@ export default function PurchaseOrderDrawer({
           供应商名称: h.供应商名称 ?? "",
           日期: h.日期 ? dayjs(h.日期) : undefined,
           交货日期: h.交货日期 ? dayjs(h.交货日期) : undefined,
+          PO号: h.PO号 ?? "",
           收件人: h.收件人 ?? "",
           仓库: h.仓库 ?? "",
           备注: h.备注 ?? "",
         });
-        setRows(d.明细.map(lineToRow));
+        const rs = d.明细.map(lineToRow);
+        setRows(rs);
+        setSel(rs.map(r => r.key));
       }
     } catch (e) {
       const status = (e as { response?: { status?: number } }).response?.status;
@@ -163,7 +174,7 @@ export default function PurchaseOrderDrawer({
     finally { setLoading(false); }
   }, []);
 
-  // 新建模式按生产单 basis 预填
+  // 新建模式按生产单 basis 预填；PO号=生产通知单.合同号(客户合同号即PO号)
   const loadBasis = useCallback(async (mo: string) => {
     setLoading(true);
     try {
@@ -173,8 +184,12 @@ export default function PurchaseOrderDrawer({
         ...h,
         供应商编号: first?.供应商编号 ?? "",
         供应商名称: first?.供应商名称 ?? "",
+        PO号: h.PO号 || first?.合同号 || "",
       }));
-      setRows(basis.map(b => basisToRow(b, mo)));
+      const rs = basis.map(b => basisToRow(b, mo));
+      setRows(prev => [...prev, ...rs]);
+      // 已下单(已订数量>0)的行默认不勾选，防重复下单
+      setSel(prev => [...prev, ...rs.filter(r => !(Number(r.已订数量) > 0)).map(r => r.key)]);
       if (basis.length === 0) message.info("该生产单号没有待采购物料");
     } catch { message.error("加载采购物料分析失败"); }
     finally { setLoading(false); }
@@ -185,15 +200,18 @@ export default function PurchaseOrderDrawer({
     if (!open) return;
     setDetail(null);
     setRows([]);
+    setSel([]);
     setHeader(emptyHeader());
     if (单号) { setCurrentNo(单号); loadDetail(单号); }
     else { setCurrentNo(undefined); if (生产单号) loadBasis(生产单号); }
   }, [open, 单号, 生产单号, loadDetail, loadBasis]);
 
-  // 保存：新建 POST，已有单 PUT
-  const save = async () => {
+  // 实际提交：新建 POST，已有单 PUT。只有勾选的行才进采购订单（按供应商分别下单）
+  const doSave = async () => {
     if (!header.供应商编号.trim()) { message.error("请选择供应商"); return; }
-    const lines = rows
+    const chosen = rows.filter(r => sel.includes(r.key));
+    if (chosen.length === 0) { message.error("请勾选要下单的物料行"); return; }
+    const lines = chosen
       .filter(r => r.物料编号 && Number(r.数量) > 0)
       .map(r => ({
         物料编号: r.物料编号,
@@ -217,6 +235,7 @@ export default function PurchaseOrderDrawer({
       供应商名称: header.供应商名称.trim() || undefined,
       日期: header.日期 ? header.日期.format("YYYY-MM-DD") : undefined,
       交货日期: header.交货日期 ? header.交货日期.format("YYYY-MM-DD") : undefined,
+      PO号: header.PO号.trim() || undefined,
       收件人: header.收件人.trim() || undefined,
       仓库: header.仓库.trim() || undefined,
       备注: header.备注.trim() || undefined,
@@ -239,6 +258,30 @@ export default function PurchaseOrderDrawer({
     finally { setSaving(false); }
   };
 
+  // 保存入口：勾选中包含「已下单」物料时先弹确认，防重复下单；否则直接提交
+  const save = () => {
+    const ordered = rows.filter(r => sel.includes(r.key) && Number(r.已订数量) > 0);
+    if (ordered.length === 0) { void doSave(); return; }
+    Modal.confirm({
+      title: "勾选项中包含已下单物料",
+      width: 460,
+      content: (
+        <div>
+          <div>以下物料在此工作单已下过单（再下单会重复采购）：</div>
+          <ul style={{ paddingLeft: 18, margin: "8px 0 0", maxHeight: 220, overflow: "auto" }}>
+            {ordered.map(r => (
+              <li key={r.key}>{r.物料编号} {r.物料名称}（已订 {r.已订数量}）</li>
+            ))}
+          </ul>
+          <div style={{ marginTop: 8 }}>确认继续下单吗？</div>
+        </div>
+      ),
+      okText: "仍要下单",
+      cancelText: "取消",
+      onOk: doSave,
+    });
+  };
+
   const act = async (fn: () => Promise<unknown>, ok: string, after: "reload" | "close") => {
     try {
       await fn();
@@ -256,20 +299,25 @@ export default function PurchaseOrderDrawer({
     try {
       const basis = await purchaseOrderApi.basis(mo);
       if (basis.length === 0) { message.info("该生产单号没有待采购物料"); return; }
-      setRows(rs => [...rs, ...basis.map(b => basisToRow(b, mo))]);
-      // 表头供应商为空时顺带带出
+      const rs = basis.map(b => basisToRow(b, mo));
+      setRows(prev => [...prev, ...rs]);
+      setSel(prev => [...prev, ...rs.filter(r => !(Number(r.已订数量) > 0)).map(r => r.key)]);
+      // 表头供应商/PO号为空时顺带带出
       const first = basis[0];
-      if (first?.供应商编号) setHeader(h => h.供应商编号 ? h : {
-        ...h, 供应商编号: first.供应商编号 ?? "", 供应商名称: first.供应商名称 ?? "",
-      });
+      if (first?.供应商编号 || first?.合同号) setHeader(h => ({
+        ...h,
+        供应商编号: h.供应商编号 || first?.供应商编号 || "",
+        供应商名称: h.供应商名称 || first?.供应商名称 || "",
+        PO号: h.PO号 || first?.合同号 || "",
+      }));
       setBasisOpen(false);
       setBasisMo("");
     } catch (e) { message.error(errMsg(e) ?? "加载采购物料分析失败"); }
   };
 
   // 选料追加一行（材料从物料资料.备注解析；无价格权限不带单价）
-  const onPickMaterial = (m: MaterialRow) =>
-    setRows(rs => [...rs, {
+  const onPickMaterial = (m: MaterialRow) => {
+    const row: EditRow = {
       key: uid(),
       物料编号: m.物料编号 ?? "",
       物料名称: m.物料名称 ?? "",
@@ -279,7 +327,22 @@ export default function PurchaseOrderDrawer({
       颜色: m.颜色,
       单位: m.单位,
       单价: priceHidden ? undefined : (m.单价 ?? undefined),
-    }]);
+    };
+    setRows(rs => [...rs, row]);
+    setSel(prev => [...prev, row.key]);
+  };
+
+  // 选择供应商后自动勾选：默认供应商=该供应商 或 未指定供应商的行；默认供应商是别人的行不勾（多供应商分别下单）；
+  // 已下单(已订数量>0)的行也不勾，避免重复下单。
+  const onPickSupplier = (s: { 供应商编号?: string; 供应商名称?: string }) => {
+    const code = s.供应商编号 ?? "";
+    setHead({ 供应商编号: code, 供应商名称: s.供应商名称 ?? "" });
+    if (code) setSel(rows.map(r => r.key).filter(k => {
+      const r = rows.find(x => x.key === k);
+      if (!r || Number(r.已订数量) > 0) return false;
+      return !r.供应商编号 || r.供应商编号 === code;
+    }));
+  };
 
   // 打印：先登记打印次数，再打打印友好视图
   const doPrint = async () => {
@@ -310,24 +373,39 @@ export default function PurchaseOrderDrawer({
       render: (v: string | undefined, r: EditRow) =>
         <Input value={v} onChange={e => patchRow(r.key, { 款号: e.target.value })} />,
     },
-    { title: "物料编号", dataIndex: "物料编号", width: 110 },
-    { title: "物料名称", dataIndex: "物料名称", width: 140 },
-    { title: "规格", dataIndex: "规格", width: 100 },
+    { title: "物料编号", dataIndex: "物料编号", width: 110, sorter: (a: EditRow, b: EditRow) => String(a.物料编号).localeCompare(String(b.物料编号), "zh-Hans-CN", { numeric: true }) },
+    { title: "物料名称", dataIndex: "物料名称", width: 140, sorter: (a: EditRow, b: EditRow) => String(a.物料名称 ?? "").localeCompare(String(b.物料名称 ?? ""), "zh-Hans-CN") },
+    { title: "规格", dataIndex: "规格", width: 100, sorter: (a: EditRow, b: EditRow) => String(a.规格 ?? "").localeCompare(String(b.规格 ?? "")) },
     {
       title: "材料", dataIndex: "材料", width: 90,
       render: (v: string | undefined, r: EditRow) =>
         <Input value={v} onChange={e => patchRow(r.key, { 材料: e.target.value })} />,
     },
-    { title: "颜色", dataIndex: "颜色", width: 80 },
+    { title: "颜色", dataIndex: "颜色", width: 80, sorter: (a: EditRow, b: EditRow) => String(a.颜色 ?? "").localeCompare(String(b.颜色 ?? "")) },
     { title: "单位", dataIndex: "单位", width: 60 },
     {
+      title: "默认供应商", dataIndex: "供应商名称", width: 140, ellipsis: true,
+      sorter: (a: EditRow, b: EditRow) => String(a.供应商名称 ?? "").localeCompare(String(b.供应商名称 ?? ""), "zh-Hans-CN"),
+      render: (v: string | undefined, r: EditRow) =>
+        v ? <Tooltip title={`${r.供应商编号} ${v}`}>{v}</Tooltip> : <span style={{ color: "#bbb" }}>未指定</span>,
+    },
+    {
       title: "数量", dataIndex: "数量", width: 100, align: "right" as const,
+      sorter: (a: EditRow, b: EditRow) => (Number(a.数量) || 0) - (Number(b.数量) || 0),
       render: (v: number | undefined, r: EditRow) =>
         <InputNumber min={0} value={v} style={{ width: "100%" }}
           onChange={n => patchRow(r.key, { 数量: n ?? undefined })} />,
     },
+    {
+      title: "已订数量", dataIndex: "已订数量", width: 110, align: "right" as const,
+      sorter: (a: EditRow, b: EditRow) => (Number(a.已订数量) || 0) - (Number(b.已订数量) || 0),
+      render: (v: number | undefined) => Number(v) > 0
+        ? <Tooltip title="该工作单已下过此物料，重复下单会重复采购"><Tag color="orange">已下单 {v}</Tag></Tooltip>
+        : <span style={{ color: "#ccc" }}>—</span>,
+    },
     ...(priceHidden ? [] : [{
       title: "单价", dataIndex: "单价", width: 110, align: "right" as const,
+      sorter: (a: EditRow, b: EditRow) => (Number(a.单价) || 0) - (Number(b.单价) || 0),
       render: (v: number | undefined, r: EditRow) =>
         <InputNumber min={0} value={v} style={{ width: "100%" }}
           onChange={n => patchRow(r.key, { 单价: n ?? undefined })} />,
@@ -345,7 +423,10 @@ export default function PurchaseOrderDrawer({
       title: "操作", width: 60, align: "center" as const,
       render: (_: unknown, r: EditRow) => (
         <Button type="text" danger size="small" icon={<DeleteOutlined />}
-          onClick={() => setRows(rs => rs.filter(x => x.key !== r.key))} />
+          onClick={() => {
+            setRows(rs => rs.filter(x => x.key !== r.key));
+            setSel(prev => prev.filter(k => k !== r.key));
+          }} />
       ),
     },
   ];
@@ -368,8 +449,10 @@ export default function PurchaseOrderDrawer({
     { title: "备注", dataIndex: "备注", width: 130 },
   ];
 
-  const totalQty = rows.reduce((s, r) => s + (Number(r.数量) || 0), 0);
-  const totalAmt = rows.reduce((s, r) => s + (Number(r.数量) || 0) * (Number(r.单价) || 0), 0);
+  // 合计只算勾选的行（勾选行才是要下单的）
+  const chosenRows = rows.filter(r => sel.includes(r.key));
+  const totalQty = chosenRows.reduce((s, r) => s + (Number(r.数量) || 0), 0);
+  const totalAmt = chosenRows.reduce((s, r) => s + (Number(r.数量) || 0) * (Number(r.单价) || 0), 0);
 
   const toolbar = (
     <Space wrap>
@@ -420,6 +503,7 @@ export default function PurchaseOrderDrawer({
               <Descriptions.Item label="收件人">{h.收件人}</Descriptions.Item>
               <Descriptions.Item label="仓库">{h.仓库}</Descriptions.Item>
               <Descriptions.Item label="生产单号">{h.生产单号}</Descriptions.Item>
+              <Descriptions.Item label="PO号">{h.PO号}</Descriptions.Item>
               <Descriptions.Item label="操作员">{h.操作员}</Descriptions.Item>
               <Descriptions.Item label="打印次数">{h.打印次数 ?? 0}</Descriptions.Item>
               <Descriptions.Item label="数量">{h.数量}</Descriptions.Item>
@@ -464,6 +548,10 @@ export default function PurchaseOrderDrawer({
               <Input value={header.仓库} onChange={e => setHead({ 仓库: e.target.value })} />
             </Col>
             <Col span={6}>
+              <div style={{ marginBottom: 4 }}>PO号</div>
+              <Input value={header.PO号} onChange={e => setHead({ PO号: e.target.value })} placeholder="客户 PO号" />
+            </Col>
+            <Col span={6}>
               <div style={{ marginBottom: 4 }}>电脑单号</div>
               <Input value={currentNo ?? ""} disabled placeholder="保存后生成" />
             </Col>
@@ -477,11 +565,17 @@ export default function PurchaseOrderDrawer({
             </Col>
           </Row>
           <div>
-            <Button icon={<PlusOutlined />} style={{ marginBottom: 8 }}
-              onClick={() => setMaterialOpen(true)}>加行</Button>
+            <Space style={{ marginBottom: 8 }}>
+              <Button icon={<PlusOutlined />}
+                onClick={() => setMaterialOpen(true)}>加行</Button>
+              <span style={{ color: "#888" }}>
+                已勾选 {sel.length} / {rows.length} 行，勾选的物料才会下单到当前供应商
+              </span>
+            </Space>
             <Table
               size="small" rowKey="key" pagination={false} scroll={{ x: "max-content", y: 380 }}
               dataSource={rows} columns={editColumns}
+              rowSelection={{ selectedRowKeys: sel, onChange: keys => setSel(keys as number[]) }}
             />
           </div>
           <div style={{ textAlign: "right", fontWeight: 600 }}>
@@ -491,8 +585,7 @@ export default function PurchaseOrderDrawer({
         </Space>
       )}
 
-      <SupplierPicker open={supplierOpen}
-        onPick={s => setHead({ 供应商编号: s.供应商编号 ?? "", 供应商名称: s.供应商名称 ?? "" })}
+      <SupplierPicker open={supplierOpen} onPick={onPickSupplier}
         onClose={() => setSupplierOpen(false)} />
       <MaterialPicker open={materialOpen} hidePriceCols={priceHidden}
         onPick={onPickMaterial} onClose={() => setMaterialOpen(false)} />
@@ -533,6 +626,7 @@ export default function PurchaseOrderDrawer({
             </tr>
             <tr>
               <td>收件人：{h.收件人}</td>
+              <td>PO号：{h.PO号}</td>
               <td>操作员：{h.操作员}</td>
               <td>审核状态：{h.审核 === "1" ? "已审核" : "未审核"}</td>
               <td>打印次数：{h.打印次数 ?? 0}</td>

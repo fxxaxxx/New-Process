@@ -16,6 +16,8 @@ export interface PurchaseOrderBasisRow {
   预算单价?: number | null;
   供应商编号?: string;
   供应商名称?: string;
+  合同号?: string;
+  已订数量?: number;
 }
 
 export interface PurchaseOrderHeader {
@@ -33,6 +35,7 @@ export interface PurchaseOrderHeader {
   审核人?: string;
   备注?: string;
   生产单号?: string;
+  PO号?: string;
   收件人?: string;
   打印次数?: number | null;
 }
@@ -187,6 +190,7 @@ export interface PurchaseOrderCreate {
   仓库?: string;
   款号?: string;
   合同号?: string;
+  PO号?: string;
   备注?: string;
   明细: PurchaseOrderCreateLine[];
 }

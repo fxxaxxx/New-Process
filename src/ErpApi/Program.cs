@@ -71,6 +71,7 @@ builder.Services.AddScoped<ErpApi.Features.Plastics.PlasticWarehouseReturn.Plast
 builder.Services.AddScoped<ErpApi.Features.Plastics.PlasticScrap.PlasticScrapService>();
 builder.Services.AddScoped<ErpApi.Features.Plastics.PlasticStocktake.PlasticStocktakeService>();
 builder.Services.AddScoped<ErpApi.Features.Materials.MaterialIssue.MaterialIssueService>();
+builder.Services.AddScoped<ErpApi.Features.Messages.MessageService>();
 builder.Services.AddScoped<ErpApi.Features.Materials.MaterialReturn.MaterialReturnService>();
 builder.Services.AddScoped<ErpApi.Features.Materials.MaterialScrap.MaterialScrapService>();
 builder.Services.AddScoped<ErpApi.Features.Materials.MaterialStocktake.MaterialStocktakeService>();

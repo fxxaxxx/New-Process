@@ -53,6 +53,17 @@ export default function PlasticPurchaseOrderLineTable({ value, onChange, readOnl
     { title: "色粉号", dataIndex: "色粉号", width: 110, render: (_, r, i) => txt(r.色粉号, s => setLine(i, { 色粉号: s }), 98) },
     { title: "用料名称", dataIndex: "用料名称", width: 130, render: (_, r, i) => txt(r.用料名称, s => setLine(i, { 用料名称: s }), 118) },
     { title: "备注", dataIndex: "备注", width: 130, render: (_, r, i) => txt(r.备注, s => setLine(i, { 备注: s }), 118) },
+    // 收货进度(仅打开已有单据时后端带出;新建录入行留空)
+    { title: "已入仓", dataIndex: "入仓数量", width: 90, align: "right" as const,
+      render: (v?: number | null) => (v == null ? "" : v) },
+    { title: "欠数", key: "_owed", width: 100, align: "right" as const,
+      render: (_: unknown, r: PPOLine) => {
+        if (r.欠数 == null) return "";
+        const 欠 = r.欠数;
+        if (欠 > 0) return <b style={{ color: "#cf1322" }}>欠 {欠}</b>;
+        if (欠 < 0) return <b style={{ color: "#fa8c16" }}>超收 {Math.abs(欠)}</b>;
+        return <b style={{ color: "#52c41a" }}>已完成</b>;
+      } },
     ...(readOnly ? [] : [{ title: "", key: "_op", width: 50, render: (_: unknown, __: PPOLine, i: number) => <a onClick={() => onChange(prev => prev.filter((_, j) => j !== i))}>删除</a> }]),
   ];
 

@@ -11,15 +11,26 @@ public sealed class PlasticPurchaseOrderService(ISqlConnectionFactory factory, I
     public const string DocType = "塑胶采购订单";
     public const string Prefix = "SP";   // 塑胶采购订单号 = SP + yyyyMMdd + 3位流水
 
+    // 从塑胶共用物料表 BOM 按生产单号带出基准行；顺带返回 计划数量(默认订购数量=计划数量×用量)、
+    // 生产制单.合同号(客户合同号即PO号,前端自动填入表头 编号) 与 已订数量(塑胶采购订单明细 按 物料+颜色 累计,防重复下单)。
     public async Task<IReadOnlyList<PlasticPurchaseOrderBasisRow>> BasisAsync(string 生产单号)
     {
         using var c = factory.Create();
         var rows = await c.QueryAsync<PlasticPurchaseOrderBasisRow>(@"
 SELECT g.[生产单号], pm.[款号], p.[物料编号], p.[物料名称], p.[工模编号] AS 模具编号,
-       p.[用量], p.[套数], p.[颜色], p.[色粉号], p.[用料名称]
+       p.[用量], p.[套数], p.[颜色], p.[色粉号], p.[用料名称],
+       pm.[计划数量], pm.[合同号],
+       ISNULL(od.[已订数量],0) AS 已订数量
 FROM [塑胶共用物料表] p
 JOIN [生产制单货号] g ON g.[货号] = p.[塑胶货号]
 LEFT JOIN [生产制单] pm ON pm.[生产单号] = g.[生产单号]
+LEFT JOIN (
+    SELECT d.[物料编号], ISNULL(d.[颜色],N'') AS 颜色键, SUM(d.[数量]) AS 已订数量
+    FROM [塑胶采购订单明细] d
+    JOIN [塑胶采购订单] o ON o.[单号]=d.[单号]
+    WHERE d.[生产单号]=@生产单号
+    GROUP BY d.[物料编号], ISNULL(d.[颜色],N'')
+) od ON od.[物料编号]=p.[物料编号] AND od.[颜色键]=ISNULL(p.[颜色],N'')
 WHERE g.[生产单号] = @生产单号
 ORDER BY p.[ID]", new { 生产单号 });
         return rows.AsList();
@@ -81,6 +92,19 @@ FROM [塑胶采购订单明细] WHERE [单号]=@单号 ORDER BY [ID];", new { �
         var header = await multi.ReadFirstOrDefaultAsync<PlasticPurchaseOrderHeaderDto>();
         if (header is null) return null;
         var lines = (await multi.ReadAsync<PlasticPurchaseOrderLineDto>()).AsList();
+
+        // 每行补 已入仓/欠数(同进度表核销口径):打开已入仓的单据就能看到收货进度
+        using var c2 = factory.Create();
+        var prog = await c2.QueryAsync<PlasticPurchaseOrderLineDto>(@"
+SELECT d.[ID],
+       ISNULL(rk.[入仓数量], 0) AS 入仓数量,
+       d.[数量] - ISNULL(rk.[入仓数量], 0) AS 欠数
+FROM [塑胶采购订单明细] d
+LEFT JOIN (" + ReceiptAggSql + ReceiptJoinSql + @"
+WHERE d.[单号] = @单号", new { 单号 });
+        var byId = prog.ToDictionary(r => r.ID);
+        foreach (var l in lines)
+            if (byId.TryGetValue(l.ID, out var p)) { l.入仓数量 = p.入仓数量; l.欠数 = p.欠数; }
         return new PlasticPurchaseOrderDetailDto { 单头 = header, 明细 = lines };
     }
 
@@ -99,8 +123,24 @@ FROM [塑胶采购订单明细] WHERE [单号]=@单号 ORDER BY [ID];", new { �
         return true;
     }
 
-    // 塑胶进度表(采购进度):一行一采购订单明细 + 已审核入仓数量(按 生产单号+物料编号+颜色 聚合) + 欠数=订购−入仓。
-    // 注(镜像物料侧):入仓按 生产单号+物料编号+颜色 聚合(无明细行ID),同生产单+物料+颜色若在多采购订单行重复,聚合入仓会同挂多行。
+    // 塑胶进度表(采购进度):一行一采购订单明细 + 已审核入仓数量 + 欠数=订购−入仓。
+    // 入仓核销口径见 ReceiptAggSql/ReceiptJoinSql:带 订单单号 按采购订单核销(排期下单主口径),否则回退按生产单核销。
+// 塑胶采购订单明细行已审核入仓数量聚合子查询(两进度接口 + GetAsync 详情共用)。
+// 核销口径两条路:
+//  ① 入仓行带 订单单号(下推/选采购单入仓)→ 按 采购订单单号+物料+颜色 精确核销(排期下单主口径,与物料侧一致);
+//  ② 入仓行无 订单单号(旧口径,生产单 BOM 调入开单)→ 回退按 生产单号+物料+颜色 核销。
+private const string ReceiptAggSql = @"
+    SELECT r.[生产单号], r.[订单单号], r.[物料编号], ISNULL(r.[颜色],'') AS 颜色键, SUM(r.[数量]) AS 入仓数量
+    FROM [塑胶入仓明细单] r
+    JOIN [塑胶入仓单] h ON h.[单号] = r.[单号]
+    WHERE ISNULL(h.[审核],'0') = '1'
+    GROUP BY r.[生产单号], r.[订单单号], r.[物料编号], ISNULL(r.[颜色],'')";
+
+private const string ReceiptJoinSql = @"
+) rk ON rk.[物料编号] = d.[物料编号] AND rk.[颜色键] = ISNULL(d.[颜色],'')
+   AND ( rk.[订单单号] = d.[单号]
+      OR (rk.[订单单号] IS NULL AND rk.[生产单号] IS NOT NULL AND rk.[生产单号] = d.[生产单号]) )";
+
     public async Task<IReadOnlyList<PlasticPurchaseProgressRow>> ProgressAsync(
         string? 供应商, DateTime? 起, DateTime? 止, string? keyword, bool onlyOwed)
     {
@@ -118,13 +158,7 @@ SELECT o.[日期] AS 订购日期, o.[交货日期], o.[单号] AS 采购单号,
 FROM [塑胶采购订单明细] d
 JOIN [塑胶采购订单] o ON o.[单号] = d.[单号]
 LEFT JOIN (SELECT [物料编号], MAX([单位]) AS 单位 FROM [塑胶物料资料] GROUP BY [物料编号]) m ON m.[物料编号] = d.[物料编号]
-LEFT JOIN (
-    SELECT r.[生产单号], r.[物料编号], ISNULL(r.[颜色],'') AS 颜色键, SUM(r.[数量]) AS 入仓数量
-    FROM [塑胶入仓明细单] r
-    JOIN [塑胶入仓单] h ON h.[单号] = r.[单号]
-    WHERE ISNULL(h.[审核],'0') = '1'
-    GROUP BY r.[生产单号], r.[物料编号], ISNULL(r.[颜色],'')
-) rk ON rk.[生产单号] = d.[生产单号] AND rk.[物料编号] = d.[物料编号] AND rk.[颜色键] = ISNULL(d.[颜色],'')
+LEFT JOIN (" + ReceiptAggSql + ReceiptJoinSql + @"
 WHERE (@sup IS NULL OR o.[供应商编号] LIKE @sup OR o.[供应商名称] LIKE @sup)
   AND (@起 IS NULL OR o.[日期] >= @起)
   AND (@止 IS NULL OR o.[日期] < @止)
@@ -135,7 +169,7 @@ ORDER BY o.[单号] DESC, d.[ID]", new { sup, 起, 止 = 止Excl, kw, onlyOwed =
     }
 
     // 塑胶进度明细表:进度表明细行 + 最近入仓单号/日期 + 完成情况(镜像 PlasticProcessPurchaseOrderService.PurchaseDetailAsync)。
-    // 入仓聚合口径同 ProgressAsync(生产单号+物料编号+颜色,仅审核='1')。
+    // 入仓核销口径同 ProgressAsync(见 ReceiptJoinSql,仅审核='1')。
     public async Task<IReadOnlyList<PlasticPurchaseProgressDetailRow>> ProgressDetailAsync(
         string? 供应商, DateTime? 起, DateTime? 止, string? keyword, string? 完成情况)
     {
@@ -157,13 +191,13 @@ FROM [塑胶采购订单明细] d
 JOIN [塑胶采购订单] o ON o.[单号] = d.[单号]
 LEFT JOIN (SELECT [物料编号], MAX([单位]) AS 单位 FROM [塑胶物料资料] GROUP BY [物料编号]) m ON m.[物料编号] = d.[物料编号]
 LEFT JOIN (
-    SELECT r.[生产单号], r.[物料编号], ISNULL(r.[颜色],'') AS 颜色键,
+    SELECT r.[生产单号], r.[订单单号], r.[物料编号], ISNULL(r.[颜色],'') AS 颜色键,
            SUM(r.[数量]) AS 入仓数量, MAX(r.[单号]) AS 入仓单号, MAX(h.[日期]) AS 入仓日期
     FROM [塑胶入仓明细单] r
     JOIN [塑胶入仓单] h ON h.[单号] = r.[单号]
     WHERE ISNULL(h.[审核],'0') = '1'
-    GROUP BY r.[生产单号], r.[物料编号], ISNULL(r.[颜色],'')
-) rk ON rk.[生产单号] = d.[生产单号] AND rk.[物料编号] = d.[物料编号] AND rk.[颜色键] = ISNULL(d.[颜色],'')
+    GROUP BY r.[生产单号], r.[订单单号], r.[物料编号], ISNULL(r.[颜色],'')
+" + ReceiptJoinSql + @"
 WHERE (@sup IS NULL OR o.[供应商编号] LIKE @sup OR o.[供应商名称] LIKE @sup)
   AND (@起 IS NULL OR o.[日期] >= @起)
   AND (@止 IS NULL OR o.[日期] < @止)

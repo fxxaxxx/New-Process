@@ -9,7 +9,7 @@ namespace ErpApi.Features.Warehouse.Semi;
 public sealed class SemiReceiptService(ISqlConnectionFactory factory, IDocumentNumberGenerator docNo)
 {
     public const string DocType = "半成品入仓单";
-    public const string Prefix = "BR";
+    public const string Prefix = "BCP";
 
     public async Task<string> CreateAsync(SemiReceiptCreateDto dto, string user)
     {

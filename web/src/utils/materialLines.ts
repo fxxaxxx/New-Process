@@ -4,6 +4,8 @@ export interface DocLine {
   规格?: string; 颜色?: string; 单位?: string;
   数量?: number; 单价?: number | null; 金额?: number | null;
   订单单号?: string; 生产单号?: string; 款号?: string; 备注?: string;
+  // 显示用(不提交):选采购订单行时带出的订单口径,供「收后欠数」列实时算状态
+  订购数量?: number; 订单欠数?: number;
 }
 
 export const lineAmount = (l: { 数量?: number; 单价?: number | null }) =>

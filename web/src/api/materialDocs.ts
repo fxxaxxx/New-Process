@@ -11,9 +11,11 @@ export interface MaterialDocDetail {
   明细: {
     id: number; 物料编号?: string; 物料名称?: string; 物料类别?: string;
     规格?: string; 颜色?: string; 单位?: string; 数量?: number; 单价?: number | null; 金额?: number | null; 备注?: string;
-    订单单号?: string; 生产单号?: string; 款号?: string;
+    订单单号?: string; 生产单号?: string; 款号?: string; 已出数量?: number | null;
   }[];
 }
+
+export interface OutboundResult { 单号?: string; 出库行数: number; 完成: boolean }
 
 const enc = encodeURIComponent;
 
@@ -27,5 +29,9 @@ export function materialDocApi(resource: string) {
     remove: (单号: string) => api.delete(`${base}/${enc(单号)}`),
     approve: (单号: string) => api.post(`${base}/${enc(单号)}/approve`),
     unapprove: (单号: string) => api.post(`${base}/${enc(单号)}/unapprove`),
+    supervisorApprove: (单号: string) => api.post(`${base}/${enc(单号)}/supervisor-approve`),
+    managerApprove: (单号: string) => api.post(`${base}/${enc(单号)}/manager-approve`),
+    outbound: (单号: string, 明细: { 行ID: number; 数量: number }[]) =>
+      api.post<OutboundResult>(`${base}/${enc(单号)}/outbound`, { 明细 }).then(r => r.data),
   };
 }

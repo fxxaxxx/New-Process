@@ -59,7 +59,7 @@ public class P3ApiIntegrationTests(DbFixture fx)
     public async Task Receipt_create_forbidden_without_save_permission()
     {
         using var app = Factory();
-        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P3TestData.Seed(c); }
+        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P3TestData.Seed(c); SeedRecipient(c); }
         SeedPerms("p3viewer", "采购入仓单", open: true, save: false);
         var resp = await Client(app, "p3viewer").PostAsJsonAsync("/api/purchase-receipts", ReceiptBody());
         Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
@@ -70,7 +70,7 @@ public class P3ApiIntegrationTests(DbFixture fx)
     public async Task Receipt_lifecycle_create_approve_unapprove_delete()
     {
         using var app = Factory();
-        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P3TestData.Seed(c); }
+        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P3TestData.Seed(c); SeedRecipient(c); }
         SeedPerms("p3rk", "采购入仓单", open: true, save: true, del: true, price: true, approve: true, unapprove: true);
         var client = Client(app, "p3rk");
 
@@ -98,7 +98,7 @@ public class P3ApiIntegrationTests(DbFixture fx)
 
     private static object IssueBody() => new
     {
-        领料部门 = "车间一", 领料人 = "张三", 仓库 = P3TestData.仓库,
+        领料部门 = "车间一", 领料人 = "张三", 仓库 = P3TestData.仓库, 接受人 = "测试仓管",
         明细 = new[] { new { 物料编号 = "P3M01", 物料名称 = "P3面料", 规格 = "规格A", 单位 = "米", 数量 = 30, 单价 = 10.0 } }
     };
 
@@ -106,7 +106,7 @@ public class P3ApiIntegrationTests(DbFixture fx)
     public async Task Issue_lifecycle_with_permissions()
     {
         using var app = Factory();
-        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P3TestData.Seed(c); }
+        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P3TestData.Seed(c); SeedRecipient(c); }
         SeedPerms("p3llviewer", "领料单", open: true, save: false);
         Assert.Equal(HttpStatusCode.Forbidden,
             (await Client(app, "p3llviewer").PostAsJsonAsync("/api/material-issues", IssueBody())).StatusCode);
@@ -142,7 +142,7 @@ public class P3ApiIntegrationTests(DbFixture fx)
     public async Task Return_lifecycle_with_permissions()
     {
         using var app = Factory();
-        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P3TestData.Seed(c); }
+        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P3TestData.Seed(c); SeedRecipient(c); }
         SeedPerms("p3tlviewer", "退料单", open: true, save: false);
         Assert.Equal(HttpStatusCode.Forbidden,
             (await Client(app, "p3tlviewer").PostAsJsonAsync("/api/material-returns", ReturnBody())).StatusCode);
@@ -171,7 +171,7 @@ public class P3ApiIntegrationTests(DbFixture fx)
     public async Task Receipt_amounts_masked_without_单价_permission()
     {
         using var app = Factory();
-        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P3TestData.Seed(c); }
+        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P3TestData.Seed(c); SeedRecipient(c); }
         SeedPerms("p3rkeditor", "采购入仓单", open: true, save: true, price: true);
         var editor = Client(app, "p3rkeditor");
         var create = await editor.PostAsJsonAsync("/api/purchase-receipts", ReceiptBody());
@@ -202,7 +202,7 @@ public class P3ApiIntegrationTests(DbFixture fx)
     public async Task Material_inventory_reflects_approved_documents()
     {
         using var app = Factory();
-        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P3TestData.Seed(c); }
+        using (var c = new SqlConnection(fx.ConnectionString)) { c.Open(); P3TestData.Seed(c); SeedRecipient(c); }
         const string u = "p3stock";
         SeedPerms(u, "采购入仓单", open: true, save: true, approve: true, unapprove: true);
         SeedPerms(u, "领料单", open: true, save: true, approve: true, unapprove: true);
@@ -217,7 +217,7 @@ public class P3ApiIntegrationTests(DbFixture fx)
                 明细 = new[] { new { 物料编号 = "P3M01", 物料名称 = "P3面料", 单位 = "米", 数量 = 100, 单价 = 10.0 } }
             })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("单号").GetString();
             ll = (await (await client.PostAsJsonAsync("/api/material-issues", new {
-                领料部门 = "车间一", 仓库 = P3TestData.仓库,
+                领料部门 = "车间一", 仓库 = P3TestData.仓库, 接受人 = "测试仓管",
                 明细 = new[] { new { 物料编号 = "P3M01", 物料名称 = "P3面料", 单位 = "米", 数量 = 30, 单价 = 10.0 } }
             })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("单号").GetString();
             tl = (await (await client.PostAsJsonAsync("/api/material-returns", new {
@@ -256,4 +256,7 @@ public class P3ApiIntegrationTests(DbFixture fx)
             P3TestData.Cleanup(c);
         }
     }
+
+    private static void SeedRecipient(SqlConnection c) =>
+        c.Execute("IF NOT EXISTS (SELECT 1 FROM [人事档案] WHERE [姓名]=N'测试仓管') INSERT INTO [人事档案]([姓名],[职称]) VALUES(N'测试仓管',N'仓管')");
 }

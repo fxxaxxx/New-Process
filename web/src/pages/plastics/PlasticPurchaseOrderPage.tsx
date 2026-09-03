@@ -15,7 +15,7 @@ const MENU = "塑胶采购订单";
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }; // ISO 格式：后端 DateTime 反序列化要求
 const currentUser = () => localStorage.getItem("erp_user") ?? "";
 
-interface MergeRow { 序号: number; 物料编号: string; 物料名称?: string; 数量合计: number }
+interface MergeRow { 序号: number; 物料编号: string; 物料名称?: string; 数量合计: number; 入仓合计: number | null; 欠数合计: number | null }
 
 export default function PlasticPurchaseOrderPage() {
   const perms = usePerms();
@@ -99,17 +99,36 @@ export default function PlasticPurchaseOrderPage() {
       const k = l.物料编号 ?? "";
       if (!k) continue;
       const cur = map.get(k);
-      if (cur) cur.数量合计 += Number(l.数量 ?? 0);
-      else map.set(k, { 序号: 0, 物料编号: k, 物料名称: l.物料名称, 数量合计: Number(l.数量 ?? 0) });
+      if (cur) {
+        cur.数量合计 += Number(l.数量 ?? 0);
+        if (l.入仓数量 != null) cur.入仓合计 = Number(cur.入仓合计 ?? 0) + l.入仓数量;
+        if (l.欠数 != null) cur.欠数合计 = Number(cur.欠数合计 ?? 0) + l.欠数;
+      } else {
+        map.set(k, {
+          序号: 0, 物料编号: k, 物料名称: l.物料名称, 数量合计: Number(l.数量 ?? 0),
+          入仓合计: l.入仓数量 != null ? l.入仓数量 : null,
+          欠数合计: l.欠数 != null ? l.欠数 : null,
+        });
+      }
     }
     return Array.from(map.values()).map((r, i) => ({ ...r, 序号: i + 1 }));
   }, [lines]);
+
+  // 收货进度状态:欠 N(红) / 已完成(绿) / 超收 N(橙);无入仓数据(新建录入)留空
+  const owedStatus = (欠: number | null) => {
+    if (欠 == null) return "";
+    if (欠 > 0) return <b style={{ color: "#cf1322" }}>欠 {欠}</b>;
+    if (欠 < 0) return <b style={{ color: "#fa8c16" }}>超收 {Math.abs(欠)}</b>;
+    return <b style={{ color: "#52c41a" }}>已完成</b>;
+  };
 
   const mergeColumns: ColumnsType<MergeRow> = [
     { title: "序号", dataIndex: "序号", width: 56 },
     { title: "物料编号", dataIndex: "物料编号", width: 120 },
     { title: "物料名称", dataIndex: "物料名称", width: 130 },
     { title: "数量合计", dataIndex: "数量合计", width: 90, align: "right" },
+    { title: "已入仓", dataIndex: "入仓合计", width: 90, align: "right", render: (v: number | null) => v ?? "" },
+    { title: "欠数", dataIndex: "欠数合计", width: 100, align: "right", render: (v: number | null) => owedStatus(v) },
   ];
 
   const listColumns: ColumnsType<PPOHeader> = [
@@ -169,15 +188,10 @@ export default function PlasticPurchaseOrderPage() {
         </Row>
       </Form>
 
-      <Row gutter={16}>
-        <Col span={16}>
-          <PlasticPurchaseOrderLineTable value={lines} onChange={setLines} readOnly={readOnly} />
-        </Col>
-        <Col span={8}>
-          <div style={{ marginBottom: 8, fontWeight: 600 }}>物料清单(合并)</div>
-          <Table size="small" rowKey="物料编号" pagination={false} dataSource={mergeRows} columns={mergeColumns} />
-        </Col>
-      </Row>
+      <PlasticPurchaseOrderLineTable value={lines} onChange={setLines} readOnly={readOnly} />
+
+      <div style={{ marginTop: 16, marginBottom: 8, fontWeight: 600 }}>物料清单(合并)</div>
+      <Table size="small" rowKey="物料编号" pagination={false} dataSource={mergeRows} columns={mergeColumns} />
 
       <Space style={{ marginTop: 16 }} size={32}>
         <Statistic title="数量合计" value={数量合计} />

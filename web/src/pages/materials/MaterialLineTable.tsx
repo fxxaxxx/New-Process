@@ -17,13 +17,14 @@ import type { ProductionTrackingRow } from "../../api/productionReports";
 // 减动作：orderPicker 模式提供「整单带入」(按采购单号带入全部欠数行,数量=欠数)；
 //   usageCols 模式提供「按生产单带入」(issue-basis 应领量)。两者均丢弃空白行后追加。
 // onSupplier: 整单带入时表头供应商为空则顺带带出(由父抽屉回写)。
-export default function MaterialLineTable({ value, onChange, hidePriceCols, enableOrderPicker, usageCols, 供应商, onSupplier, initialBasis }: {
+export default function MaterialLineTable({ value, onChange, hidePriceCols, enableOrderPicker, usageCols, 供应商, 仓库, onSupplier, initialBasis }: {
   value: DocLine[];
   onChange: Dispatch<SetStateAction<DocLine[]>>;
   hidePriceCols: boolean;
   enableOrderPicker?: boolean;
   usageCols?: boolean;
   供应商?: string;
+  仓库?: string;   // 领料/退料:所选仓库决定「按生产单带入」口径(来料仓→来料档,塑胶仓→塑胶档)
   onSupplier?: (供应商编号: string, 供应商名称?: string) => void;
   initialBasis?: string;   // 下推入口：从生产通知单跳入时自动按该生产单带入应领明细
 }) {
@@ -40,7 +41,8 @@ export default function MaterialLineTable({ value, onChange, hidePriceCols, enab
   const [basisNo, setBasisNo] = useState("");
   const [basisLoading, setBasisLoading] = useState(false);
 
-  // 订单行 → 明细行的字段映射(单行带入与整单带入共用),数量默认=欠数(全收)
+  // 订单行 → 明细行的字段映射(单行带入与整单带入共用),数量默认=欠数(全收);
+  // 顺带记下订单口径(订购/欠数),供行内「收后欠数」状态列实时计算
   const orderRowToLine = (row: PurchaseOrderProgressRow): DocLine => ({
     订单单号: row.采购单号 ?? undefined,
     生产单号: row.生产单号 ?? undefined,
@@ -52,6 +54,8 @@ export default function MaterialLineTable({ value, onChange, hidePriceCols, enab
     颜色: row.颜色 ?? undefined,
     单位: row.单位 ?? undefined,
     数量: Number(row.欠数 ?? 0),
+    订购数量: Number(row.订购数量 ?? 0),
+    订单欠数: Number(row.欠数 ?? 0),
   });
 
   const fillFromOrder = (row: PurchaseOrderProgressRow) => {
@@ -77,14 +81,17 @@ export default function MaterialLineTable({ value, onChange, hidePriceCols, enab
     finally { setWholeLoading(false); }
   };
 
-  // 按生产单带入(领料/退料)：issue-basis 来料档应领行,数量=应领(接单数×BOM用量)
+  // 按生产单带入(领料/退料)：issue-basis 应领行,数量=应领(接单数×BOM用量);
+  // 口径跟随表头所选仓库:来料仓→来料档(非塑胶),塑胶仓→塑胶档
   const bringIssueBasis = async (生产单号: string) => {
     const no = 生产单号.trim();
     if (!no) return;
+    if (!仓库) { message.warning("请先选择仓库,再按生产单带入"); return; }
+    const 档 = 仓库.includes("塑胶") ? "塑胶" : "来料";
     setBasisLoading(true);
     try {
-      const rows = await productionApi.issueBasis(no, "来料");
-      if (rows.length === 0) { message.warning(`生产单 ${no} 无来料应领明细`); return; }
+      const rows = await productionApi.issueBasis(no, 档);
+      if (rows.length === 0) { message.warning(`生产单 ${no} 无${仓库}应领明细`); return; }
       const mapped: DocLine[] = rows.map(r => ({
         生产单号: r.生产单号 ?? no,
         款号: r.款号 ?? undefined,
@@ -207,6 +214,17 @@ export default function MaterialLineTable({ value, onChange, hidePriceCols, enab
     colColor,
     { title: "单位", dataIndex: "单位", width: 70, render: (v: string) => v ?? "" },
     colQty,
+    // 选了采购订单行的才显示:本次数量 vs 订单欠数 → 欠N(红)/已完成(绿)/超收N(橙),数量一改实时刷新
+    ...(enableOrderPicker ? [{
+      key: "_owed", title: "收后欠数", width: 96, align: "right" as const,
+      render: (_: unknown, r: DocLine) => {
+        if (!r.订单单号 || r.订单欠数 == null) return "";
+        const 剩余 = Math.round((r.订单欠数 - Number(r.数量 ?? 0)) * 100) / 100;
+        if (剩余 > 0) return <b style={{ color: "#cf1322" }}>欠 {剩余}</b>;
+        if (剩余 < 0) return <b style={{ color: "#fa8c16" }}>超收 {Math.abs(剩余)}</b>;
+        return <b style={{ color: "#52c41a" }}>已完成</b>;
+      },
+    }] : []),
     ...(hidePriceCols ? [] : [
       {
         title: "单价", dataIndex: "单价", width: 110,
@@ -239,7 +257,9 @@ export default function MaterialLineTable({ value, onChange, hidePriceCols, enab
       <Modal title="按生产单带入应领明细" open={basisOpen} onCancel={() => setBasisOpen(false)} footer={null} width={420}>
         <Input.Search placeholder="输入生产单号,回车带入" enterButton="带入" loading={basisLoading}
           value={basisNo} onChange={e => setBasisNo(e.target.value)} onSearch={bringIssueBasis} />
-        <div style={{ marginTop: 8, color: "#888" }}>按 BOM 展开应领量(来料档)带入,可改完再保存;当前空白行会被替换</div>
+        <div style={{ marginTop: 8, color: "#888" }}>
+          按 BOM 展开应领量带入,口径跟随表头仓库（{仓库 ?? "未选"}：{仓库?.includes("塑胶") ? "塑胶件" : "非塑胶件"}）;可改完再保存;当前空白行会被替换
+        </div>
       </Modal>
       <MaterialPicker
         open={matPickFor !== null} hidePriceCols={hidePriceCols}

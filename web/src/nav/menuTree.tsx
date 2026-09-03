@@ -81,11 +81,8 @@ export const MENU_TREE: MenuGroup[] = [
   { key: "g-semi", label: "半成品仓", children: [
     M("半成品共用物料表", "/semi-finished-common-materials", "半成品共用物料表"),
     M("半成品标签单", "/semi-finished-label-orders", "半成品标签单"),
-    M("半成品欠料分析表", "/semi-finished-shortage-analysis", "半成品欠料分析表"),
     M("半成品入仓单", "/semi-receipts", "半成品入仓"),
-    M("半成品退仓单", "/semi-warehouse-returns", "半成品退仓"),
     M("半成品出库单", "/semi-issues", "半成品领料"),
-    M("半成品退库单", "/semi-stock-returns", "半成品退库"),
     M("半成品报废单", "/semi-scraps", "半成品报废"),
     M("半成品盘点单", "/semi-stocktakes", "半成品盘点"),
     M("半成品库存统计表", "/semi-inventory", "半成品库存"),
@@ -122,10 +119,10 @@ export const MENU_TREE: MenuGroup[] = [
     M("来料标签单", "/material-label-orders", "来料标签单"),
     M("采购入仓单", "/materials/purchase-receipts", "采购入仓单"),
     M("采购退仓单", "/materials/purchase-returns", "采购退仓单"),
-    M("领料单", "/materials/material-issues", "领料单"),
+    // 装配部开领料单(未审核)→来料仓在这里审核=出库过账(同页,审核即扣库存)
+    M("领料出库", "/materials/material-issues", "领料单"),
     M("退料单", "/materials/material-returns", "退料单"),
     M("报废单", "/materials/material-scraps", "报废单"),
-    M("库存盘点单", "/materials/material-stocktake", "盘点单"),
     // 仓库报表
     M("库存统计表", "/material-inventory", "物料库存"),
     M("库存月报表", "/month-end", "库存月结"),
@@ -160,7 +157,6 @@ export const MENU_TREE: MenuGroup[] = [
   { key: "g-biz", label: "业务部", children: [
     M("客户排期表", "/scheduling", "生产排期"),
     M("客户资料", "/master/客户资料", "客户资料"),
-    M("调价", "/master/调价", "调价"),
     // 外部系统(RR-Portal)
     X("ZURU接单表入单系统", "/zuru-order-system/"),
     X("报价系统", "/baojia/"),

@@ -33,6 +33,9 @@ public sealed class PlasticPurchaseOrderLineDto
     public string? 色粉号 { get; set; }
     public string? 用料名称 { get; set; }
     public string? 备注 { get; set; }
+    // 详情/进度带出(不入库):已审核入仓数量 与 欠数=订购−入仓
+    public decimal? 入仓数量 { get; set; }
+    public decimal? 欠数 { get; set; }
 }
 
 public sealed class PlasticPurchaseOrderDetailDto
@@ -81,6 +84,11 @@ public sealed class PlasticPurchaseOrderBasisRow
     public string? 颜色 { get; set; }
     public string? 色粉号 { get; set; }
     public string? 用料名称 { get; set; }
+    // 生产制单带出：计划数量(默认订购数量=计划数量×用量)、合同号(客户合同号即PO号,自动填入表头 编号)
+    public decimal? 计划数量 { get; set; }
+    public string? 合同号 { get; set; }
+    // 该生产单下此物料(含颜色匹配)已累计下单的数量，>0 即"已下单"（防重复下单）
+    public decimal? 已订数量 { get; set; }
 }
 
 public sealed class PlasticPurchaseProgressRow
