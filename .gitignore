@@ -37,6 +37,9 @@ src/ErpApi/wwwroot/
 # 本地数据库备份(含 .mdf/.zip,勿提交)
 backups/
 
+# 数据快照:只提交压缩包,原始大体积 .sql 不提交
+db/snapshot/*.sql
+
 # 工具会话状态
 .superpowers/
 .claude/worktrees/
