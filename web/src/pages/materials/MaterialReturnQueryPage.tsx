@@ -11,6 +11,7 @@ import { ALL_APPROVAL, ALL_CAT as ALL, buildLabelQuery } from "../../utils/mater
 import { downloadCsv, printTable, type ExportCol } from "../../utils/tableExport";
 import { MATERIAL_DOC_CONFIGS } from "./materialDocConfigs";
 import MaterialDocDetailDrawer from "./MaterialDocDetailDrawer";
+import { useAutoReload } from "../../hooks/useAutoReload";
 
 const RETURN_CFG = MATERIAL_DOC_CONFIGS["material-returns"];
 const thisMonth = (): [Dayjs, Dayjs] => [dayjs().startOf("month"), dayjs().endOf("month")];
@@ -34,15 +35,17 @@ export default function MaterialReturnQueryPage() {
     止: range?.[1]?.format("YYYY-MM-DD"),
   }), [keyword, selKey, 审核情况, range]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (silent = false) => {
     setLoading(true);
     try {
       if (tab === "detail") setDetail(await materialReturnQueryApi.detail(query));
       else setSummary(await materialReturnQueryApi.summary(query));
-    } catch { message.error("加载退料单查询失败"); }
+    } catch { if (!silent) message.error("加载退料单查询失败"); }
     finally { setLoading(false); }
   }, [tab, query]);
   useEffect(() => { load(); }, [load]);
+  // 切回本页/窗口聚焦/30秒轮询 自动刷新;silent 失败不弹 toast,避免刷屏
+  useAutoReload(() => { void load(true); });
 
   useEffect(() => {
     materialMasterApi.categories().then(setCats).catch(() => { /* 树取数失败不阻塞主表 */ });
@@ -147,7 +150,7 @@ export default function MaterialReturnQueryPage() {
             options={[ALL_APPROVAL, "已审核", "未审核"].map(v => ({ value: v, label: v }))} />
           <Select value={selKey} onChange={setSelKey} style={{ width: 160 }} options={catOptions} />
           <Input.Search placeholder="单号/生产单号/款号/退料人/物料" allowClear onSearch={setKeyword} style={{ width: 240 }} />
-          <Button type="primary" onClick={load}>查询</Button>
+          <Button type="primary" onClick={() => load()}>查询</Button>
           <Button onClick={onExport}>导出EXCEL</Button>
           <Button onClick={onPrint}>打印</Button>
         </Space>

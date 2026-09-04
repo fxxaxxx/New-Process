@@ -18,6 +18,7 @@ import { can, hidePrice } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
 import ImageNotesPanel from "../../components/ImageNotesPanel";
 import ProductionStartupModal from "./ProductionStartupModal";
+import { useAutoReload } from "../../hooks/useAutoReload";
 
 const MENU = "生产制单";
 const money = (v?: number | null) => (v == null ? "***" : v);
@@ -145,16 +146,18 @@ export default function ProductionNoticePage() {
   useEffect(() => { reset(); }, [reset]);
 
   // —— 打开：列表 + 载入 ——
-  const loadOpenList = useCallback(async (kw: string) => {
+  const loadOpenList = useCallback(async (kw: string, silent = false) => {
     setOpenLoading(true);
     try {
       const r = await productionApi.list(1, 50, kw);
       setOpenRows(r.items);
-    } catch { message.error("加载生产单列表失败"); }
+    } catch { if (!silent) message.error("加载生产单列表失败"); }
     finally { setOpenLoading(false); }
   }, []);
 
   const onOpen = () => { setOpenModal(true); setOpenKw(""); loadOpenList(""); };
+  // 打开弹窗显示期间,切回本页/窗口聚焦/30秒轮询 自动刷新列表;silent 失败不弹 toast
+  useAutoReload(() => { if (openModal) void loadOpenList(openKw, true); });
 
   const loadDoc = async (单号: string) => {
     try {

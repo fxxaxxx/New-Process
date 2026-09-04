@@ -7,8 +7,20 @@ import MaterialPicker from "./MaterialPicker";
 import ProductionPicker from "./ProductionPicker";
 import { purchaseOrderApi, type PurchaseOrderProgressRow } from "../../api/purchaseOrders";
 import { productionApi } from "../../api/production";
+import { semiReceiptApi } from "../../api/semi";
+import { finishedReceiptApi } from "../../api/finished";
 import type { MaterialRow } from "../../api/materialMaster";
 import type { ProductionTrackingRow } from "../../api/productionReports";
+
+// 仓库→issue-basis 档：注意先判半成品（"半成品"包含"成品"子串）；
+// 半成品/成品=该生产单在对应仓的库存现存净额，塑胶/来料=BOM 应领量
+const issueBasis档 = (仓库?: string): "半成品" | "成品" | "塑胶" | "来料" =>
+  仓库?.includes("半成品") ? "半成品" : 仓库?.includes("成品") ? "成品" : 仓库?.includes("塑胶") ? "塑胶" : "来料";
+const issueBasis档说明 = (仓库?: string): string => {
+  const 档 = issueBasis档(仓库);
+  return 档 === "半成品" ? "该生产单半成品库存现存" : 档 === "成品" ? "该生产单成品库存现存"
+    : 档 === "塑胶" ? "塑胶件(BOM 应领)" : "非塑胶件(BOM 应领)";
+};
 
 // 受控物料明细行编辑表。
 // usageCols(领料/退料)按原系统列序：装配采购|生产单号|款号|物料编号|物料名称|规格|材料|颜色|单位|数量|备注，
@@ -17,16 +29,17 @@ import type { ProductionTrackingRow } from "../../api/productionReports";
 // 减动作：orderPicker 模式提供「整单带入」(按采购单号带入全部欠数行,数量=欠数)；
 //   usageCols 模式提供「按生产单带入」(issue-basis 应领量)。两者均丢弃空白行后追加。
 // onSupplier: 整单带入时表头供应商为空则顺带带出(由父抽屉回写)。
-export default function MaterialLineTable({ value, onChange, hidePriceCols, enableOrderPicker, usageCols, 供应商, 仓库, onSupplier, initialBasis }: {
+export default function MaterialLineTable({ value, onChange, hidePriceCols, enableOrderPicker, usageCols, 供应商, 仓库, onSupplier, initialBasis, onWarehouse }: {
   value: DocLine[];
   onChange: Dispatch<SetStateAction<DocLine[]>>;
   hidePriceCols: boolean;
   enableOrderPicker?: boolean;
   usageCols?: boolean;
   供应商?: string;
-  仓库?: string;   // 领料/退料:所选仓库决定「按生产单带入」口径(来料仓→来料档,塑胶仓→塑胶档)
+  仓库?: string;   // 领料/退料:所选仓库决定「按生产单带入」口径(半成品仓→半成品现存,成品仓→成品现存,塑胶仓→塑胶档,否则→来料档)
   onSupplier?: (供应商编号: string, 供应商名称?: string) => void;
   initialBasis?: string;   // 下推入口：从生产通知单跳入时自动按该生产单带入应领明细
+  onWarehouse?: (仓库: string) => void;   // 入仓单带入时回写表头仓库(半成品仓/成品仓)
 }) {
   const setLine = (i: number, patch: Partial<DocLine>) =>
     onChange(prev => prev.map((l, j) => (j === i ? { ...l, ...patch } : l)));
@@ -40,6 +53,74 @@ export default function MaterialLineTable({ value, onChange, hidePriceCols, enab
   const [basisOpen, setBasisOpen] = useState(false);     // 按生产单带入弹窗(领料/退料)
   const [basisNo, setBasisNo] = useState("");
   const [basisLoading, setBasisLoading] = useState(false);
+  // 入仓单带入(领料:仓库=半成品仓/成品仓)：选一张已审核的半成品/成品入仓单,把明细带进来
+  type RcptRow = { 单号?: string; 日期?: string; 往来?: string; 生产单号?: string; 数量?: number };
+  const [rcptOpen, setRcptOpen] = useState<"半成品" | "成品" | null>(null);
+  const [rcptRows, setRcptRows] = useState<RcptRow[]>([]);
+  const [rcptKw, setRcptKw] = useState("");
+  const [rcptLoading, setRcptLoading] = useState(false);
+
+  const loadReceipts = async (kind: "半成品" | "成品", kw = "") => {
+    setRcptLoading(true);
+    try {
+      if (kind === "半成品") {
+        const r = await semiReceiptApi.list(1, 50, kw);
+        setRcptRows(r.items.filter(x => x.审核 === "1")
+          .map(x => ({ 单号: x.单号, 日期: x.日期?.slice(0, 10), 往来: x.供应商名称 ?? x.部门 ?? undefined, 生产单号: x.生产单号 ?? undefined, 数量: x.数量 })));
+      } else {
+        const r = await finishedReceiptApi.list(1, 50, kw);
+        setRcptRows(r.items.filter(x => x.审核 === "1")
+          .map(x => ({ 单号: x.单号, 日期: x.日期?.slice(0, 10), 往来: x.供应商名称 ?? undefined, 生产单号: x.订单单号 ?? undefined, 数量: x.数量 })));
+      }
+    } catch { message.error("入仓单加载失败"); }
+    finally { setRcptLoading(false); }
+  };
+
+  const openReceiptPicker = (kind: "半成品" | "成品") => {
+    setRcptOpen(kind); setRcptKw(""); void loadReceipts(kind);
+  };
+
+  // 带入入仓单明细:半成品行取 物料编号/规格/颜色/单位,成品行 物料编号=货号、单位 PCS;顺带把表头仓库设为对应仓
+  const bringReceipt = async (单号?: string) => {
+    if (!单号 || !rcptOpen) return;
+    setRcptLoading(true);
+    try {
+      let mapped: DocLine[];
+      if (rcptOpen === "半成品") {
+        const d = await semiReceiptApi.get(单号);
+        mapped = d.明细.map(l => ({
+          生产单号: l.生产单号 ?? undefined,
+          款号: l.产品货号 ?? d.单头?.款号 ?? undefined,
+          物料编号: l.物料编号 ?? l.配件编号 ?? undefined,
+          物料名称: l.物料名称 ?? l.产品装配名称 ?? undefined,
+          物料类别: "半成品",
+          规格: l.规格 ?? undefined,
+          颜色: l.颜色 ?? undefined,
+          单位: l.单位 ?? undefined,
+          数量: Number(l.数量 ?? 0),
+        }));
+      } else {
+        const d = await finishedReceiptApi.get(单号);
+        mapped = d.明细.map(l => ({
+          生产单号: l.生产单号 ?? undefined,
+          款号: l.配件编号 ?? l.产品货号 ?? undefined,
+          物料编号: l.配件编号 ?? l.产品货号 ?? undefined,
+          物料名称: l.产品名称 ?? l.产品装配名称 ?? undefined,
+          物料类别: "成品",
+          单位: "PCS",
+          数量: Number(l.数量 ?? 0),
+        }));
+      }
+      mapped = mapped.filter(l => l.物料编号);
+      if (mapped.length === 0) { message.warning(`入仓单 ${单号} 没有明细`); return; }
+      onChange(prev => [...prev.filter(l => l.物料编号), ...mapped]);
+      const wh = rcptOpen === "半成品" ? "半成品仓" : "成品仓";
+      if (仓库 !== wh) onWarehouse?.(wh);
+      message.success(`已带入 ${mapped.length} 行(入仓单 ${单号})`);
+      setRcptOpen(null);
+    } catch { message.error("入仓单带入失败"); }
+    finally { setRcptLoading(false); }
+  };
 
   // 订单行 → 明细行的字段映射(单行带入与整单带入共用),数量默认=欠数(全收);
   // 顺带记下订单口径(订购/欠数),供行内「收后欠数」状态列实时计算
@@ -81,29 +162,31 @@ export default function MaterialLineTable({ value, onChange, hidePriceCols, enab
     finally { setWholeLoading(false); }
   };
 
-  // 按生产单带入(领料/退料)：issue-basis 应领行,数量=应领(接单数×BOM用量);
-  // 口径跟随表头所选仓库:来料仓→来料档(非塑胶),塑胶仓→塑胶档
+  // 按生产单带入(领料/退料)：issue-basis 行,来料/塑胶=应领(接单数×BOM用量),半成品/成品=对应仓现存净额;
+  // 口径跟随表头所选仓库(半成品仓→半成品,成品仓→成品,塑胶仓→塑胶,否则→来料)
   const bringIssueBasis = async (生产单号: string) => {
     const no = 生产单号.trim();
     if (!no) return;
     if (!仓库) { message.warning("请先选择仓库,再按生产单带入"); return; }
-    const 档 = 仓库.includes("塑胶") ? "塑胶" : "来料";
+    const 档 = issueBasis档(仓库);
     setBasisLoading(true);
     try {
       const rows = await productionApi.issueBasis(no, 档);
       if (rows.length === 0) { message.warning(`生产单 ${no} 无${仓库}应领明细`); return; }
+      const 现存档 = 档 === "半成品" || 档 === "成品";
       const mapped: DocLine[] = rows.map(r => ({
         生产单号: r.生产单号 ?? no,
         款号: r.款号 ?? undefined,
         物料编号: r.物料编号 ?? undefined,
         物料名称: r.物料名称 ?? undefined,
+        物料类别: 现存档 ? 档 : undefined,   // 半成品/成品档补材料列,便于台账区分
         规格: r.规格 ?? undefined,
         颜色: r.颜色 ?? undefined,
         单位: r.单位 ?? undefined,
         数量: Number(r.数量 ?? 0),
       }));
       onChange(prev => [...prev.filter(l => l.物料编号), ...mapped]);
-      message.success(`已带入 ${rows.length} 行(应领量)`);
+      message.success(`已带入 ${rows.length} 行(${现存档 ? "库存现存" : "应领量"})`);
       setBasisOpen(false); setBasisNo("");
     } catch { message.error("按生产单带入失败"); }
     finally { setBasisLoading(false); }
@@ -248,6 +331,12 @@ export default function MaterialLineTable({ value, onChange, hidePriceCols, enab
         <Button icon={<PlusOutlined />} onClick={() => onChange(prev => [...prev, { 数量: 0 }])}>加一行</Button>
         {enableOrderPicker && <Button onClick={() => setWholeOpen(true)}>整单带入</Button>}
         {usageCols && <Button onClick={() => setBasisOpen(true)}>按生产单带入</Button>}
+        {usageCols && 仓库 === "半成品仓" && (
+          <Button onClick={() => openReceiptPicker("半成品")}>半成品入仓单带入</Button>
+        )}
+        {usageCols && 仓库 === "成品仓" && (
+          <Button onClick={() => openReceiptPicker("成品")}>成品入仓单带入</Button>
+        )}
       </Space>
       <Modal title="整单带入采购订单" open={wholeOpen} onCancel={() => setWholeOpen(false)} footer={null} width={420}>
         <Input.Search placeholder="输入采购订单号,回车带入" enterButton="带入" loading={wholeLoading}
@@ -258,7 +347,26 @@ export default function MaterialLineTable({ value, onChange, hidePriceCols, enab
         <Input.Search placeholder="输入生产单号,回车带入" enterButton="带入" loading={basisLoading}
           value={basisNo} onChange={e => setBasisNo(e.target.value)} onSearch={bringIssueBasis} />
         <div style={{ marginTop: 8, color: "#888" }}>
-          按 BOM 展开应领量带入,口径跟随表头仓库（{仓库 ?? "未选"}：{仓库?.includes("塑胶") ? "塑胶件" : "非塑胶件"}）;可改完再保存;当前空白行会被替换
+          口径跟随表头仓库（{仓库 ?? "未选"}：{issueBasis档说明(仓库)}）;可改完再保存;当前空白行会被替换
+        </div>
+      </Modal>
+      <Modal title={rcptOpen === "半成品" ? "选择半成品入仓单" : "选择成品入仓单"}
+        open={rcptOpen !== null} onCancel={() => setRcptOpen(null)} footer={null} width={760}>
+        <Input.Search placeholder="按单号/供应商搜索" enterButton="搜索" loading={rcptLoading}
+          value={rcptKw} onChange={e => setRcptKw(e.target.value)}
+          onSearch={kw => rcptOpen && void loadReceipts(rcptOpen, kw)} />
+        <Table size="small" rowKey={r => r.单号 ?? ""} loading={rcptLoading} pagination={false}
+          style={{ marginTop: 12 }} dataSource={rcptRows}
+          columns={[
+            { title: "单号", dataIndex: "单号", width: 170 },
+            { title: "日期", dataIndex: "日期", width: 110 },
+            { title: "供应商/部门", dataIndex: "往来", width: 160, render: (v?: string) => v ?? "" },
+            { title: "生产单号", dataIndex: "生产单号", width: 150, render: (v?: string) => v ?? "" },
+            { title: "数量", dataIndex: "数量", width: 90, align: "right" as const, render: (v?: number) => v ?? 0 },
+            { title: "", key: "_op", width: 70, render: (_: unknown, r: RcptRow) => <a onClick={() => void bringReceipt(r.单号)}>带入</a> },
+          ]} />
+        <div style={{ marginTop: 8, color: "#888" }}>
+          仅列已审核的入仓单；带入后表头仓库自动设为{rcptOpen === "半成品" ? "半成品仓" : "成品仓"}，当前空白行会被替换
         </div>
       </Modal>
       <MaterialPicker

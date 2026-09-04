@@ -3,7 +3,7 @@ using ErpApi.Infrastructure.Db;
 namespace ErpApi.Features.Warehouse.Semi;
 
 // 半成品库存月报表：按配件编号 收发存。期初=起日期前净额；本期按类分桶；
-// 期末=期初+入库-出库-报废+盈亏。入库=入仓+退库，出库=领料+退仓（均按单头日期与审核过滤）。
+// 期末=期初+入库-出库-报废+盈亏。入库=入仓+退库，出库=半成品领料+退仓+装配部领料单(仓库=半成品仓,已出口径)（均按单头日期与审核过滤）。
 public sealed class SemiMonthlyReportService(ISqlConnectionFactory factory)
 {
     private const string DefaultWarehouse = "半成品仓";
@@ -45,6 +45,12 @@ AllMv AS (
     UNION ALL
     SELECT d.物料编号, h.日期, 0, 0, 0, CAST(d.盈亏数量 AS decimal(18,4)), CAST(d.盈亏数量 AS decimal(18,4))
       FROM [半成品盘点明细单] d JOIN [半成品盘点单] h ON h.单号=d.单号 WHERE d.仓库=@仓 AND ISNULL(h.审核,'0')='1'
+    UNION ALL
+    SELECT d.物料编号, COALESCE(d.日期,h.日期), 0,
+           (CASE WHEN d.已出数量 IS NOT NULL THEN d.已出数量 ELSE d.数量 END),
+           0, CAST(0 AS decimal(18,4)),
+           (CASE WHEN d.已出数量 IS NOT NULL THEN d.已出数量 ELSE d.数量 END)*-1
+      FROM [领料明细单] d JOIN [领料单] h ON h.单号=d.单号 WHERE d.仓库=@仓 AND (ISNULL(d.已出数量,0)>0 OR ISNULL(h.审核,'0')='1')
 ),
 Agg AS (
     SELECT 物料编号,

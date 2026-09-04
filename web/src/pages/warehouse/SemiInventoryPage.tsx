@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { semiInventoryApi, type SemiInvReportRow } from "../../api/semi";
 import { can } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
+import { useAutoReload } from "../../hooks/useAutoReload";
 
 const MENU = "半成品库存";
 const WAREHOUSE = "半成品仓";
@@ -21,14 +22,16 @@ export default function SemiInventoryPage() {
   const [field, setField] = useState("产品货号");
   const [keyword, setKeyword] = useState("");
 
-  const load = useCallback(async (exact: boolean) => {
+  const load = useCallback(async (exact: boolean, silent = false) => {
     if (!canOpen) return;
     setLoading(true);
     try { setRows(await semiInventoryApi.report({ 仓库: WAREHOUSE, field, keyword: keyword.trim() || undefined, exact, includeZero, showAll })); }
-    catch { message.error("加载半成品库存统计表失败"); }
+    catch { if (!silent) message.error("加载半成品库存统计表失败"); }
     finally { setLoading(false); }
   }, [canOpen, field, keyword, includeZero, showAll]);
   useEffect(() => { void load(false); }, [canOpen, showAll, includeZero]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 切回本页/窗口聚焦/30秒轮询 自动刷新;silent 失败不弹 toast,避免刷屏
+  useAutoReload(() => { void load(false, true); });
 
   const exportExcel = () => {
     const cols = ["配件编号", "客户", "产品货号", "产品名称", "产品装配名称", "库存数量", "仓库位置"] as const;

@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import { semiIssueQueryApi, type SemiIssueSummaryRow, type SemiIssueDetailRow } from "../../api/semi";
 import { can } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
+import { useAutoReload } from "../../hooks/useAutoReload";
 
 const MENU = "半成品领料";
 const FIELDS = ["产品装配名称", "产品货号", "产品名称", "配件编号", "客户"];
@@ -33,17 +34,19 @@ export default function SemiIssueQueryPage() {
   const [detail, setDetail] = useState<SemiIssueDetailRow[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const load = useCallback(async (exact: boolean) => {
+  const load = useCallback(async (exact: boolean, silent = false) => {
     if (!canOpen) return;
     const p = { 起日期: range[0].format("YYYY-MM-DD"), 止日期: range[1].format("YYYY-MM-DD"), field, keyword: keyword.trim() || undefined, exact, 领料备注: 领料备注 || undefined };
     setLoading(true);
     try {
       if (tab === "summary") setSummary(await semiIssueQueryApi.summary({ ...p, materialOnly, byIssueRemark }));
       else setDetail(await semiIssueQueryApi.detail({ ...p, 制单人: 制单人 || undefined, 审核: 审核 || undefined }));
-    } catch { message.error("加载半成品出库查询失败"); }
+    } catch { if (!silent) message.error("加载半成品出库查询失败"); }
     finally { setLoading(false); }
   }, [canOpen, tab, range, field, keyword, materialOnly, byIssueRemark, 领料备注, 制单人, 审核]);
   useEffect(() => { void load(false); }, [canOpen, tab, range, materialOnly, byIssueRemark, 领料备注, 制单人, 审核]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 切回本页/窗口聚焦/30秒轮询 自动刷新;silent 失败不弹 toast,避免刷屏
+  useAutoReload(() => { void load(false, true); });
 
   const shiftMonth = (d: number) => { const b = range[0].add(d, "month"); setRange([b.startOf("month"), b.endOf("month")]); };
   const total = useMemo(() => summary.reduce((a, r) => a + Number(r.领料数量 || 0), 0), [summary]);

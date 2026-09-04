@@ -23,6 +23,8 @@ public sealed class SemiReceiptService(ISqlConnectionFactory factory, IDocumentN
         using var c = factory.Create();
         await c.OpenAsync();
         using var tx = c.BeginTransaction();
+        // 计划数量封顶:同一生产单+配件的已审核入仓累计+本次不得超 生产制单.计划数量(可分多次累积入仓)
+        await CheckPlanCapAsync(c, tx, dto.明细, null);
         var 单号 = await docNo.NextAsync(DocType, Prefix, now, c, tx);
 
         await c.ExecuteAsync(@"
@@ -61,6 +63,7 @@ VALUES(@单号,@订单单号,@日期,@供应商编号,@供应商名称,@仓库,@
         var audit = await c.ExecuteScalarAsync<string?>("SELECT ISNULL([审核],'0') FROM [半成品入仓单] WITH (UPDLOCK,HOLDLOCK) WHERE [单号]=@单号", new { 单号 }, tx);
         if (audit is null) return false;
         if (audit == "1") throw new InvalidOperationException("已审核的半成品入仓单不能修改，请先反审核。");
+        await CheckPlanCapAsync(c, tx, dto.明细, 单号);
         await c.ExecuteAsync(@"UPDATE [半成品入仓单] SET [订单单号]=@订单单号,[日期]=@日期,[供应商编号]=@供应商编号,[供应商名称]=@供应商名称,
 [部门]=@部门,[生产单号]=@生产单号,[款号]=@款号,[仓库]=@仓库,[数量]=@数量,[金额]=@金额,[操作员]=@操作员,[备注]=@备注 WHERE [单号]=@单号",
             new { 单号, dto.订单单号, 日期 = date, 供应商编号 = supplierCode, dto.供应商名称, dto.部门, dto.生产单号, dto.款号, dto.仓库, 数量 = quantity, 金额 = amount, 操作员 = user, dto.备注 }, tx);
@@ -77,6 +80,38 @@ VALUES(@单号,@订单单号,@日期,@供应商编号,@供应商名称,@仓库,@
             }, tx);
         tx.Commit();
         return true;
+    }
+
+    // 审核前校验(控制器在 posting.ApproveAsync 之前调用):从库里取明细走同一套封顶规则
+    public async Task ValidatePlanCapAsync(string 单号)
+    {
+        using var c = factory.Create();
+        var lines = (await c.QueryAsync<SemiReceiptLineDto>(
+            "SELECT [生产单号],[物料编号],[数量] FROM [半成品入仓明细单] WHERE [单号]=@单号", new { 单号 })).AsList();
+        await CheckPlanCapAsync(c, null, lines, 单号);
+    }
+
+    // 计划数量封顶:同一生产单+配件的已审核入仓累计+本次不得超 生产制单.计划数量(可分多次累积入仓);
+    // 明细无生产单号或生产单不存在(无计划数量)则不封顶。
+    private static async Task CheckPlanCapAsync(System.Data.IDbConnection c, System.Data.IDbTransaction? tx,
+        IEnumerable<SemiReceiptLineDto> lines, string? exclude单号)
+    {
+        var groups = lines
+            .Where(l => !string.IsNullOrWhiteSpace(l.生产单号) && !string.IsNullOrWhiteSpace(l.配件编号 ?? l.物料编号))
+            .GroupBy(l => (生产单号: l.生产单号!.Trim(), 物料: (l.配件编号 ?? l.物料编号)!.Trim()));
+        foreach (var g in groups)
+        {
+            var plan = await c.ExecuteScalarAsync<decimal?>(
+                "SELECT [计划数量] FROM [生产制单] WHERE [生产单号]=@mo", new { mo = g.Key.生产单号 }, tx);
+            if (plan is null) continue;
+            var done = await c.ExecuteScalarAsync<decimal>(@"SELECT ISNULL(SUM(d.[数量]),0) FROM [半成品入仓明细单] d
+JOIN [半成品入仓单] h ON h.[单号]=d.[单号]
+WHERE ISNULL(h.[审核],'0')='1' AND d.[生产单号]=@mo AND d.[物料编号]=@mat AND d.[单号]<>@ex",
+                new { mo = g.Key.生产单号, mat = g.Key.物料, ex = exclude单号 ?? "" }, tx);
+            var cur = g.Sum(l => l.数量);
+            if (done + cur > plan)
+                throw new ArgumentException($"生产单号 {g.Key.生产单号} 配件 {g.Key.物料} 累计入半成品不能超过计划数量：计划 {plan}，已入 {done}，本次 {cur}。");
+        }
     }
 
     public async Task<SemiReceiptDetailDto?> GetAdjacentAsync(string 单号, string direction)

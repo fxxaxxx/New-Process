@@ -3,7 +3,7 @@ using ErpApi.Infrastructure.Db;
 namespace ErpApi.Features.Warehouse.Semi;
 
 // 半成品库存统计表（自由选产品版报表）。库存按 配件编号(=物料编号) 汇总各颜色，再富化 客户/产品货号/产品名称/产品装配名称/仓库位置。
-// 库存 6 分支与 InventorySummaryService.SemiSql 一致，仅 group 到 物料编号。产品富化复用 picker Base CTE。
+// 库存 7 分支与 InventorySummaryService.SemiSql 一致（含 装配部领料单 仓库=半成品仓 的已出扣减），仅 group 到 物料编号。产品富化复用 picker Base CTE。
 public sealed class SemiInventoryReportService(ISqlConnectionFactory factory)
 {
     private const string DefaultWarehouse = "半成品仓";
@@ -33,6 +33,8 @@ Inv AS (
         UNION ALL SELECT d.物料编号, CAST(d.盈亏数量 AS decimal(18,4)) FROM [半成品盘点明细单] d JOIN [半成品盘点单] h ON h.单号=d.单号 WHERE d.仓库=@仓 AND ISNULL(h.审核,'0')='1'
         UNION ALL SELECT d.物料编号, d.数量     FROM [半成品退库明细单] d JOIN [半成品退库单] h ON h.单号=d.单号 WHERE d.仓库=@仓 AND ISNULL(h.审核,'0')='1'
         UNION ALL SELECT d.物料编号, d.数量*-1 FROM [半成品报废明细单] d JOIN [半成品报废单] h ON h.单号=d.单号 WHERE d.仓库=@仓 AND ISNULL(h.审核,'0')='1'
+        UNION ALL SELECT d.物料编号, (CASE WHEN d.已出数量 IS NOT NULL THEN d.已出数量 ELSE d.数量 END)*-1
+            FROM [领料明细单] d JOIN [领料单] h ON h.单号=d.单号 WHERE d.仓库=@仓 AND (ISNULL(d.已出数量,0)>0 OR ISNULL(h.审核,'0')='1')
     ) t GROUP BY 物料编号
 ),
 LatestHeader AS (

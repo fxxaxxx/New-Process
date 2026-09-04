@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Card, Descriptions, Drawer, Input, Select, Space, Table, Tabs, Tag, message,
+  Card, Descriptions, Drawer, Input, Select, Space, Statistic, Table, Tabs, Tag, message,
 } from "antd";
-import {
-  productionApi, type ProductionDetail, type ProductionHeader,
-} from "../../api/production";
+import { productionApi, type ProductionDetail, type ProductionHeader } from "../../api/production";
+import { useNavigate } from "react-router-dom";
 import { can, hidePrice } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
+import { useAutoReload } from "../../hooks/useAutoReload";
 
 const MENU = "生产制单";
 const PAGE_SIZE = 20;
@@ -14,6 +14,7 @@ const d10 = (v?: string) => v?.slice(0, 10);
 
 export default function ProductionQueryPage() {
   const perms = usePerms();
+  const navigate = useNavigate();
   const canOpen = can(perms, MENU, "打开");
   const priceHidden = hidePrice(perms, MENU);
   const money = (v?: number | null) => (priceHidden ? "***" : (v ?? ""));
@@ -26,24 +27,29 @@ export default function ProductionQueryPage() {
   const [loading, setLoading] = useState(false);
   const [审核Filter, set审核Filter] = useState<"all" | "1" | "0">("all");
   const [完成Filter, set完成Filter] = useState<"all" | "1" | "0">("all");
+  // 顶部合计(与列表同关键字,不分页汇总全部匹配行)
+  const [summary, setSummary] = useState<{ 计划数量合计: number; 入半成品数量合计: number; 入成品数量合计: number } | null>(null);
 
   // 详情抽屉
   const [detailOpen, setDetailOpen] = useState(false);
   const [detail, setDetail] = useState<ProductionDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
-  const load = useCallback(async (p: number, kw: string) => {
+  const load = useCallback(async (p: number, kw: string, silent = false) => {
     if (!canOpen) return;
     setLoading(true);
     try {
       const r = await productionApi.list(p, PAGE_SIZE, kw);
       setRows(r.items);
       setTotal(r.total);
-    } catch { message.error("加载生产单列表失败"); }
+      setSummary(await productionApi.summary(kw));
+    } catch { if (!silent) message.error("加载生产单列表失败"); }
     finally { setLoading(false); }
   }, [canOpen]);
 
   useEffect(() => { load(page, keyword); }, [load, page]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 切回本页/窗口聚焦/30秒轮询 自动刷新;silent 失败不弹 toast,避免刷屏
+  useAutoReload(() => { void load(page, keyword, true); });
 
   const onSearch = (v: string) => {
     setKeyword(v);
@@ -84,11 +90,27 @@ export default function ProductionQueryPage() {
     { title: "客户名称", dataIndex: "客户名称", width: 160 },
     { title: "合同号", dataIndex: "合同号", width: 120 },
     { title: "计划数量", dataIndex: "计划数量", width: 90, align: "right" as const },
+    { title: "入半成品", dataIndex: "入半成品数量", width: 90, align: "right" as const, render: (v?: number | null) => v ?? 0 },
+    { title: "入成品", dataIndex: "入成品数量", width: 90, align: "right" as const, render: (v?: number | null) => v ?? 0 },
     { title: "日期", dataIndex: "日期", width: 110, render: d10 },
     { title: "交货日期", dataIndex: "交货日期", width: 110, render: d10 },
     { title: "完成", dataIndex: "完成", width: 72, align: "center" as const, render: 完成Tag },
     { title: "审核", dataIndex: "审核", width: 90, align: "center" as const, render: 审核Tag },
     { title: "跟单员", dataIndex: "跟单员", width: 100 },
+    {
+      title: "操作", key: "_op", width: 150, fixed: "right" as const,
+      render: (_: unknown, r: ProductionHeader) => (
+        <Space size={10}>
+          <a onClick={e => { e.stopPropagation(); navigate(`/semi-receipts?mo=${encodeURIComponent(r.生产单号 ?? "")}`); }}>入半成品</a>
+          <a onClick={e => {
+            e.stopPropagation();
+            // 规则:半成品未审核不能入成品(入半成品数量=已审核半成品入仓合计)
+            if (!(Number(r.入半成品数量 ?? 0) > 0)) { message.warning("该生产单没有已审核的半成品入仓，半成品未审核不能入成品"); return; }
+            navigate(`/finished-receipts?mo=${encodeURIComponent(r.生产单号 ?? "")}`);
+          }}>入成品</a>
+        </Space>
+      ),
+    },
   ];
 
   const head = detail?.单头;
@@ -139,30 +161,39 @@ export default function ProductionQueryPage() {
 
   return (
     <Card title="查询生产单" variant="borderless">
-      <Space wrap style={{ marginBottom: 16 }}>
-        <Input.Search
-          placeholder="生产单号 / 款号 / 客户" allowClear style={{ width: 280 }}
-          onSearch={onSearch}
-        />
-        <span>审核：</span>
-        <Select
-          value={审核Filter} style={{ width: 120 }} onChange={set审核Filter}
-          options={[
-            { value: "all", label: "全部" },
-            { value: "1", label: "已审核" },
-            { value: "0", label: "未审核" },
-          ]}
-        />
-        <span>完成：</span>
-        <Select
-          value={完成Filter} style={{ width: 120 }} onChange={set完成Filter}
-          options={[
-            { value: "all", label: "全部" },
-            { value: "1", label: "已完成" },
-            { value: "0", label: "未完成" },
-          ]}
-        />
-      </Space>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+        <Space wrap>
+          <Input.Search
+            placeholder="生产单号 / 款号 / 客户" allowClear style={{ width: 280 }}
+            onSearch={onSearch}
+          />
+          <span>审核：</span>
+          <Select
+            value={审核Filter} style={{ width: 120 }} onChange={set审核Filter}
+            options={[
+              { value: "all", label: "全部" },
+              { value: "1", label: "已审核" },
+              { value: "0", label: "未审核" },
+            ]}
+          />
+          <span>完成：</span>
+          <Select
+            value={完成Filter} style={{ width: 120 }} onChange={set完成Filter}
+            options={[
+              { value: "all", label: "全部" },
+              { value: "1", label: "已完成" },
+              { value: "0", label: "未完成" },
+            ]}
+          />
+        </Space>
+        {summary && (
+          <Space size={32}>
+            <Statistic title="计划数量合计" value={summary.计划数量合计} />
+            <Statistic title="入半成品合计" value={summary.入半成品数量合计} />
+            <Statistic title="入成品合计" value={summary.入成品数量合计} />
+          </Space>
+        )}
+      </div>
 
       <Table
         size="small" rowKey="id" loading={loading} dataSource={displayRows}

@@ -5,6 +5,8 @@ import { CheckOutlined, CloseOutlined, CopyOutlined, DeleteOutlined, FileAddOutl
 import dayjs, { type Dayjs } from "dayjs";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { semiReceiptApi, type SRCreate, type SRDetail } from "../../api/semi";
+import type { SemiFinishedLabelProductRow } from "../../api/semiFinishedLabelOrders";
+import { productionApi } from "../../api/production";
 import { can } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
 import { mergeSemiReceiptProducts, summarizeSemiReceiptLines, validateSemiReceipt, type SemiReceiptEditableLine } from "../../utils/semiReceiptOrder";
@@ -68,6 +70,48 @@ export default function SemiReceiptPage() {
       void openDocument(no);
       setSearchParams(prev => { const n = new URLSearchParams(prev); n.delete("open"); return n; }, { replace: true });
     }
+  }, [searchParams, setSearchParams]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 从「查询生产单」跳入：URL ?mo=<生产单号> 新建单并把生产单号带入首行明细（页面被 keep-alive 缓存,用 ref 记已处理值保证重复跳入也生效）
+  const moRef = useRef<string | null>(null);
+  useEffect(() => {
+    const mo = searchParams.get("mo");
+    if (!mo) { moRef.current = null; return; }
+    if (moRef.current === mo) return;
+    moRef.current = mo;
+    if (!opened?.单头?.单号) {
+      (async () => {
+        let po = "";
+        let 客户 = "";
+        let goods: { 货号?: string; 款号名称?: string; 数量?: number | null }[] = [];
+        try {
+          const d = await productionApi.get(mo);
+          po = d.单头?.合同号 ?? "";
+          客户 = d.单头?.客户名称 ?? "";
+          goods = (d.货号明细 ?? []).filter(g => g.货号);
+        } catch { /* 生产单不存在则只带生产单号 */ }
+        if (po) form.setFieldsValue({ 订单单号: po });   // 订单单号=客户PO号(生产制单.合同号)
+        if (goods.length === 0) {
+          setLines([{ ...blankLine(1), 订单单号: po, 生产单号: mo }]);
+          message.info(`已带入生产单号 ${mo}，请完善明细后保存`);
+          return;
+        }
+        // 按货号精确查半成品标签产品,带出 配件编号/客户/产品名称/产品装配名称
+        const newLines: SemiReceiptEditableLine[] = [];
+        for (const g of goods) {
+          let products: SemiFinishedLabelProductRow[] = [];
+          try { products = (await semiReceiptApi.products({ field: "产品货号", keyword: g.货号, exact: true, page: 1, size: 50 })).items; } catch { /* 查不到则只带货号 */ }
+          if (products.length > 0)
+            for (const p of products)
+              newLines.push({ key: newLines.length + 1, 订单单号: po, 配件编号: p.配件编号 ?? "", 客户: p.客户 ?? 客户, 产品货号: p.产品货号 ?? g.货号 ?? "", 产品名称: p.产品名称 ?? g.款号名称 ?? "", 产品装配名称: p.产品装配名称 ?? "", 生产单号: mo, 数量: Number(g.数量 ?? 0), 单位: "PCS" });
+          else
+            newLines.push({ key: newLines.length + 1, 订单单号: po, 配件编号: "", 客户, 产品货号: g.货号 ?? "", 产品名称: g.款号名称 ?? "", 生产单号: mo, 数量: Number(g.数量 ?? 0), 单位: "PCS" });
+        }
+        setLines([...newLines, blankLine(newLines.length + 1)]);
+        message.info(`已带入生产单号 ${mo} 的 ${newLines.length} 行明细，请核对数量后保存`);
+      })();
+    }
+    setSearchParams(prev => { const n = new URLSearchParams(prev); n.delete("mo"); return n; }, { replace: true });
   }, [searchParams, setSearchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const payload = (): SRCreate | null => {
@@ -150,7 +194,7 @@ export default function SemiReceiptPage() {
         <Col xs={12} md={6} xl={3}><Form.Item label="操作员" name="操作员"><Input readOnly /></Form.Item></Col>
         <Col xs={12} md={6} xl={3}><Form.Item label="审核状态"><Tag color={audited ? "success" : "default"}>{audited ? "已审核" : "未审核"}</Tag></Form.Item></Col>
         <Col xs={24} md={12} xl={8}><Form.Item label="备注" name="备注"><Input disabled={readOnly} /></Form.Item></Col>
-        <Col xs={24} md={12} xl={8}><Form.Item label="入库单号"><Input readOnly value={opened?.单头?.单号 ?? ""} /></Form.Item></Col>
+        <Col xs={24} md={12} xl={8}><Form.Item label="入库单号"><Input readOnly placeholder="保存后生成" value={opened?.单头?.单号 ?? ""} /></Form.Item></Col>
         <Col xs={24} md={12} xl={8}><Form.Item label="打印选项" name="打印合并表格" valuePropName="checked"><Checkbox disabled={readOnly}>打印合并表格</Checkbox></Form.Item></Col>
       </Row>
     </Form>

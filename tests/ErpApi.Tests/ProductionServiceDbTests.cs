@@ -346,4 +346,92 @@ public class ProductionServiceDbTests(DbFixture fx)
             P2TestData.Cleanup(c);
         }
     }
+
+    // ===== 档=半成品/成品：按生产单取 半成品仓/成品仓 现存净额（装配部再领料/返工领出用）=====
+    private const string P7生产单号 = "P7SC01";
+
+    private static void SeedP7(SqlConnection c)
+    {
+        CleanupP7(c);
+        c.Execute("INSERT INTO [客户资料]([客户编号],[客户名称]) VALUES(N'P7C01',N'P7测试客户')");
+        c.Execute("INSERT INTO [款号总表]([款号],[款式]) VALUES(N'P7K01',N'P7测试款式')");
+        c.Execute("INSERT INTO [物料资料]([物料编号],[物料名称],[规格],[单位]) VALUES(N'P7M1',N'P7半成品料',N'规格A',N'件')");
+        c.Execute(@"INSERT INTO [生产制单]([生产单号],[款号],[款式],[客户编号],[客户名称],[计划数量],[审核])
+                    VALUES(N'P7SC01',N'P7K01',N'P7测试款式',N'P7C01',N'P7测试客户',100,'1')");
+    }
+
+    // FK 顺序：先删单据明细→单头→生产制单→基础资料
+    private static void CleanupP7(SqlConnection c)
+    {
+        foreach (var d in new[] { "半成品领料明细单", "半成品入仓明细单", "成品出仓明细单", "成品入仓明细单", "领料明细单" })
+            c.Execute($"DELETE FROM [{d}] WHERE [生产单号]=N'P7SC01'");
+        c.Execute("DELETE FROM [半成品领料单] WHERE [单号] LIKE N'P7%'");
+        c.Execute("DELETE FROM [半成品入仓单] WHERE [单号] LIKE N'P7%'");
+        c.Execute("DELETE FROM [成品出仓单] WHERE [单号] LIKE N'P7%'");
+        c.Execute("DELETE FROM [成品入仓单] WHERE [单号] LIKE N'P7%'");
+        c.Execute("DELETE FROM [领料单] WHERE [单号] LIKE N'P7%'");
+        c.Execute("DELETE FROM [生产制单] WHERE [生产单号]=N'P7SC01'");
+        c.Execute("DELETE FROM [物料资料] WHERE [物料编号]=N'P7M1'");
+        c.Execute("DELETE FROM [款号总表] WHERE [款号]=N'P7K01'");
+        c.Execute("DELETE FROM [客户资料] WHERE [客户编号]=N'P7C01'");
+    }
+
+    [SkippableFact]
+    public async Task IssueBasis_半成品_returns_semi_warehouse_net_stock()
+    {
+        Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
+        using var c = fx.Open();
+        SeedP7(c);
+        try
+        {
+            // 半成品入仓 100(已审核) − 半成品领料 30(已审核) − 装配部领料单(仓库=半成品仓,未审核但已出 10) = 60
+            c.Execute("INSERT INTO [半成品入仓单]([单号],[仓库],[审核]) VALUES(N'P7SR01',N'半成品仓','1')");
+            c.Execute(@"INSERT INTO [半成品入仓明细单]([单号],[仓库],[生产单号],[款号],[货号],[物料编号],[物料名称],[规格],[颜色],[单位],[数量])
+                        VALUES(N'P7SR01',N'半成品仓',N'P7SC01',N'P7K01',N'P7K01',N'P7M1',N'P7半成品料',N'规格A',N'黑色',N'件',100)");
+            c.Execute("INSERT INTO [半成品领料单]([单号],[仓库],[审核]) VALUES(N'P7SL01',N'半成品仓','1')");
+            c.Execute(@"INSERT INTO [半成品领料明细单]([单号],[仓库],[生产单号],[款号],[货号],[物料编号],[物料名称],[规格],[颜色],[单位],[数量])
+                        VALUES(N'P7SL01',N'半成品仓',N'P7SC01',N'P7K01',N'P7K01',N'P7M1',N'P7半成品料',N'规格A',N'黑色',N'件',30)");
+            c.Execute("INSERT INTO [领料单]([单号],[仓库],[审核]) VALUES(N'P7LL01',N'半成品仓','0')");
+            c.Execute(@"INSERT INTO [领料明细单]([单号],[仓库],[生产单号],[款号],[物料编号],[物料名称],[规格],[颜色],[单位],[数量],[已出数量])
+                        VALUES(N'P7LL01',N'半成品仓',N'P7SC01',N'P7K01',N'P7M1',N'P7半成品料',N'规格A',N'黑色',N'件',40,10)");
+
+            var rows = await Svc().IssueBasisAsync(P7生产单号, "半成品");
+            var r = Assert.Single(rows);
+            Assert.Equal(P7生产单号, r.生产单号);
+            Assert.Equal("P7K01", r.款号);
+            Assert.Equal("P7M1", r.物料编号);
+            Assert.Equal(60m, r.数量);   // 100 - 30 - 10
+        }
+        finally { CleanupP7(c); }
+    }
+
+    [SkippableFact]
+    public async Task IssueBasis_成品_returns_finished_net_stock_grouped_by_款号()
+    {
+        Skip.IfNot(fx.Available, "未设置 ERP_TEST_DB");
+        using var c = fx.Open();
+        SeedP7(c);
+        try
+        {
+            // 成品入仓 100(明细行审核) − 成品出仓 25(明细行审核) = 75；行映射 物料编号=款号、单位=PCS
+            c.Execute("INSERT INTO [成品入仓单]([单号],[仓库],[审核]) VALUES(N'P7FR01',N'成品仓','1')");
+            c.Execute(@"INSERT INTO [成品入仓明细单]([单号],[仓库],[生产单号],[款号],[款式],[颜色],[数量],[审核])
+                        VALUES(N'P7FR01',N'成品仓',N'P7SC01',N'P7K01',N'P7测试款式',N'黑色',100,'1')");
+            c.Execute("INSERT INTO [成品出仓单]([单号],[仓库],[审核]) VALUES(N'P7FO01',N'成品仓','1')");
+            c.Execute(@"INSERT INTO [成品出仓明细单]([单号],[仓库],[生产单号],[款号],[款式],[颜色],[数量],[审核])
+                        VALUES(N'P7FO01',N'成品仓',N'P7SC01',N'P7K01',N'P7测试款式',N'黑色',25,'1')");
+
+            var rows = await Svc().IssueBasisAsync(P7生产单号, "成品");
+            var r = Assert.Single(rows);
+            Assert.Equal(P7生产单号, r.生产单号);
+            Assert.Equal("P7K01", r.款号);
+            Assert.Equal("P7K01", r.物料编号);
+            Assert.Equal("PCS", r.单位);
+            Assert.Equal(75m, r.数量);
+
+            // 未知 档 保持原样(BOM 口径;本单无 BOM → 空)
+            Assert.Empty(await Svc().IssueBasisAsync(P7生产单号, "其他"));
+        }
+        finally { CleanupP7(c); }
+    }
 }

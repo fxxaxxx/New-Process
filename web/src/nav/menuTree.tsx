@@ -83,6 +83,8 @@ export const MENU_TREE: MenuGroup[] = [
     M("半成品标签单", "/semi-finished-label-orders", "半成品标签单"),
     M("半成品入仓单", "/semi-receipts", "半成品入仓"),
     M("半成品出库单", "/semi-issues", "半成品领料"),
+    // 装配部开领料单(仓库=半成品仓)→半成品仓在这里审核=出库过账(同领料单页,出库即扣半成品库存)
+    M("领料出库", "/materials/material-issues", "领料单"),
     M("半成品报废单", "/semi-scraps", "半成品报废"),
     M("半成品盘点单", "/semi-stocktakes", "半成品盘点"),
     M("半成品库存统计表", "/semi-inventory", "半成品库存"),
@@ -150,6 +152,8 @@ export const MENU_TREE: MenuGroup[] = [
   // ⑨ 船务部(成品仓;入仓单/查询已合并为一页)
   { key: "g-ship", label: "船务部", children: [
     M("成品入仓单", "/finished-receipts", "成品入仓"),
+    // 装配部开领料单(仓库=成品仓,返工领出)→成品仓在这里审核=出库过账(同领料单页,出库即扣成品库存)
+    M("领料出库", "/materials/material-issues", "领料单"),
     // 外部系统(RR-Portal)
     X("船务管理系统", "/shipping/"),
   ]},
@@ -170,22 +174,14 @@ export const MENU_TREE: MenuGroup[] = [
     M("原料生产需求表", "/plastic-raw-material-demand", "原料生产需求表"),
     M("原料采购分析表", "/plastic-raw-material-purchase-analysis", "原料采购分析表"),
     M("原料采购订单", "/plastic-raw-material-purchase-order", "原料采购订单"),
-    M("原料采购进度表", "/plastic-raw-material-purchase-progress"),
-    M("原料出库进度表", "/plastic-raw-material-issue-progress"),
     M("原料入仓单", "/plastic-raw-material-receipt", "原料入仓单"),
-    M("原料退仓单", "/plastic-raw-material-return", "原料退仓单"),
     M("原料出库表", "/plastic-raw-material-stock-issue", "原料出库表"),
-    M("原料退库表", "/plastic-raw-material-stock-return", "原料退库表"),
     M("原料盘点单", "/plastic-raw-material-stocktake", "原料盘点单"),
     // 原料报表
     M("原料库存统计表", "/plastic-raw-material-inventory", "原料库存统计表"),
     M("原料库存月报表", "/plastic-raw-material-monthly", "原料库存月报表"),
     M("原料生产需求汇总", "/plastic-raw-material-demand-summary", "原料生产需求汇总"),
     M("原料订货入库统计", "/plastic-raw-material-order-receipt-stats"),
-    M("原料进度明细表", "/plastic-raw-material-progress-detail"),
-    M("出库进度明细表", "/plastic-raw-material-issue-progress-detail"),
-    M("原料发外欠数表", "/plastic-raw-material-outsource-shortage"),
-    M("原料采购订单查询", "/plastic-raw-material-purchase-order-query"),
   ]},
   // ⑫ 品质部(全部为 RR-Portal 外部系统入口)
   { key: "g-qa", label: "品质部", children: [

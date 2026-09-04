@@ -5,11 +5,13 @@ import { CheckOutlined, CloseOutlined, CopyOutlined, DeleteOutlined, FileAddOutl
 import dayjs, { type Dayjs } from "dayjs";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { finishedReceiptApi, type FRCreate, type FRDetail, type FRHeader } from "../../api/finished";
+import { productionApi } from "../../api/production";
 import { can } from "../../auth/permissions";
 import { usePerms } from "../../auth/PermissionContext";
 import { mergeFinishedReceiptProducts, summarizeFinishedReceiptLines, validateFinishedReceipt, type FinishedReceiptEditableLine } from "../../utils/finishedReceiptOrder";
 import SemiFinishedLabelProductPicker, { type SemiFinishedLabelProduct } from "../semi/SemiFinishedLabelProductPicker";
 import SupplierPicker, { type SupplierRow } from "../plastics/SupplierPicker";
+import { useAutoReload } from "../../hooks/useAutoReload";
 
 const MENU = "成品入仓";
 const currentUser = () => localStorage.getItem("erp_user") || "admin";
@@ -40,6 +42,40 @@ export default function FinishedReceiptPage() {
   useEffect(() => {
     const no = searchParams.get("open");
     if (no && !autoOpenedRef.current) { autoOpenedRef.current = true; void openDoc(no); setSearchParams(prev => { const n = new URLSearchParams(prev); n.delete("open"); return n; }, { replace: true }); }
+  }, [searchParams, setSearchParams]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 从「查询生产单」跳入：URL ?mo=<生产单号> 新建单并按生产制单的货号明细带入行（产品货号/生产单号/数量）
+  const moRef = useRef<string | null>(null);
+  useEffect(() => {
+    const mo = searchParams.get("mo");
+    if (!mo) { moRef.current = null; return; }
+    if (moRef.current === mo) return;
+    moRef.current = mo;
+    setSearchParams(prev => { const n = new URLSearchParams(prev); n.delete("mo"); return n; }, { replace: true });
+    if (opened?.单头?.单号) return;
+    (async () => {
+      try {
+        const d = await productionApi.get(mo);
+        const po = d.单头?.合同号 ?? "";   // 订单单号=客户PO号(生产制单.合同号)
+        if (po) form.setFieldsValue({ 订单单号: po });
+        const goods = (d.货号明细 ?? []).filter(g => g.货号);
+        if (goods.length > 0) {
+          // 配件编号=货号(成品入仓以货号为明细主键,校验/库存都按它),客户/名称顺带带出
+          setLines([...goods.map((g, i) => ({
+            key: i + 1, 订单单号: po, 配件编号: g.货号 ?? "", 客户: d.单头?.客户名称 ?? null,
+            产品货号: g.货号 ?? "", 产品名称: g.款号名称 ?? d.单头?.款式 ?? null,
+            产品装配名称: g.款号名称 ?? d.单头?.款式 ?? null, 生产单号: mo, 数量: Number(g.数量 ?? 0),
+          })), blankLine(goods.length + 1)]);
+          message.info(`已带入生产单号 ${mo} 的 ${goods.length} 个货号，请核对数量后保存`);
+        } else {
+          setLines([{ ...blankLine(1), 订单单号: po, 生产单号: mo }]);
+          message.info(`已带入生产单号 ${mo}，请完善明细后保存`);
+        }
+      } catch {
+        setLines([{ ...blankLine(1), 生产单号: mo }]);
+        message.info(`已带入生产单号 ${mo}，请完善明细后保存`);
+      }
+    })();
   }, [searchParams, setSearchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const payload = (): FRCreate | null => {
@@ -96,7 +132,7 @@ export default function FinishedReceiptPage() {
         <Col xs={12} md={6} xl={4}><Form.Item label="日期" name="日期"><DatePicker disabled={readOnly} style={{ width: "100%" }} /></Form.Item></Col>
         <Col xs={12} md={6} xl={3}><Form.Item label="订单单号" name="订单单号"><Input disabled={readOnly} /></Form.Item></Col>
         <Col xs={12} md={6} xl={3}><Form.Item label="电脑单号" name="单号"><Input readOnly placeholder="保存后生成" /></Form.Item></Col>
-        <Col xs={12} md={6} xl={3}><Form.Item label="入库单号" name="入库单号"><Input disabled={readOnly} /></Form.Item></Col>
+        <Col xs={12} md={6} xl={3}><Form.Item label="入库单号"><Input readOnly placeholder="保存后生成" value={opened?.单头?.单号 ?? ""} /></Form.Item></Col>
         <Col xs={12} md={6} xl={3}><Form.Item label="收货仓库" name="仓库"><Select disabled={readOnly} options={[{ value: "成品仓", label: "成品仓" }, { value: "半成品仓", label: "半成品仓" }]} /></Form.Item></Col>
         <Col xs={12} md={6} xl={3}><Form.Item label="操作员" name="操作员"><Input readOnly /></Form.Item></Col>
         <Col xs={12} md={6} xl={3}><Form.Item label="审核状态"><Tag color={audited ? "success" : "default"}>{audited ? "已审核" : "未审核"}</Tag></Form.Item></Col>
@@ -118,7 +154,9 @@ export default function FinishedReceiptPage() {
 
 function OpenList({ onPick }: { onPick: (no: string) => void }) {
   const [keyword, setKeyword] = useState(""); const [rows, setRows] = useState<FRHeader[]>([]); const [loading, setLoading] = useState(false);
-  const load = async () => { setLoading(true); try { setRows((await finishedReceiptApi.list(1, 100, keyword.trim())).items as FRHeader[]); } catch { message.error("加载成品入仓单失败"); } finally { setLoading(false); } };
+  const load = async (silent = false) => { setLoading(true); try { setRows((await finishedReceiptApi.list(1, 100, keyword.trim())).items as FRHeader[]); } catch { if (!silent) message.error("加载成品入仓单失败"); } finally { setLoading(false); } };
+  // 弹窗打开期间,切回本页/窗口聚焦/30秒轮询 自动刷新列表;silent 失败不弹 toast
+  useAutoReload(() => { void load(true); });
   return <>
     <Input.Search allowClear value={keyword} onChange={e => setKeyword(e.target.value)} onSearch={() => void load()} onFocus={() => rows.length === 0 && void load()} placeholder="电脑单号 / 订单单号 / 供应商 / 仓库" style={{ width: 340, marginBottom: 12 }} />
     <Table<FRHeader> rowKey={r => r.单号 ?? String(r.ID ?? r.id)} size="small" loading={loading} dataSource={rows} pagination={false} scroll={{ y: 440 }}

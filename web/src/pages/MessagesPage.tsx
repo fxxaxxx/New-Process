@@ -5,6 +5,7 @@ import { MSG_REFRESH_EVENT, messagesApi, type MessageRow } from "../api/messages
 import { materialDocApi, type MaterialDocDetail } from "../api/materialDocs";
 import MaterialDocDetailDrawer from "./materials/MaterialDocDetailDrawer";
 import { MATERIAL_DOC_CONFIGS } from "./materials/materialDocConfigs";
+import { useAutoReload } from "../hooks/useAutoReload";
 
 // 消息目前都是「领料审批」,单号即领料单号
 const ISSUE_CFG = MATERIAL_DOC_CONFIGS["material-issues"];
@@ -24,17 +25,19 @@ export default function MessagesPage() {
   const [docDetail, setDocDetail] = useState<MaterialDocDetail | null>(null);
   const [approving, setApproving] = useState(false);
 
-  const load = useCallback(async (p = page, s = size, u = onlyUnread) => {
+  const load = useCallback(async (p = page, s = size, u = onlyUnread, silent = false) => {
     setLoading(true);
     try {
       const d = await messagesApi.list(p, s, u);
       setRows(d.items); setTotal(d.total);
-    } catch { message.error("加载消息失败"); }
+    } catch { if (!silent) message.error("加载消息失败"); }
     finally { setLoading(false); }
   }, [page, size, onlyUnread]);
 
   useEffect(() => { load(1, size, onlyUnread); setPage(1); }, [onlyUnread]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // 切回本页/窗口聚焦/30秒轮询 自动刷新;silent 失败不弹 toast,避免刷屏
+  useAutoReload(() => { void load(page, size, onlyUnread, true); });
 
   // 查看：标记已读 -> 拉领料单详情 -> 弹抽屉;刷新列表与铃铛
   const view = async (r: MessageRow) => {

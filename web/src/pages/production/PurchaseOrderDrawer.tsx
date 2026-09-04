@@ -229,8 +229,10 @@ export default function PurchaseOrderDrawer({
         备注: r.备注?.trim() || undefined,
       }));
     if (lines.length === 0) { message.error("请至少录入一行数量>0的明细"); return; }
+    // 单头生产单号兜底：新建未指定时，若所有明细行同属一个生产单号则带出（从采购订单页新建+录入清单的场景）
+    const lineMos = [...new Set(lines.map(l => l.生产单号).filter((x): x is string => !!x))];
     const body = {
-      生产单号: 生产单号 ?? detail?.单头?.生产单号 ?? undefined,
+      生产单号: 生产单号 ?? detail?.单头?.生产单号 ?? (lineMos.length === 1 ? lineMos[0] : undefined),
       供应商编号: header.供应商编号.trim(),
       供应商名称: header.供应商名称.trim() || undefined,
       日期: header.日期 ? header.日期.format("YYYY-MM-DD") : undefined,

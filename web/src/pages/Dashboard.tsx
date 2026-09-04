@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Button, Card, Col, Row } from "antd";
 import {
   TeamOutlined, ShopOutlined, AppstoreOutlined, TagsOutlined,
@@ -12,6 +12,7 @@ import { productionApi } from "../api/production";
 import { purchaseOrderApi } from "../api/purchaseOrders";
 import { plasticInventoryApi } from "../api/plasticInventory";
 import AlertCenter from "../components/AlertCenter";
+import { useAutoReload } from "../hooks/useAutoReload";
 
 interface Stat { key: string; label: string; sub: string; grad: string; icon: ReactNode }
 // 第一行:原有 4 张(来料向)
@@ -74,7 +75,8 @@ export default function Dashboard() {
   const [counts, setCounts] = useState<Record<string, number | null | undefined>>({});
   const [docStats, setDocStats] = useState<{ 生产通知单?: number | null; 采购订单?: number | null; 塑胶库存?: number | null }>({});
 
-  useEffect(() => {
+  // 统计加载本身即静默(失败置 null 显示 —,不弹 toast),手动与自动刷新共用
+  const load = useCallback(() => {
     [...STATS_ROW1, ...STATS_ROW2].forEach(async (s) => {
       try {
         const r = await masterApi(s.key).list(1, 1, "");
@@ -93,6 +95,10 @@ export default function Dashboard() {
       .then(rows => setDocStats(p => ({ ...p, 塑胶库存: rows.reduce((s, r) => s + (r.库存数量 || 0), 0) })))
       .catch(() => setDocStats(p => ({ ...p, 塑胶库存: null })));
   }, []);
+
+  useEffect(() => { load(); }, [load]);
+  // 切回首页/窗口聚焦/30秒轮询 自动刷新统计
+  useAutoReload(load);
 
   const now = new Date();
   const dateText = `${now.getFullYear()} 年 ${now.getMonth() + 1} 月 ${now.getDate()} 日 星期${WEEK[now.getDay()]}`;

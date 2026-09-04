@@ -10,6 +10,7 @@ import MaterialDocCreateDrawer from "./MaterialDocCreateDrawer";
 import MaterialDocDetailDrawer from "./MaterialDocDetailDrawer";
 import MaterialIssueOutboundDrawer from "./MaterialIssueOutboundDrawer";
 import { buildCopyInitial } from "../../utils/materialDocCopy";
+import { useAutoReload } from "../../hooks/useAutoReload";
 
 export default function MaterialDocPage({ cfg }: { cfg: MaterialDocCfg }) {
   const perms = usePerms();
@@ -37,11 +38,13 @@ export default function MaterialDocPage({ cfg }: { cfg: MaterialDocCfg }) {
     setSearchParams({}, { replace: true });   // 先清参数，避免刷新/返回重复带入
   }, [searchParams, cfg.usageCols, setSearchParams]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (silent = false) => {
     try { const r = await dapi.list(page, 10, keyword); setRows(r.items); setTotal(r.total); }
-    catch { message.error("加载列表失败"); }
+    catch { if (!silent) message.error("加载列表失败"); }
   }, [page, keyword, dapi]);
   useEffect(() => { load(); }, [load]);
+  // 切回本页/窗口聚焦/30秒轮询 自动刷新;silent 失败不弹 toast,避免后端异常时刷屏
+  useAutoReload(() => { void load(true); });
 
   const act = async (fn: () => Promise<unknown>, ok: string) => {
     try { await fn(); message.success(ok); load(); }

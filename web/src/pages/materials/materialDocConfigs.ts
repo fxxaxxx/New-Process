@@ -26,12 +26,12 @@ export const MATERIAL_DOC_CONFIGS: Record<string, MaterialDocCfg> = {
   },
   "material-issues": {
     resource: "material-issues", menu: "领料单", title: "领料", usageCols: true, outbound: true,
-    // 按原系统表头：部门/日期/领料人(🔍)/电脑单号/操作员/仓库/备注；仓库下拉选择,所选仓库决定「按生产单带入」的物料口径(来料仓/塑胶仓)
+    // 按原系统表头：部门/日期/领料人(🔍)/电脑单号/操作员/仓库/备注；仓库下拉选择,所选仓库决定「按生产单带入」的物料口径(来料仓/塑胶仓/半成品仓/成品仓)
     headerFields: [
       { name: "领料部门", label: "部门", defaultValue: "装配部" }, { name: "日期", label: "日期", type: "date-today" },
       { name: "领料人", label: "领料人", type: "employee" }, { name: "单号", label: "电脑单号", type: "docno" },
       { name: "操作员", label: "操作员", type: "operator" },
-      { name: "仓库", label: "仓库", required: true, type: "select", options: ["来料仓", "塑胶仓"], defaultValue: "来料仓" },
+      { name: "仓库", label: "仓库", required: true, type: "select", options: ["来料仓", "塑胶仓", "半成品仓", "成品仓"], defaultValue: "来料仓" },
       { name: "接受人", label: "接受人", required: true, type: "recipient" },
       { name: "备注", label: "备注" },
     ],

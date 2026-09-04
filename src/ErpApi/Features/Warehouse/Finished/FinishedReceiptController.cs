@@ -111,6 +111,8 @@ public sealed class FinishedReceiptController(
         if (!await AllowAsync(PermissionAction.审核)) return Forbid();
         try { await periodLock.EnsureHeaderOpenAsync(口径, Table, 单号); }
         catch (PeriodLockedException ex) { return Conflict(new { 消息 = ex.Message }); }
+        try { await svc.ValidatePlanCapAsync(单号); }
+        catch (ArgumentException ex) { return Conflict(new { 消息 = ex.Message }); }
         if (!await posting.ApproveAsync(Table, 单号, CurrentUser))
             return Conflict(new { 消息 = "审核失败：单不存在或已审核。" });
         await SyncLineApprovalAsync(单号, "1");

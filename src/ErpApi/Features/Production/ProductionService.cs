@@ -168,11 +168,15 @@ WHERE [生产单号]=@生产单号",
     // 分页列表（单头；关键字模糊匹配 生产单号/款号/款式/客户名称/合同号）
     // 领料应领明细:按生产单 BOM 展开快照取 应领=Σ总数量(需求侧,不扣库存)。
     // 档=来料 只留 物料资料 存在的行;档=塑胶 只留 物料资料 不存在的行(塑胶/未知档案)。
+    // 档=半成品/成品 时返回该生产单在 半成品仓/成品仓 的现存净额(供给侧,装配部再领料用),见下方分支。
     public async Task<IReadOnlyList<IssueBasisRow>> IssueBasisAsync(string 生产单号, string? 档)
     {
+        using var c = factory.Create();
+        if (档 == "半成品") return await IssueBasisSemiAsync(c, 生产单号);
+        if (档 == "成品") return await IssueBasisFinishedAsync(c, 生产单号);
+
         var mat = 档 == "来料" ? 1 : 0;
         var plastic = 档 == "塑胶" ? 1 : 0;
-        using var c = factory.Create();
         var rows = await c.QueryAsync<IssueBasisRow>(@"
 SELECT b.[生产单号], MAX(b.[货号]) AS 款号, b.[物料编号], MAX(b.[物料名称]) AS 物料名称,
        MAX(b.[规格]) AS 规格, MAX(b.[颜色]) AS 颜色, MAX(b.[单位]) AS 单位,
@@ -183,6 +187,81 @@ WHERE b.[生产单号]=@生产单号
   AND (@plastic=0 OR NOT EXISTS(SELECT 1 FROM [物料资料] m WHERE m.[物料编号]=b.[物料编号]))
 GROUP BY b.[生产单号], b.[物料编号]
 ORDER BY b.[物料编号];", new { 生产单号, mat, plastic });
+        return rows.AsList();
+    }
+
+    // 档=半成品：该生产单在半成品仓的现存净额 = 入仓(+) − 半成品领料(−) − 退仓(−) + 退库(+) − 报废(−)
+    //   − 装配部领料单(仓库=半成品仓)已出口径(−)；审核标志在单头需 JOIN，按 物料编号 聚合只回正数行。
+    private static async Task<IReadOnlyList<IssueBasisRow>> IssueBasisSemiAsync(SqlConnection c, string 生产单号)
+    {
+        var rows = await c.QueryAsync<IssueBasisRow>(@"
+SELECT @生产单号 AS [生产单号], MAX(t.[货号]) AS [款号], t.[物料编号],
+       MAX(t.[物料名称]) AS [物料名称], MAX(t.[规格]) AS [规格], MAX(t.[颜色]) AS [颜色], MAX(t.[单位]) AS [单位],
+       SUM(t.[数量]) AS [数量]
+FROM (
+    SELECT d.[货号],d.[物料编号],d.[物料名称],d.[规格],d.[颜色],d.[单位], d.[数量] AS [数量]
+        FROM [半成品入仓明细单] d JOIN [半成品入仓单] h ON h.[单号]=d.[单号]
+        WHERE d.[生产单号]=@生产单号 AND d.[仓库]=N'半成品仓' AND ISNULL(h.[审核],'0')='1'
+    UNION ALL
+    SELECT d.[货号],d.[物料编号],d.[物料名称],d.[规格],d.[颜色],d.[单位], d.[数量]*-1
+        FROM [半成品领料明细单] d JOIN [半成品领料单] h ON h.[单号]=d.[单号]
+        WHERE d.[生产单号]=@生产单号 AND d.[仓库]=N'半成品仓' AND ISNULL(h.[审核],'0')='1'
+    UNION ALL
+    SELECT d.[货号],d.[物料编号],d.[物料名称],d.[规格],d.[颜色],d.[单位], d.[数量]*-1
+        FROM [半成品退仓明细单] d JOIN [半成品退仓单] h ON h.[单号]=d.[单号]
+        WHERE d.[生产单号]=@生产单号 AND d.[仓库]=N'半成品仓' AND ISNULL(h.[审核],'0')='1'
+    UNION ALL
+    SELECT d.[货号],d.[物料编号],d.[物料名称],d.[规格],d.[颜色],d.[单位], d.[数量]
+        FROM [半成品退库明细单] d JOIN [半成品退库单] h ON h.[单号]=d.[单号]
+        WHERE d.[生产单号]=@生产单号 AND d.[仓库]=N'半成品仓' AND ISNULL(h.[审核],'0')='1'
+    UNION ALL
+    SELECT d.[货号],d.[物料编号],d.[物料名称],d.[规格],d.[颜色],d.[单位], d.[数量]*-1
+        FROM [半成品报废明细单] d JOIN [半成品报废单] h ON h.[单号]=d.[单号]
+        WHERE d.[生产单号]=@生产单号 AND d.[仓库]=N'半成品仓' AND ISNULL(h.[审核],'0')='1'
+    UNION ALL
+    SELECT d.[款号],d.[物料编号],d.[物料名称],d.[规格],d.[颜色],d.[单位],
+           (CASE WHEN d.[已出数量] IS NOT NULL THEN d.[已出数量] ELSE d.[数量] END) * -1
+        FROM [领料明细单] d JOIN [领料单] h ON h.[单号]=d.[单号]
+        WHERE d.[生产单号]=@生产单号 AND d.[仓库]=N'半成品仓'
+          AND (ISNULL(d.[已出数量],0) > 0 OR ISNULL(h.[审核],'0')='1')
+) t
+GROUP BY t.[物料编号]
+HAVING SUM(t.[数量]) > 0
+ORDER BY t.[物料编号];", new { 生产单号 });
+        return rows.AsList();
+    }
+
+    // 档=成品：该生产单的成品现存净额 = 入仓(+) + 退货(+) − 出仓(−) − 退仓(−)
+    //   − 装配部领料单(仓库=成品仓)已出口径(−)；成品各明细单审核在明细行本身，领料单审核在单头需 JOIN。
+    // 行映射：物料编号=款号、物料名称=款式、单位固定 PCS(供装配部返工领出)。
+    private static async Task<IReadOnlyList<IssueBasisRow>> IssueBasisFinishedAsync(SqlConnection c, string 生产单号)
+    {
+        var rows = await c.QueryAsync<IssueBasisRow>(@"
+SELECT @生产单号 AS [生产单号], t.[款号], t.[款号] AS [物料编号],
+       MAX(t.[款式]) AS [物料名称], CAST(NULL AS nvarchar(20)) AS [规格],
+       MAX(t.[颜色]) AS [颜色], N'PCS' AS [单位], SUM(t.[数量]) AS [数量]
+FROM (
+    SELECT d.[款号],d.[款式],d.[颜色], d.[数量] AS [数量] FROM [成品入仓明细单] d
+        WHERE d.[生产单号]=@生产单号 AND ISNULL(d.[审核],'0')='1'
+    UNION ALL
+    SELECT d.[款号],d.[款式],d.[颜色], d.[数量] FROM [成品退货明细单] d
+        WHERE d.[生产单号]=@生产单号 AND ISNULL(d.[审核],'0')='1'
+    UNION ALL
+    SELECT d.[款号],d.[款式],d.[颜色], d.[数量]*-1 FROM [成品出仓明细单] d
+        WHERE d.[生产单号]=@生产单号 AND ISNULL(d.[审核],'0')='1'
+    UNION ALL
+    SELECT d.[款号],d.[款式],d.[颜色], d.[数量]*-1 FROM [成品退仓明细单] d
+        WHERE d.[生产单号]=@生产单号 AND ISNULL(d.[审核],'0')='1'
+    UNION ALL
+    SELECT d.[款号],N'' AS [款式],d.[颜色],
+           (CASE WHEN d.[已出数量] IS NOT NULL THEN d.[已出数量] ELSE d.[数量] END) * -1
+        FROM [领料明细单] d JOIN [领料单] h ON h.[单号]=d.[单号]
+        WHERE d.[生产单号]=@生产单号 AND d.[仓库]=N'成品仓'
+          AND (ISNULL(d.[已出数量],0) > 0 OR ISNULL(h.[审核],'0')='1')
+) t
+GROUP BY t.[款号]
+HAVING SUM(t.[数量]) > 0
+ORDER BY t.[款号];", new { 生产单号 });
         return rows.AsList();
     }
 
@@ -198,18 +277,57 @@ ORDER BY b.[物料编号];", new { 生产单号, mat, plastic });
 SELECT COUNT(*) FROM [生产制单]
 WHERE @kw IS NULL OR [生产单号] LIKE @kw OR [款号] LIKE @kw OR [款式] LIKE @kw
    OR [客户名称] LIKE @kw OR [合同号] LIKE @kw;
-SELECT [ID],[生产单号],[款号],[款式],[合同号],[客户编号],[客户名称],[加工厂编号],[加工厂名称],
-       [日期],[交货日期],[制单人],[跟单员],[计划数量],[接单数量],[工序数],[工序单价],[物料金额],[出货单价],
-       [审核],[审核人],[完成],[备注]
-FROM [生产制单]
-WHERE @kw IS NULL OR [生产单号] LIKE @kw OR [款号] LIKE @kw OR [款式] LIKE @kw
-   OR [客户名称] LIKE @kw OR [合同号] LIKE @kw
-ORDER BY [ID] DESC
+SELECT h.[ID],h.[生产单号],h.[款号],h.[款式],h.[合同号],h.[客户编号],h.[客户名称],h.[加工厂编号],h.[加工厂名称],
+       h.[日期],h.[交货日期],h.[制单人],h.[跟单员],h.[计划数量],h.[接单数量],h.[工序数],h.[工序单价],h.[物料金额],h.[出货单价],
+       h.[审核],h.[审核人],h.[完成],h.[备注],
+       ISNULL(sr.[入半成品数量],0) AS [入半成品数量], ISNULL(fr.[入成品数量],0) AS [入成品数量]
+FROM [生产制单] h
+LEFT JOIN (
+    SELECT d.[生产单号], SUM(d.[数量]) AS [入半成品数量]
+    FROM [半成品入仓明细单] d JOIN [半成品入仓单] s ON s.[单号]=d.[单号]
+    WHERE ISNULL(s.[审核],'0')='1' AND d.[生产单号] IS NOT NULL AND d.[生产单号]<>''
+    GROUP BY d.[生产单号]
+) sr ON sr.[生产单号]=h.[生产单号]
+LEFT JOIN (
+    SELECT d.[生产单号], SUM(d.[数量]) AS [入成品数量]
+    FROM [成品入仓明细单] d JOIN [成品入仓单] f ON f.[单号]=d.[单号]
+    WHERE ISNULL(f.[审核],'0')='1' AND d.[生产单号] IS NOT NULL AND d.[生产单号]<>''
+    GROUP BY d.[生产单号]
+) fr ON fr.[生产单号]=h.[生产单号]
+WHERE @kw IS NULL OR h.[生产单号] LIKE @kw OR h.[款号] LIKE @kw OR h.[款式] LIKE @kw
+   OR h.[客户名称] LIKE @kw OR h.[合同号] LIKE @kw
+ORDER BY h.[ID] DESC
 OFFSET (@page-1)*@size ROWS FETCH NEXT @size ROWS ONLY;",
             new { kw, page, size });
         var total = await multi.ReadFirstAsync<int>();
         var items = (await multi.ReadAsync<ProductionHeaderDto>()).AsList();
         return new PagedResult<ProductionHeaderDto>(items, total);
+    }
+
+    // 查询页顶部合计:与 ListAsync 相同的关键字过滤,不分页汇总全部匹配行
+    public async Task<ProductionSummaryDto> SummaryAsync(string? keyword)
+    {
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        using var c = factory.Create();
+        return await c.QuerySingleAsync<ProductionSummaryDto>(@"
+SELECT ISNULL(SUM(h.[计划数量]),0) AS [计划数量合计],
+       ISNULL(SUM(ISNULL(sr.[入半成品数量],0)),0) AS [入半成品数量合计],
+       ISNULL(SUM(ISNULL(fr.[入成品数量],0)),0) AS [入成品数量合计]
+FROM [生产制单] h
+LEFT JOIN (
+    SELECT d.[生产单号], SUM(d.[数量]) AS [入半成品数量]
+    FROM [半成品入仓明细单] d JOIN [半成品入仓单] s ON s.[单号]=d.[单号]
+    WHERE ISNULL(s.[审核],'0')='1' AND d.[生产单号] IS NOT NULL AND d.[生产单号]<>''
+    GROUP BY d.[生产单号]
+) sr ON sr.[生产单号]=h.[生产单号]
+LEFT JOIN (
+    SELECT d.[生产单号], SUM(d.[数量]) AS [入成品数量]
+    FROM [成品入仓明细单] d JOIN [成品入仓单] f ON f.[单号]=d.[单号]
+    WHERE ISNULL(f.[审核],'0')='1' AND d.[生产单号] IS NOT NULL AND d.[生产单号]<>''
+    GROUP BY d.[生产单号]
+) fr ON fr.[生产单号]=h.[生产单号]
+WHERE @kw IS NULL OR h.[生产单号] LIKE @kw OR h.[款号] LIKE @kw OR h.[款式] LIKE @kw
+   OR h.[客户名称] LIKE @kw OR h.[合同号] LIKE @kw;", new { kw });
     }
 
     // 详情：单头 + 数量 + 工序 + BOM

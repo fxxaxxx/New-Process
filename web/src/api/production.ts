@@ -29,6 +29,7 @@ export interface ProductionHeader {
   订单单号?: string;
   计划数量?: number | null; 工序数?: number | null; 工序单价?: number | null;
   物料金额?: number | null; 出货单价?: number | null; 审核?: string; 完成?: string;
+  入半成品数量?: number | null; 入成品数量?: number | null;
 }
 
 export interface ProductionGoodsDetail {
@@ -73,6 +74,9 @@ const enc = encodeURIComponent;
 export const productionApi = {
   list: (page = 1, size = 20, keyword = "") =>
     api.get<Paged<ProductionHeader>>("/production", { params: { page, size, keyword } }).then(r => r.data),
+  // 查询页顶部合计:与 list 同关键字过滤,不分页汇总全部匹配行
+  summary: (keyword = "") =>
+    api.get<{ 计划数量合计: number; 入半成品数量合计: number; 入成品数量合计: number }>("/production/summary", { params: { keyword } }).then(r => r.data),
   get: (生产单号: string) => api.get<ProductionDetail>(`/production/${enc(生产单号)}`).then(r => r.data),
   create: (body: ProductionNoticeCreate) => api.post<{ 生产单号: string }>("/production", body).then(r => r.data),
   // 表头修改(仅未审核可改):货号明细/工序/BOM 不在此更新
@@ -84,7 +88,7 @@ export const productionApi = {
     api.get<MoLine[]>(`/production/${enc(生产单号)}/mo`).then(r => r.data),
   saveMo: (生产单号: string, lines: MoLine[]) =>
     api.put(`/production/${enc(生产单号)}/mo`, lines),
-  // 领料应领明细(供领料单按生产单一键带入):档=来料/塑胶
-  issueBasis: (生产单号: string, 档: "来料" | "塑胶") =>
+  // 领料应领明细(供领料单按生产单一键带入):档=来料/塑胶 按 BOM 应领;档=半成品/成品 取该生产单对应仓现存净额
+  issueBasis: (生产单号: string, 档: "来料" | "塑胶" | "半成品" | "成品") =>
     api.get<IssueBasisRow[]>(`/production/${enc(生产单号)}/issue-basis`, { params: { 档 } }).then(r => r.data),
 };

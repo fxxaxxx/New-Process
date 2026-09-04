@@ -10,6 +10,7 @@ import { usePerms } from "../../auth/PermissionContext";
 import { mergeSemiIssueLines, validateSemiIssue, type SIDraftLine } from "../../utils/semiIssue";
 import SemiFinishedLabelProductPicker, { type SemiFinishedLabelProduct } from "../semi/SemiFinishedLabelProductPicker";
 import EmployeePicker from "../materials/EmployeePicker";
+import { useAutoReload } from "../../hooks/useAutoReload";
 
 const MENU = "半成品领料";
 const WAREHOUSE = "半成品仓";
@@ -136,7 +137,9 @@ export default function SemiIssuePage() {
 
 function OpenList({ onPick }: { onPick: (no: string) => void }) {
   const [keyword, setKeyword] = useState(""); const [rows, setRows] = useState<SIHeader[]>([]); const [loading, setLoading] = useState(false);
-  const load = async () => { setLoading(true); try { setRows((await semiIssueApi.list(1, 100, keyword.trim())).items as SIHeader[]); } catch { message.error("加载出库单失败"); } finally { setLoading(false); } };
+  const load = async (silent = false) => { setLoading(true); try { setRows((await semiIssueApi.list(1, 100, keyword.trim())).items as SIHeader[]); } catch { if (!silent) message.error("加载出库单失败"); } finally { setLoading(false); } };
+  // 弹窗打开期间,切回本页/窗口聚焦/30秒轮询 自动刷新列表;silent 失败不弹 toast
+  useAutoReload(() => { void load(true); });
   return <>
     <Input.Search allowClear value={keyword} onChange={e => setKeyword(e.target.value)} onSearch={() => void load()} onFocus={() => rows.length === 0 && void load()} placeholder="电脑单号 / 仓库 / 领料人" style={{ width: 320, marginBottom: 12 }} />
     <Table<SIHeader> rowKey={r => r.单号 ?? String(r.ID ?? r.id)} size="small" loading={loading} dataSource={rows} pagination={false} scroll={{ y: 440 }}

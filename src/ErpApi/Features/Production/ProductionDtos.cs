@@ -47,6 +47,7 @@ public sealed class ProductionNoticeCreateDto
 
 
 // 领料应领行:生产单 BOM 展开快照(生产BOM物料清单)按物料聚合 应领=Σ总数量;档=来料/塑胶 按档案过滤
+// 档=半成品/成品 时改为返回该生产单在 半成品仓/成品仓 的现存净额(成品行 物料编号=款号、单位=PCS)
 public sealed class IssueBasisRow
 {
     public string? 生产单号 { get; set; }
@@ -88,10 +89,20 @@ public sealed class ProductionHeaderDto
     public decimal? 工序单价 { get; set; }
     public decimal? 物料金额 { get; set; }
     public decimal? 出货单价 { get; set; }
+    public decimal? 入半成品数量 { get; set; }   // 已审核半成品入仓合计(按生产单号)
+    public decimal? 入成品数量 { get; set; }     // 已审核成品入仓合计(按生产单号)
     public string? 审核 { get; set; }
     public string? 审核人 { get; set; }
     public string? 完成 { get; set; }
     public string? 备注 { get; set; }
+}
+
+// 查询生产单顶部合计(与 ListAsync 同关键字过滤,不分页汇总全部匹配行)
+public sealed class ProductionSummaryDto
+{
+    public decimal 计划数量合计 { get; set; }
+    public decimal 入半成品数量合计 { get; set; }
+    public decimal 入成品数量合计 { get; set; }
 }
 
 // 货号明细行（生产制单货号；GetAsync 返回）

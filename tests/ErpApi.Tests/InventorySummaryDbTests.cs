@@ -134,4 +134,69 @@ public class InventorySummaryDbTests(DbFixture fx)
             P5cTestData.Cleanup(c);
         }
     }
+
+    [SkippableFact]
+    public async Task SemiFinished_deducts_装配领料单_outbound()
+    {
+        using var c = fx.Open();
+        P5cTestData.Seed(c);
+        try
+        {
+            // 半成品入仓 100(已审核)；装配部领料单(仓库=半成品仓)：P5CLL1 未审核但已出 25(按 已出数量 扣)、P5CLL2 已审核全量 10(已出数量 空按 数量 扣)
+            c.Execute("INSERT INTO [半成品入仓单]([单号],[仓库],[审核]) VALUES(N'P5CSRK2',N'P5c半成品仓','1')");
+            c.Execute(@"INSERT INTO [半成品入仓明细单]([单号],[仓库],[生产单号],[款号],[物料编号],[物料名称],[规格],[颜色],[数量])
+                        VALUES(N'P5CSRK2',N'P5c半成品仓',N'P5cSC01',N'P5cK01',N'P5cM1',N'P5c半成品料',N'规格A',N'黑色',100)");
+            c.Execute("INSERT INTO [领料单]([单号],[仓库],[审核]) VALUES(N'P5CLL1',N'P5c半成品仓','0')");
+            c.Execute(@"INSERT INTO [领料明细单]([单号],[仓库],[生产单号],[款号],[物料编号],[物料名称],[规格],[颜色],[数量],[已出数量])
+                        VALUES(N'P5CLL1',N'P5c半成品仓',N'P5cSC01',N'P5cK01',N'P5cM1',N'P5c半成品料',N'规格A',N'黑色',40,25)");
+            c.Execute("INSERT INTO [领料单]([单号],[仓库],[审核]) VALUES(N'P5CLL2',N'P5c半成品仓','1')");
+            c.Execute(@"INSERT INTO [领料明细单]([单号],[仓库],[生产单号],[款号],[物料编号],[物料名称],[规格],[颜色],[数量])
+                        VALUES(N'P5CLL2',N'P5c半成品仓',N'P5cSC01',N'P5cK01',N'P5cM1',N'P5c半成品料',N'规格A',N'黑色',10)");
+
+            var rows = await new InventorySummaryService(Factory()).SemiFinishedAsync("P5c半成品仓");
+            var r = Assert.Single(rows);
+            Assert.Equal("P5cM1", r.物料编号);
+            Assert.Equal(65m, r.库存);   // 100 - 25 - 10
+        }
+        finally
+        {
+            c.Execute("DELETE FROM [领料明细单] WHERE [单号] IN (N'P5CLL1',N'P5CLL2')");
+            c.Execute("DELETE FROM [领料单] WHERE [单号] IN (N'P5CLL1',N'P5CLL2')");
+            c.Execute("DELETE FROM [半成品入仓明细单] WHERE [单号]='P5CSRK2'");
+            c.Execute("DELETE FROM [半成品入仓单] WHERE [单号]='P5CSRK2'");
+            P5cTestData.Cleanup(c);
+        }
+    }
+
+    [SkippableFact]
+    public async Task FinishedGoods_deducts_装配领料单_outbound()
+    {
+        using var c = fx.Open();
+        P5TestData.Seed(c);
+        try
+        {
+            // 成品入仓 100(色号/尺码 空,与领料行同组净额)；装配部领料单(仓库=成品仓,返工领出)未审核但已出 30 → 70
+            c.Execute("INSERT INTO [成品入仓单]([单号],[仓库],[审核]) VALUES(N'P5RKD2',N'P5成品仓','1')");
+            c.Execute(@"INSERT INTO [成品入仓明细单]([单号],[仓库],[生产单号],[款号],[款式],[颜色],[数量],[审核])
+                        VALUES(N'P5RKD2',N'P5成品仓',N'P5SC01',N'P5K01',N'P5测试款式',N'黑色',100,'1')");
+            c.Execute("INSERT INTO [领料单]([单号],[仓库],[审核]) VALUES(N'P5LL01',N'P5成品仓','0')");
+            c.Execute(@"INSERT INTO [领料明细单]([单号],[仓库],[生产单号],[款号],[颜色],[数量],[已出数量])
+                        VALUES(N'P5LL01',N'P5成品仓',N'P5SC01',N'P5K01',N'黑色',30,30)");
+
+            var rows = await new InventorySummaryService(Factory()).FinishedGoodsAsync("P5成品仓");
+            var r = Assert.Single(rows);
+            Assert.Equal("P5K01", r.款号);
+            Assert.Null(r.色号);
+            Assert.Null(r.尺码);
+            Assert.Equal(70m, r.库存);   // 100 - 30
+        }
+        finally
+        {
+            c.Execute("DELETE FROM [领料明细单] WHERE [单号]=N'P5LL01'");
+            c.Execute("DELETE FROM [领料单] WHERE [单号]=N'P5LL01'");
+            c.Execute("DELETE FROM [成品入仓明细单] WHERE [单号]='P5RKD2'");
+            c.Execute("DELETE FROM [成品入仓单] WHERE [单号]='P5RKD2'");
+            P5TestData.Cleanup(c);
+        }
+    }
 }

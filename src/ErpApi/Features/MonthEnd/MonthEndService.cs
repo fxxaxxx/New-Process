@@ -17,6 +17,10 @@ WITH 账本 AS (
     UNION ALL SELECT 款号,款式,色号,颜色,尺码,[日期], ISNULL(盈亏数量,0)   FROM [成品盘点明细单] WHERE 仓库=@仓 AND ISNULL(审核,'0')='1'
     UNION ALL SELECT 款号,款式,色号,颜色,尺码,[日期], ISNULL(数量,0)      FROM [成品调拨明细单] WHERE 目标仓库=@仓 AND ISNULL(审核,'0')='1'
     UNION ALL SELECT 款号,款式,色号,颜色,尺码,[日期], ISNULL(数量,0)*-1   FROM [成品调拨明细单] WHERE 源仓库=@仓 AND ISNULL(审核,'0')='1'
+    UNION ALL SELECT d.款号,N'',CAST(NULL AS nvarchar(20)),d.颜色,CAST(NULL AS nvarchar(10)),COALESCE(d.[日期],h.[日期]),
+                     (CASE WHEN d.已出数量 IS NOT NULL THEN d.已出数量 ELSE d.数量 END)*-1
+                FROM [领料明细单] d JOIN [领料单] h ON h.单号=d.单号
+                WHERE d.仓库=@仓 AND (ISNULL(d.已出数量,0)>0 OR ISNULL(h.审核,'0')='1')
 )
 SELECT 款号, MAX(款式) AS 款式, 色号, 颜色, 尺码,
        SUM(CASE WHEN [日期] <  @月初 THEN 签 ELSE 0 END)                                  AS 期初,
@@ -41,6 +45,10 @@ WITH 账本 AS (
     UNION ALL
     SELECT d.物料编号,d.物料名称,d.规格,d.颜色,d.[日期], CAST(ISNULL(d.盈亏数量,0) AS decimal(18,4))
       FROM [半成品盘点明细单] d JOIN [半成品盘点单] h ON h.单号=d.单号 WHERE d.仓库=@仓 AND ISNULL(h.审核,'0')='1'
+    UNION ALL
+    SELECT d.物料编号,d.物料名称,d.规格,d.颜色,COALESCE(d.[日期],h.[日期]),
+           (CASE WHEN d.已出数量 IS NOT NULL THEN d.已出数量 ELSE d.数量 END)*-1
+      FROM [领料明细单] d JOIN [领料单] h ON h.单号=d.单号 WHERE d.仓库=@仓 AND (ISNULL(d.已出数量,0)>0 OR ISNULL(h.审核,'0')='1')
 )
 SELECT 物料编号, MAX(物料名称) AS 物料名称, MAX(规格) AS 规格, 颜色,
        SUM(CASE WHEN [日期] <  @月初 THEN 签 ELSE 0 END)                                  AS 期初,

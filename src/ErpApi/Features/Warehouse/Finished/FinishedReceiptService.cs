@@ -39,6 +39,30 @@ public sealed class FinishedReceiptService(ISqlConnectionFactory factory, IDocum
         if (dto.明细.Count == 0) throw new ArgumentException("成品入仓至少要有一行明细。");
         if (dto.明细.Any(x => string.IsNullOrWhiteSpace(x.配件编号))) throw new ArgumentException("配件编号必填。");
         if (dto.明细.Any(x => x.数量 <= 0)) throw new ArgumentException("入仓数量必须大于 0。");
+        // 规则:半成品未审核不能入成品——明细带生产单号时,要求该生产单已有已审核的半成品入仓
+        foreach (var mo in dto.明细.Select(x => x.生产单号?.Trim()).Where(m => !string.IsNullOrEmpty(m)).Distinct())
+        {
+            var audited = await c.ExecuteScalarAsync<int>(@"SELECT COUNT(*) FROM [半成品入仓明细单] d
+JOIN [半成品入仓单] h ON h.[单号]=d.[单号]
+WHERE ISNULL(h.[审核],'0')='1' AND d.[生产单号]=@mo", new { mo }, tx);
+            if (audited == 0) throw new ArgumentException($"生产单号 {mo} 没有已审核的半成品入仓，半成品未审核不能入成品。");
+        }
+        // 计划数量封顶:同一生产单+货号的已审核入仓累计+本次不得超 生产制单.计划数量(可分多次累积入仓)
+        foreach (var g in dto.明细
+            .Where(x => !string.IsNullOrWhiteSpace(x.生产单号) && !string.IsNullOrWhiteSpace(x.产品货号))
+            .GroupBy(x => (生产单号: x.生产单号!.Trim(), 货号: x.产品货号!.Trim())))
+        {
+            var plan = await c.ExecuteScalarAsync<decimal?>(
+                "SELECT [计划数量] FROM [生产制单] WHERE [生产单号]=@mo", new { mo = g.Key.生产单号 }, tx);
+            if (plan is null) continue;
+            var done = await c.ExecuteScalarAsync<decimal>(@"SELECT ISNULL(SUM(d.[数量]),0) FROM [成品入仓明细单] d
+JOIN [成品入仓单] h ON h.[单号]=d.[单号]
+WHERE ISNULL(h.[审核],'0')='1' AND d.[生产单号]=@mo AND d.[货号]=@gno AND d.[单号]<>@ex",
+                new { mo = g.Key.生产单号, gno = g.Key.货号, ex = 单号 }, tx);
+            var cur = g.Sum(x => x.数量);
+            if (done + cur > plan)
+                throw new ArgumentException($"生产单号 {g.Key.生产单号} 货号 {g.Key.货号} 累计入成品不能超过计划数量：计划 {plan}，已入 {done}，本次 {cur}。");
+        }
         var supplierCode = string.IsNullOrWhiteSpace(dto.供应商编号) ? null : dto.供应商编号.Trim();
         var warehouse = string.IsNullOrWhiteSpace(dto.仓库) ? "成品仓" : dto.仓库.Trim();
         var 数量 = dto.明细.Sum(l => l.数量);
@@ -61,6 +85,37 @@ VALUES(@单号,@订单单号,@日期,@供应商编号,@供应商名称,@仓库,@
                     l.生产单号, 款号 = l.产品货号, 配件编号 = l.配件编号!.Trim(), l.客户, 货号 = l.产品货号, 名称 = l.产品名称,
                     l.产品装配名称, l.箱数, l.数量, 单价 = l.单价 ?? 0m, 金额 = l.数量 * (l.单价 ?? 0m), l.备注
                 }, tx);
+    }
+
+    // 审核前校验(控制器在 posting.ApproveAsync 之前调用):从库里取明细走同一套规则
+    // (半成品未审核不能入成品 + 累计入成品不超计划数量)
+    public async Task ValidatePlanCapAsync(string 单号)
+    {
+        using var c = factory.Create();
+        var lines = (await c.QueryAsync<FinishedReceiptLineDto>(
+            "SELECT [生产单号],[货号] AS [产品货号],[数量] FROM [成品入仓明细单] WHERE [单号]=@单号", new { 单号 })).AsList();
+        foreach (var mo in lines.Select(x => x.生产单号?.Trim()).Where(m => !string.IsNullOrEmpty(m)).Distinct())
+        {
+            var audited = await c.ExecuteScalarAsync<int>(@"SELECT COUNT(*) FROM [半成品入仓明细单] d
+JOIN [半成品入仓单] h ON h.[单号]=d.[单号]
+WHERE ISNULL(h.[审核],'0')='1' AND d.[生产单号]=@mo", new { mo });
+            if (audited == 0) throw new ArgumentException($"生产单号 {mo} 没有已审核的半成品入仓，半成品未审核不能入成品。");
+        }
+        foreach (var g in lines
+            .Where(x => !string.IsNullOrWhiteSpace(x.生产单号) && !string.IsNullOrWhiteSpace(x.产品货号))
+            .GroupBy(x => (生产单号: x.生产单号!.Trim(), 货号: x.产品货号!.Trim())))
+        {
+            var plan = await c.ExecuteScalarAsync<decimal?>(
+                "SELECT [计划数量] FROM [生产制单] WHERE [生产单号]=@mo", new { mo = g.Key.生产单号 });
+            if (plan is null) continue;
+            var done = await c.ExecuteScalarAsync<decimal>(@"SELECT ISNULL(SUM(d.[数量]),0) FROM [成品入仓明细单] d
+JOIN [成品入仓单] h ON h.[单号]=d.[单号]
+WHERE ISNULL(h.[审核],'0')='1' AND d.[生产单号]=@mo AND d.[货号]=@gno AND d.[单号]<>@ex",
+                new { mo = g.Key.生产单号, gno = g.Key.货号, ex = 单号 });
+            var cur = g.Sum(x => x.数量);
+            if (done + cur > plan)
+                throw new ArgumentException($"生产单号 {g.Key.生产单号} 货号 {g.Key.货号} 累计入成品不能超过计划数量：计划 {plan}，已入 {done}，本次 {cur}。");
+        }
     }
 
     public async Task<PagedResult<FinishedReceiptHeaderDto>> ListAsync(int page, int size, string? keyword)

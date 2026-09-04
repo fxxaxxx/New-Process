@@ -50,6 +50,13 @@ public sealed class ProductionController(
         return Ok(result);
     }
 
+    [HttpGet("summary")]
+    public async Task<IActionResult> Summary(string? keyword = null)
+    {
+        if (!await AllowAsync(PermissionAction.打开)) return Forbid();
+        return Ok(await svc.SummaryAsync(keyword));
+    }
+
     [HttpGet("{生产单号}")]
     public async Task<IActionResult> Get(string 生产单号)
     {
@@ -60,7 +67,7 @@ public sealed class ProductionController(
         return Ok(d);
     }
 
-    // 领料应领明细(供领料单按生产单一键带入):档=来料/塑胶 过滤档案
+    // 领料应领明细(供领料单按生产单一键带入):档=来料/塑胶 过滤档案;档=半成品/成品 取该生产单对应仓现存净额
     [HttpGet("{生产单号}/issue-basis")]
     public async Task<IActionResult> IssueBasis(string 生产单号, string? 档 = null)
     {
