@@ -2,28 +2,38 @@ using Dapper;
 using ErpApi.Engines.DocumentNumber;
 using ErpApi.Features.MasterData;
 using ErpApi.Infrastructure.Db;
+using ErpApi.Integrations.Paiji;
 namespace ErpApi.Features.Plastics.PlasticPurchaseOrder;
 
 // 塑胶采购订单。头 + 明细。审核 = 纯锁定(走通用过账引擎只翻 审核='1',不动库存)。
 // 明细按生产单号从塑胶共用物料表 BOM 调入(同 PlasticMaterialDocService.BasisAsync 口径)。
-public sealed class PlasticPurchaseOrderService(ISqlConnectionFactory factory, IDocumentNumberGenerator docNo)
+public sealed class PlasticPurchaseOrderService(ISqlConnectionFactory factory, IDocumentNumberGenerator docNo,
+    PaijiPushService paiji)
 {
     public const string DocType = "塑胶采购订单";
     public const string Prefix = "SP";   // 塑胶采购订单号 = SP + yyyyMMdd + 3位流水
 
     // 从塑胶共用物料表 BOM 按生产单号带出基准行；顺带返回 计划数量(默认订购数量=计划数量×用量)、
     // 生产制单.合同号(客户合同号即PO号,前端自动填入表头 编号) 与 已订数量(塑胶采购订单明细 按 物料+颜色 累计,防重复下单)。
+    // 套数 BOM 未填时回落 塑胶物料资料.套数。
     public async Task<IReadOnlyList<PlasticPurchaseOrderBasisRow>> BasisAsync(string 生产单号)
     {
         using var c = factory.Create();
         var rows = await c.QueryAsync<PlasticPurchaseOrderBasisRow>(@"
 SELECT g.[生产单号], pm.[款号], p.[物料编号], p.[物料名称], p.[工模编号] AS 模具编号,
-       p.[用量], p.[套数], p.[颜色], p.[色粉号], p.[用料名称],
+       p.[用量], COALESCE(p.[套数], mm.[套数]) AS 套数, p.[颜色],
+       -- 色粉号 BOM 未填时回落 塑胶物料资料(资料由表格导入,值带 .0 后缀,剥掉)
+       COALESCE(NULLIF(p.[色粉号], N''),
+                CASE WHEN mm.[色粉号] LIKE N'%.0' THEN LEFT(mm.[色粉号], LEN(mm.[色粉号])-2) ELSE mm.[色粉号] END) AS 色粉号,
+       p.[用料名称],
+       -- 加工内容 优先 塑胶物料资料，BOM 未填时回落 BOM(喷油下单按它过滤)
+       COALESCE(NULLIF(mm.[加工内容], N''), NULLIF(p.[加工内容], N'')) AS 加工内容,
        pm.[计划数量], pm.[合同号],
        ISNULL(od.[已订数量],0) AS 已订数量
 FROM [塑胶共用物料表] p
 JOIN [生产制单货号] g ON g.[货号] = p.[塑胶货号]
 LEFT JOIN [生产制单] pm ON pm.[生产单号] = g.[生产单号]
+LEFT JOIN [塑胶物料资料] mm ON mm.[物料编号] = p.[物料编号]
 LEFT JOIN (
     SELECT d.[物料编号], ISNULL(d.[颜色],N'') AS 颜色键, SUM(d.[数量]) AS 已订数量
     FROM [塑胶采购订单明细] d
@@ -62,6 +72,37 @@ VALUES(@单号,@生产单号,@款号,@物料编号,@物料名称,@模具编号,@
 
         tx.Commit();
         return 单号;
+    }
+
+    // 未审核可改：单头字段(日期/操作员不动) + 明细整组替换；已审核拒绝(先反审核)。
+    public async Task<bool> UpdateAsync(string 单号, PlasticPurchaseOrderCreateDto dto, string user)
+    {
+        if (dto.明细.Count == 0) throw new ArgumentException("塑胶采购订单至少要有一行物料明细");
+        using var c = factory.Create();
+        await c.OpenAsync();
+        using var tx = c.BeginTransaction();
+        var 审核 = await c.ExecuteScalarAsync<string?>(
+            "SELECT ISNULL([审核],'0') FROM [塑胶采购订单] WITH (UPDLOCK,HOLDLOCK) WHERE [单号]=@单号", new { 单号 }, tx);
+        if (审核 is null) return false;
+        if (审核 == "1") throw new InvalidOperationException("已审核的塑胶采购订单不能修改，请先反审核。");
+
+        await c.ExecuteAsync(@"
+UPDATE [塑胶采购订单] SET [交货日期]=@交货日期,[供应商编号]=@供应商编号,[供应商名称]=@供应商名称,
+    [客户名称]=@客户名称,[交货地点]=@交货地点,[编号]=@编号,[数量]=@数量,[备注]=@备注
+WHERE [单号]=@单号",
+            new { 单号, dto.交货日期, dto.供应商编号, dto.供应商名称, dto.客户名称,
+                  dto.交货地点, dto.编号, 数量 = dto.明细.Sum(l => l.数量), dto.备注 }, tx);
+
+        await c.ExecuteAsync("DELETE FROM [塑胶采购订单明细] WHERE [单号]=@单号", new { 单号 }, tx);
+        foreach (var l in dto.明细)
+            await c.ExecuteAsync(@"
+INSERT INTO [塑胶采购订单明细]([单号],[生产单号],[款号],[物料编号],[物料名称],[模具编号],[用量],[套数],[数量],[颜色],[色粉号],[用料名称],[备注])
+VALUES(@单号,@生产单号,@款号,@物料编号,@物料名称,@模具编号,@用量,@套数,@数量,@颜色,@色粉号,@用料名称,@备注)",
+                new { 单号, l.生产单号, l.款号, l.物料编号, l.物料名称, l.模具编号, l.用量, l.套数,
+                      l.数量, l.颜色, l.色粉号, l.用料名称, l.备注 }, tx);
+
+        tx.Commit();
+        return true;
     }
 
     public async Task<PagedResult<PlasticPurchaseOrderHeaderDto>> ListAsync(int page, int size, string? keyword)
@@ -122,6 +163,67 @@ WHERE d.[单号] = @单号", new { 单号 });
         tx.Commit();
         return true;
     }
+
+    // ==================== AI注塑啤机排产系统 推送挂钩 ====================
+    // 审核成功后调用:把订单明细逐行推送到排产系统订单导入(排产端=orders,车间按单头供应商映射)。
+    // 未配置排产凭证时整体跳过(返回 null);推送失败/部分失败只返回警告,不阻断审核。
+    public async Task<string?> ApprovePushAsync(string 单号)
+    {
+        if (!paiji.已配置) return null;
+        var 警告 = new List<string>();
+
+        using var c = factory.Create();
+        // 幂等重推:已有推送记录先删远端再清记录
+        var 旧记录 = (await c.QueryAsync<(string 排产端, long Id)>(@"
+SELECT [排产端],[排产订单ID] AS Id FROM [排产推送记录] WHERE [单据类型]=N'采购订单' AND [单据号]=@单号", new { 单号 })).AsList();
+        if (旧记录.Count > 0)
+        {
+            警告.AddRange(await paiji.DeleteAsync(旧记录));
+            await c.ExecuteAsync("DELETE FROM [排产推送记录] WHERE [单据类型]=N'采购订单' AND [单据号]=@单号", new { 单号 });
+        }
+
+        var d = await GetAsync(单号);
+        if (d?.单头 is null) return "已审核，但推送排产系统失败：单据读取失败。";
+        var 有效行 = d.明细.Where(l => l.数量 > 0).ToList();
+        if (有效行.Count == 0) return 警告.Count > 0 ? string.Join("；", 警告) : null;
+
+        // 啤重G换算所需的物料资料(整啤净重,回落原胶件单净重)
+        var 物料表 = (await c.QueryAsync<PaijiMaterialInfo>(@"
+SELECT [物料编号],[整啤净重],[原胶件单净重] FROM [塑胶物料资料] WHERE [物料编号] IN @codes",
+            new { codes = 有效行.Select(l => l.物料编号).Distinct().ToArray() }))
+            .ToDictionary(m => m.物料编号, m => m);
+
+        var workshop = PaijiMapper.车间(d.单头.供应商名称);
+        var rows = 有效行.Select(l => PaijiMapper.BuildRow(workshop, d.单头, l,
+            l.物料编号 is not null && 物料表.TryGetValue(l.物料编号, out var m) ? m : null)).ToList();
+
+        var (ids, 失败) = await paiji.PushAsync(rows);
+        foreach (var id in ids)
+            await c.ExecuteAsync(@"
+INSERT INTO [排产推送记录]([单据类型],[单据号],[排产订单ID],[排产端],[车间]) VALUES(N'采购订单',@单号,@id,N'orders',@车间)",
+                new { 单号, id, 车间 = workshop });
+
+        if (失败.Count > 0)
+            警告.Add(ids.Count == 0
+                ? $"已审核，但推送排产系统失败：{string.Join("、", 失败)}"
+                : $"部分行推送失败：{string.Join("、", 失败)}");
+        return 警告.Count > 0 ? string.Join("；", 警告) : null;
+    }
+
+    // 反审核成功后调用:按推送记录删远端排产订单(容忍远端已删),再清记录;失败只返回警告。
+    public async Task<string?> UnapprovePushAsync(string 单号)
+    {
+        using var c = factory.Create();
+        var 记录 = (await c.QueryAsync<(string 排产端, long Id)>(@"
+SELECT [排产端],[排产订单ID] AS Id FROM [排产推送记录] WHERE [单据类型]=N'采购订单' AND [单据号]=@单号", new { 单号 })).AsList();
+        if (记录.Count == 0) return null;
+        if (!paiji.已配置) return "排产系统未配置凭证，远端排产订单未删除（推送记录已保留）。";
+
+        var 警告 = await paiji.DeleteAsync(记录);
+        await c.ExecuteAsync("DELETE FROM [排产推送记录] WHERE [单据类型]=N'采购订单' AND [单据号]=@单号", new { 单号 });
+        return 警告.Count > 0 ? string.Join("；", 警告) : null;
+    }
+
 
     // 塑胶进度表(采购进度):一行一采购订单明细 + 已审核入仓数量 + 欠数=订购−入仓。
     // 入仓核销口径见 ReceiptAggSql/ReceiptJoinSql:带 订单单号 按采购订单核销(排期下单主口径),否则回退按生产单核销。

@@ -170,7 +170,7 @@ export default function PlasticPurchaseOrderDrawer({ open, 生产单号, onClose
       title: "订购数量", dataIndex: "数量", width: 110, align: "right" as const,
       sorter: (a: EditRow, b: EditRow) => (Number(a.数量) || 0) - (Number(b.数量) || 0),
       render: (v: number | undefined, r: EditRow) =>
-        <InputNumber min={0} precision={2} value={v} style={{ width: "100%" }}
+        <InputNumber min={0} precision={0} value={v} style={{ width: "100%" }}
           onChange={n => patchRow(r.key, { 数量: Number(n ?? 0) })} />,
     },
     {

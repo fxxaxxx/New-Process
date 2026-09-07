@@ -134,6 +134,19 @@ builder.Services.AddScoped<ErpApi.Features.Plastics.LabelOrders.IPlasticLabelOrd
 builder.Services.AddScoped<ErpApi.Features.Materials.PurchaseSettings.PurchaseMaterialSettingsService>();
 builder.Services.AddScoped<ErpApi.Features.Plastics.MaterialSettings.PlasticMaterialSettingsService>();
 
+// AI注塑啤机排产系统 集成:凭证走环境变量 Paiji__User/Paiji__Password(配置绑定),Basic 认证。
+builder.Services.Configure<ErpApi.Integrations.Paiji.PaijiOptions>(builder.Configuration.GetSection("Paiji"));
+builder.Services.AddHttpClient<ErpApi.Integrations.Paiji.PaijiPushService>((sp, c) =>
+{
+    var o = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<ErpApi.Integrations.Paiji.PaijiOptions>>().Value;
+    c.BaseAddress = new Uri(o.BaseUrl.TrimEnd('/') + "/");
+    if (!string.IsNullOrWhiteSpace(o.User))
+        c.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic",
+            Convert.ToBase64String(Encoding.UTF8.GetBytes($"{o.User}:{o.Password}")));
+});
+// 排产入库单→ERP塑胶入仓单 反向同步器(未配置凭证时内部直接退出)
+builder.Services.AddHostedService<ErpApi.Integrations.Paiji.PaijiSyncWorker>();
+
 // JWT 认证（密钥来自环境变量，无硬编码）
 var jwtKey = Environment.GetEnvironmentVariable(JwtTokenService.KeyEnvVar)
     ?? throw new InvalidOperationException($"请设置环境变量 {JwtTokenService.KeyEnvVar}");

@@ -166,6 +166,14 @@ export default function PlasticIssueFormPage() {
     <Form.Item name={name} label={label}><InputNumber min={0} precision={0} disabled={readOnly} style={{ width: "100%" }} /></Form.Item>
   );
 
+  // 三级流转状态:未审核 → 主管已审 → 经理已审 → 已审核(塑胶仓已出库)
+  const statusTag = (row: PIHeader) => {
+    if (row.审核 === "1") return <Tag color="green" style={{ borderRadius: 6 }}>已审核</Tag>;
+    if (row.经理审核 === "1") return <Tag color="blue" style={{ borderRadius: 6 }}>经理已审{row.经理审核人 ? `(${row.经理审核人})` : ""}</Tag>;
+    if (row.主管审核 === "1") return <Tag color="gold" style={{ borderRadius: 6 }}>主管已审{row.主管审核人 ? `(${row.主管审核人})` : ""}</Tag>;
+    return <Tag style={{ borderRadius: 6 }}>未审核</Tag>;
+  };
+
   const listColumns = [
     { title: "领料单号", dataIndex: "单号", key: "单号", render: (v: string) => <a onClick={() => openDoc(v)} className="erp-num">{v}</a> },
     { title: "领料部门", dataIndex: "领料部门", key: "领料部门" },
@@ -173,12 +181,14 @@ export default function PlasticIssueFormPage() {
     { title: "仓库", dataIndex: "仓库", key: "仓库" },
     { title: "数量", dataIndex: "数量", key: "数量" },
     { title: "日期", dataIndex: "日期", key: "日期", render: (v?: string) => v?.slice(0, 10) },
-    { title: "状态", dataIndex: "审核", key: "审核", render: (v?: string) => v === "1" ? <Tag color="green" style={{ borderRadius: 6 }}>已审核</Tag> : <Tag style={{ borderRadius: 6 }}>未审核</Tag> },
+    { title: "状态", key: "状态", render: (_: unknown, row: PIHeader) => statusTag(row) },
     {
       title: "操作", key: "_op",
       render: (_: unknown, row: PIHeader) => (
         <Space>
-          {row.审核 !== "1" && can(perms, MENU, "审核") && <a onClick={() => act(() => plasticIssueApi.approve(row.单号!), "已审核")}>审核</a>}
+          {row.审核 !== "1" && row.主管审核 !== "1" && can(perms, MENU, "审核") && <a onClick={() => act(() => plasticIssueApi.supervisorApprove(row.单号!), "主管已审核")}>主管审核</a>}
+          {row.审核 !== "1" && row.主管审核 === "1" && row.经理审核 !== "1" && can(perms, MENU, "审核") && <a onClick={() => act(() => plasticIssueApi.managerApprove(row.单号!), "经理已审核")}>经理审核</a>}
+          {row.审核 !== "1" && row.经理审核 === "1" && can(perms, MENU, "审核") && <a onClick={() => act(() => plasticIssueApi.approve(row.单号!), "已审核")}>审核(出库)</a>}
           {row.审核 === "1" && can(perms, MENU, "反审核") && <a onClick={() => act(() => plasticIssueApi.unapprove(row.单号!), "已反审核")}>反审核</a>}
           {row.审核 !== "1" && can(perms, MENU, "删除") && (
             <Popconfirm title="确认删除该领料单?" onConfirm={() => act(() => plasticIssueApi.remove(row.单号!), "已删除")}><a>删除</a></Popconfirm>
@@ -222,8 +232,9 @@ export default function PlasticIssueFormPage() {
         </Row>
       </Form>
 
+      {/* 明细行表独占一行;库存参考移到下方,固定可视高度滚动 */}
       <Row gutter={12}>
-        <Col span={17}>
+        <Col span={24}>
           {!readOnly && (
             <Space style={{ marginBottom: 8 }}>
               <Button onClick={() => setBasisOpen(true)}>按生产单带入</Button>
@@ -231,8 +242,11 @@ export default function PlasticIssueFormPage() {
           )}
           <PlasticIssueLineTable value={lines} onChange={setLines} readOnly={readOnly} onMaterialPicked={handleMaterialPicked} />
         </Col>
-        <Col span={7}>
+      </Row>
+      <Row gutter={12} style={{ marginTop: 8 }}>
+        <Col span={24}>
           <Table size="small" pagination={false} rowKey="物料编号"
+            scroll={{ x: "max-content", y: 220 }}
             title={() => "库存参考"}
             dataSource={stockRefRows}
             columns={[

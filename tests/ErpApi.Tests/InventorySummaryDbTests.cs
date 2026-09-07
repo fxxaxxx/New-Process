@@ -199,4 +199,86 @@ public class InventorySummaryDbTests(DbFixture fx)
             P5TestData.Cleanup(c);
         }
     }
+
+    [SkippableFact]
+    public async Task FinishedGoodsByItem_groups_by_配件编号_and_maps_出仓_via_款号()
+    {
+        using var c = fx.Open();
+        P5TestData.Seed(c);
+        try
+        {
+            // 入仓两行同配件编号(100+50,审核) + 一行未审(应忽略)；出仓只有 款号，靠 款号→配件编号 映射归并 -30 → 120
+            c.Execute("INSERT INTO [成品入仓单]([单号],[仓库],[审核]) VALUES(N'P5IRK',N'P5成品仓','1')");
+            c.Execute("INSERT INTO [成品出仓单]([单号],[仓库],[审核]) VALUES(N'P5ICK',N'P5成品仓','1')");
+            c.Execute(@"INSERT INTO [成品入仓明细单]([单号],[仓库],[生产单号],[款号],[配件编号],[客户],[货号],[名称],[产品装配名称],[数量],[审核])
+                        VALUES(N'P5IRK',N'P5成品仓',N'P5SC01',N'P5K01',N'P5PJ-A',N'P5客户A',N'P5K01',N'P5名称A',N'P5装配A',100,'1')");
+            c.Execute(@"INSERT INTO [成品入仓明细单]([单号],[仓库],[生产单号],[款号],[配件编号],[客户],[货号],[名称],[产品装配名称],[数量],[审核])
+                        VALUES(N'P5IRK',N'P5成品仓',N'P5SC01',N'P5K01',N'P5PJ-A',N'P5客户A',N'P5K01',N'P5名称A',N'P5装配A',50,'1')");
+            c.Execute(@"INSERT INTO [成品入仓明细单]([单号],[仓库],[生产单号],[款号],[配件编号],[客户],[货号],[名称],[产品装配名称],[数量],[审核])
+                        VALUES(N'P5IRK',N'P5成品仓',N'P5SC01',N'P5K01',N'P5PJ-A',N'P5客户A',N'P5K01',N'P5名称A',N'P5装配A',999,'0')");
+            c.Execute(@"INSERT INTO [成品出仓明细单]([单号],[仓库],[生产单号],[款号],[数量],[审核])
+                        VALUES(N'P5ICK',N'P5成品仓',N'P5SC01',N'P5K01',30,'1')");
+
+            var rows = await new InventorySummaryService(Factory()).FinishedGoodsByItemAsync("P5成品仓");
+            var r = Assert.Single(rows);
+            Assert.Equal("P5PJ-A", r.配件编号);
+            Assert.Equal("P5客户A", r.客户);
+            Assert.Equal("P5K01", r.产品货号);
+            Assert.Equal("P5名称A", r.产品名称);
+            Assert.Equal("P5装配A", r.产品装配名称);
+            Assert.Equal(120m, r.库存数量);   // 100 + 50 - 30（未审 999 忽略）
+        }
+        finally
+        {
+            c.Execute("DELETE FROM [成品入仓明细单] WHERE [单号]=N'P5IRK'");
+            c.Execute("DELETE FROM [成品出仓明细单] WHERE [单号]=N'P5ICK'");
+            c.Execute("DELETE FROM [成品入仓单] WHERE [单号]=N'P5IRK'");
+            c.Execute("DELETE FROM [成品出仓单] WHERE [单号]=N'P5ICK'");
+            P5TestData.Cleanup(c);
+        }
+    }
+
+    [SkippableFact]
+    public async Task FinishedGoodsLedger_returns_ordered_signed_flow()
+    {
+        using var c = fx.Open();
+        P5TestData.Seed(c);
+        try
+        {
+            // 入仓 +100(01-02) → 出仓 -30(01-03) → 盘点盈亏 -2(01-04)：按 日期,单号 排序，盈亏负计入出库数量
+            c.Execute("INSERT INTO [成品入仓单]([单号],[仓库],[审核]) VALUES(N'P5LRK',N'P5成品仓','1')");
+            c.Execute("INSERT INTO [成品出仓单]([单号],[仓库],[审核]) VALUES(N'P5LCK',N'P5成品仓','1')");
+            c.Execute("INSERT INTO [成品盘点单]([单号],[仓库],[审核]) VALUES(N'P5LPD',N'P5成品仓','1')");
+            c.Execute(@"INSERT INTO [成品入仓明细单]([单号],[日期],[仓库],[生产单号],[款号],[配件编号],[数量],[审核])
+                        VALUES(N'P5LRK','2026-01-02',N'P5成品仓',N'P5SC01',N'P5K01',N'P5PJ-A',100,'1')");
+            c.Execute(@"INSERT INTO [成品出仓明细单]([单号],[日期],[仓库],[生产单号],[款号],[数量],[审核])
+                        VALUES(N'P5LCK','2026-01-03',N'P5成品仓',N'P5SC01',N'P5K01',30,'1')");
+            c.Execute(@"INSERT INTO [成品盘点明细单]([单号],[日期],[仓库],[生产单号],[款号],[系统数量],[盘点数量],[盈亏数量],[审核])
+                        VALUES(N'P5LPD','2026-01-04',N'P5成品仓',N'P5SC01',N'P5K01',70,68,-2,'1')");
+
+            var rows = await new InventorySummaryService(Factory()).FinishedGoodsLedgerAsync("P5成品仓", "P5PJ-A");
+            Assert.Equal(3, rows.Count);
+            Assert.Equal("P5LRK", rows[0].单号);
+            Assert.Equal("成品入仓", rows[0].类型);
+            Assert.Equal(100m, rows[0].入库数量);
+            Assert.Null(rows[0].出库数量);
+            Assert.Equal("P5LCK", rows[1].单号);
+            Assert.Equal("成品出仓", rows[1].类型);
+            Assert.Equal(30m, rows[1].出库数量);
+            Assert.Equal("P5LPD", rows[2].单号);
+            Assert.Equal("盘点盈亏", rows[2].类型);
+            Assert.Equal(2m, rows[2].出库数量);
+            // 前端累计结存应为 100 → 70 → 68
+        }
+        finally
+        {
+            c.Execute("DELETE FROM [成品入仓明细单] WHERE [单号]=N'P5LRK'");
+            c.Execute("DELETE FROM [成品出仓明细单] WHERE [单号]=N'P5LCK'");
+            c.Execute("DELETE FROM [成品盘点明细单] WHERE [单号]=N'P5LPD'");
+            c.Execute("DELETE FROM [成品入仓单] WHERE [单号]=N'P5LRK'");
+            c.Execute("DELETE FROM [成品出仓单] WHERE [单号]=N'P5LCK'");
+            c.Execute("DELETE FROM [成品盘点单] WHERE [单号]=N'P5LPD'");
+            P5TestData.Cleanup(c);
+        }
+    }
 }

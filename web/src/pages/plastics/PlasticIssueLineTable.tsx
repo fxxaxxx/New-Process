@@ -60,7 +60,7 @@ export default function PlasticIssueLineTable({ value, onChange, readOnly, onMat
   return (
     <div>
       <Table size="small" rowKey={(_: PILine, i?: number) => String(i)} pagination={false}
-        dataSource={value} columns={columns} scroll={{ x: "max-content" }} />
+        dataSource={value} columns={columns} scroll={{ x: "max-content", y: "calc(100vh - 470px)" }} />
       {!readOnly && <Button icon={<PlusOutlined />} style={{ marginTop: 12 }} onClick={() => onChange(prev => [...prev, { 数量: 0 }])}>加一行</Button>}
       <PlasticMaterialPicker open={matPickFor !== null} onPick={fillFromMaterial} onClose={() => setMatPickFor(null)} />
       <ProductionPicker open={prodPickFor !== null} onPick={fillFromProduction} onClose={() => setProdPickFor(null)} />

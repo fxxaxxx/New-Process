@@ -298,6 +298,44 @@ ORDER BY g.[生产单号], p.[物料编号]", new { qi, qe, kw });
         return list;
     }
 
+    // 已下喷油订单(喷油部收件视图)：已审核塑胶采购订单中 供应商名称含「喷油」的单,按明细行展开,按单头日期过滤。
+    // 塑胶仓在塑胶采购订单里下给 喷油部/兴信喷油车间 的单,审核后这里即可见。
+    // 加工内容/塑胶货号 按物料编号从 BOM(塑胶共用物料表)或塑胶物料资料补;喷油接收状态随单头带出。
+    public async Task<IReadOnlyList<SprayOrderReceivedRow>> SprayOrderReceivedAsync(DateTime 起, DateTime 止, string? keyword)
+    {
+        var qi = 起.Date; var qe = 止.Date.AddDays(1);
+        var kw = string.IsNullOrWhiteSpace(keyword) ? null : $"%{keyword.Trim()}%";
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<SprayOrderReceivedRow>(@"
+SELECT o.[单号] AS 采购单号, o.[日期] AS 单据日期, o.[交货日期], o.[供应商名称],
+       d.[生产单号], d.[款号], d.[物料编号], d.[物料名称], d.[模具编号], d.[颜色], d.[色粉号], d.[用料名称], d.[数量], d.[备注],
+       bom.[塑胶货号], COALESCE(NULLIF(mm.[加工内容], N''), NULLIF(bom.[加工内容], N'')) AS 加工内容,
+       ISNULL(o.[喷油接收],'0') AS 喷油接收, o.[喷油接收人], o.[喷油接收时间]
+FROM [塑胶采购订单] o
+JOIN [塑胶采购订单明细] d ON d.[单号] = o.[单号]
+LEFT JOIN (SELECT [物料编号], MAX([塑胶货号]) AS 塑胶货号, MAX([加工内容]) AS 加工内容
+           FROM [塑胶共用物料表] GROUP BY [物料编号]) bom ON bom.[物料编号] = d.[物料编号]
+LEFT JOIN [塑胶物料资料] mm ON mm.[物料编号] = d.[物料编号]
+WHERE o.[日期] >= @qi AND o.[日期] < @qe
+  AND ISNULL(o.[审核],'0') = '1'
+  AND o.[供应商名称] LIKE N'%喷油%'
+  AND (@kw IS NULL OR o.[单号] LIKE @kw OR o.[供应商名称] LIKE @kw OR d.[生产单号] LIKE @kw
+       OR d.[款号] LIKE @kw OR d.[物料编号] LIKE @kw OR d.[物料名称] LIKE @kw)
+ORDER BY o.[单号], d.[ID];", new { qi, qe, kw });
+        return rows.AsList();
+    }
+
+    // 喷油部接收订单：仅 已审核 且 供应商含「喷油」 的塑胶采购订单可接收;重复接收拒绝。
+    public async Task ReceiveSprayOrderAsync(string 单号, string user)
+    {
+        using var c = factory.Create();
+        var n = await c.ExecuteAsync(@"
+UPDATE [塑胶采购订单] SET [喷油接收]='1', [喷油接收人]=@user, [喷油接收时间]=SYSDATETIME()
+WHERE [单号]=@单号 AND ISNULL([审核],'0')='1' AND [供应商名称] LIKE N'%喷油%' AND ISNULL([喷油接收],'0')<>'1'",
+            new { 单号, user });
+        if (n == 0) throw new InvalidOperationException("接收失败：单不存在、未审核、不是喷油订单或已接收。");
+    }
+
     // 删除:仅未审核可删;FK 顺序 明细→头。
     public async Task<bool> DeleteAsync(string 单号)
     {

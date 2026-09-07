@@ -221,3 +221,27 @@ public sealed class PlasticProcessOrderMakeRow
     public decimal? 加工单价 { get; set; }
     public decimal? 金额 { get; set; }
 }
+
+// 已下喷油订单行(喷油部收件视图):已审核塑胶采购订单中 供应商名称含「喷油」的单,按明细行展开
+public sealed class SprayOrderReceivedRow
+{
+    public string? 采购单号 { get; set; }
+    public DateTime? 单据日期 { get; set; }
+    public DateTime? 交货日期 { get; set; }
+    public string? 供应商名称 { get; set; }
+    public string? 生产单号 { get; set; }
+    public string? 款号 { get; set; }
+    public string? 物料编号 { get; set; }
+    public string? 物料名称 { get; set; }
+    public string? 模具编号 { get; set; }
+    public string? 颜色 { get; set; }
+    public string? 色粉号 { get; set; }
+    public string? 用料名称 { get; set; }
+    public decimal? 数量 { get; set; }
+    public string? 备注 { get; set; }
+    public string? 塑胶货号 { get; set; }      // 按物料编号从 BOM 补
+    public string? 加工内容 { get; set; }      // 塑胶物料资料优先,BOM 回落
+    public string? 喷油接收 { get; set; }      // '1'=喷油部已接收
+    public string? 喷油接收人 { get; set; }
+    public DateTime? 喷油接收时间 { get; set; }
+}

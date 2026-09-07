@@ -38,7 +38,7 @@ export default function PlasticPurchaseOrderLineTable({ value, onChange, readOnl
       suffix={readOnly ? null : <SearchOutlined style={{ cursor: "pointer", color: "#1677ff" }} onClick={onPick} />} />;
   const ro = (v?: string) => <span>{v ?? ""}</span>;
   const numCell = (val: number | null | undefined, on: (n: number) => void) =>
-    <InputNumber min={0} precision={2} style={{ width: 80 }} disabled={readOnly} value={val ?? 0} onChange={n => on(Number(n ?? 0))} />;
+    <InputNumber min={0} precision={0} style={{ width: 80 }} disabled={readOnly} value={val ?? 0} onChange={n => on(Number(n ?? 0))} />;
 
   const columns: ColumnsType<PPOLine> = [
     { title: "生产单号", dataIndex: "生产单号", width: 150, render: (_, r, i) => pickCell(r.生产单号, s => setLine(i, { 生产单号: s }), () => setProdPickFor(i), 128) },
@@ -48,7 +48,7 @@ export default function PlasticPurchaseOrderLineTable({ value, onChange, readOnl
     { title: "模具编号", dataIndex: "模具编号", width: 120, render: (_, r, i) => txt(r.模具编号, s => setLine(i, { 模具编号: s }), 106) },
     { title: "用量", dataIndex: "用量", width: 92, render: (_, r, i) => numCell(r.用量, n => setLine(i, { 用量: n })) },
     { title: "套数", dataIndex: "套数", width: 92, render: (_, r, i) => numCell(r.套数, n => setLine(i, { 套数: n })) },
-    { title: "数量", dataIndex: "数量", width: 92, render: (_, r, i) => <InputNumber min={0} precision={2} style={{ width: 80 }} disabled={readOnly} value={r.数量 ?? 0} onChange={n => setLine(i, { 数量: Number(n ?? 0) })} /> },
+    { title: "数量", dataIndex: "数量", width: 92, render: (_, r, i) => <InputNumber min={0} precision={0} style={{ width: 80 }} disabled={readOnly} value={r.数量 ?? 0} onChange={n => setLine(i, { 数量: Number(n ?? 0) })} /> },
     { title: "颜色", dataIndex: "颜色", width: 110, render: (_, r, i) => txt(r.颜色, s => setLine(i, { 颜色: s }), 68) },
     { title: "色粉号", dataIndex: "色粉号", width: 110, render: (_, r, i) => txt(r.色粉号, s => setLine(i, { 色粉号: s }), 98) },
     { title: "用料名称", dataIndex: "用料名称", width: 130, render: (_, r, i) => txt(r.用料名称, s => setLine(i, { 用料名称: s }), 118) },
@@ -70,7 +70,7 @@ export default function PlasticPurchaseOrderLineTable({ value, onChange, readOnl
   return (
     <div>
       <Table size="small" rowKey={(_: PPOLine, i?: number) => String(i)} pagination={false}
-        dataSource={value} columns={columns} scroll={{ x: "max-content" }} />
+        dataSource={value} columns={columns} scroll={{ x: "max-content", y: "calc(100vh - 470px)" }} />
       {!readOnly && <Button icon={<PlusOutlined />} style={{ marginTop: 12 }} onClick={() => onChange(prev => [...prev, { 数量: 0 }])}>加一行</Button>}
       <PlasticMaterialPicker open={matPickFor !== null} onPick={fillFromMaterial} onClose={() => setMatPickFor(null)} />
       <ProductionPicker open={prodPickFor !== null} onPick={fillFromProduction} onClose={() => setProdPickFor(null)} />

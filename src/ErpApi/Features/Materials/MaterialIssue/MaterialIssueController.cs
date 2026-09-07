@@ -2,6 +2,7 @@ using System.Security.Claims;
 using ErpApi.Engines.Authorization;
 using ErpApi.Engines.Posting;
 using ErpApi.Features.MonthEnd;
+using ErpApi.Features.Scheduling;
 using ErpApi.Infrastructure.Db;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -12,7 +13,8 @@ namespace ErpApi.Features.Materials.MaterialIssue;
 [Route("api/material-issues")]
 public sealed class MaterialIssueController(
     MaterialIssueService svc, IPostingEngine posting, IPermissionService perms,
-    IAuditLogger audit, ISqlConnectionFactory factory, PeriodLockService periodLock) : ControllerBase
+    IAuditLogger audit, ISqlConnectionFactory factory, PeriodLockService periodLock,
+    SchedulingService sched) : ControllerBase
 {
     private const string Menu = "领料单";
     private const string Table = "领料单";
@@ -131,6 +133,8 @@ public sealed class MaterialIssueController(
         {
             var r = await svc.OutboundAsync(单号, dto.明细, CurrentUser);
             await AuditAsync("出库", $"单号={单号}");
+            // 分次出库全部出完(=整单完成)时：备注含"走货"则溯源排期行置"已走货"
+            if (r.完成) await sched.MarkShippedForMaterialIssueAsync(单号, CurrentUser);
             return Ok(r);
         }
         catch (KeyNotFoundException ex) { return NotFound(new { 消息 = ex.Message }); }
@@ -148,6 +152,8 @@ public sealed class MaterialIssueController(
             return Conflict(new { 消息 = "审核失败：单不存在或已审核。" });
         // 整单审核 = 全部出库(与分次出库共用 已出数量 口径)
         await svc.SyncIssuedWithAuditAsync(单号, true);
+        // 出库联动排期：备注含"走货"则溯源排期行置"已走货"
+        await sched.MarkShippedForMaterialIssueAsync(单号, CurrentUser);
         return NoContent();
     }
 

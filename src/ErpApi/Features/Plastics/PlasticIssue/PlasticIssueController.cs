@@ -54,10 +54,34 @@ public sealed class PlasticIssueController(
         return NoContent();
     }
 
+    // 三级流转第一级：部门主管审核(开单后→主管审核→经理审核→塑胶仓出库)
+    [HttpPost("{单号}/supervisor-approve")]
+    public async Task<IActionResult> SupervisorApprove(string 单号)
+    {
+        if (!await AllowAsync(PermissionAction.审核)) return Forbid();
+        try { await svc.SupervisorApproveAsync(单号, CurrentUser); }
+        catch (KeyNotFoundException ex) { return NotFound(new { 消息 = ex.Message }); }
+        catch (InvalidOperationException ex) { return Conflict(new { 消息 = ex.Message }); }
+        return NoContent();
+    }
+
+    // 三级流转第二级：部门经理审核(需先主管审核)。经理审完后塑胶仓才可出库
+    [HttpPost("{单号}/manager-approve")]
+    public async Task<IActionResult> ManagerApprove(string 单号)
+    {
+        if (!await AllowAsync(PermissionAction.审核)) return Forbid();
+        try { await svc.ManagerApproveAsync(单号, CurrentUser); }
+        catch (KeyNotFoundException ex) { return NotFound(new { 消息 = ex.Message }); }
+        catch (InvalidOperationException ex) { return Conflict(new { 消息 = ex.Message }); }
+        return NoContent();
+    }
+
     [HttpPost("{单号}/approve")]
     public async Task<IActionResult> Approve(string 单号)
     {
         if (!await AllowAsync(PermissionAction.审核)) return Forbid();
+        // 出库门:塑胶仓出库必须先经部门主管、经理审核(已审核的历史单不受影响——posting 对它们直接返回 false)
+        if (!await svc.IsManagerApprovedAsync(单号)) return Conflict(new { 消息 = "请先经部门主管、经理审核。" });
         if (!await posting.ApproveAsync(Table, 单号, CurrentUser)) return Conflict(new { 消息 = "审核失败：单不存在或已审核。" });
         return NoContent();
     }

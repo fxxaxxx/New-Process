@@ -4,7 +4,7 @@ using ErpApi.Features.MasterData;
 using ErpApi.Infrastructure.Db;
 namespace ErpApi.Features.Plastics.PlasticWhitePartIssue;
 
-// 白件领料单(发外加工·白件半成品发外)。审核 = 纯锁定(走通用过账引擎只翻 审核='1',不动塑胶库存)。
+// 白件领料单(发外加工·白件半成品发外)。审核后由 PlasticInventoryService 实时聚合扣减塑胶仓库存(白件都在塑胶仓,台账按固定仓库=塑胶仓记 −)。
 // 明细按生产单号从塑胶共用物料表 BOM 调入(单位取塑胶物料资料;发外采购无源由用户录入)。
 public sealed class PlasticWhitePartIssueService(ISqlConnectionFactory factory, IDocumentNumberGenerator docNo)
 {

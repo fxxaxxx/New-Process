@@ -122,7 +122,7 @@ public class P5ApiIntegrationTests(DbFixture fx)
             Assert.Equal(1, (await client.GetFromJsonAsync<JsonElement>($"/api/finished-receipts?keyword={单号}")).GetProperty("total").GetInt32());
             Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/api/finished-receipts/{单号}/approve", null)).StatusCode);
             var inv = await client.GetFromJsonAsync<JsonElement>($"/api/finished-inventory?{Uri.EscapeDataString("仓库")}={Uri.EscapeDataString(P5TestData.仓库)}");
-            decimal sum = 0; foreach (var r in inv.EnumerateArray()) sum += r.GetProperty("库存").GetDecimal();
+            decimal sum = 0; foreach (var r in inv.EnumerateArray()) sum += r.GetProperty("库存数量").GetDecimal();
             Assert.Equal(100m, sum);
             Assert.Equal(HttpStatusCode.Conflict, (await client.DeleteAsync($"/api/finished-receipts/{单号}")).StatusCode);
             Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/api/finished-receipts/{单号}/unapprove", null)).StatusCode);
@@ -156,7 +156,7 @@ public class P5ApiIntegrationTests(DbFixture fx)
             ck = (await ci.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("单号").GetString()!;
             Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/api/finished-issues/{ck}/approve", null)).StatusCode);
             var inv = await client.GetFromJsonAsync<JsonElement>($"/api/finished-inventory?{Uri.EscapeDataString("仓库")}={Uri.EscapeDataString(P5TestData.仓库)}");
-            decimal sum = 0; foreach (var r in inv.EnumerateArray()) sum += r.GetProperty("库存").GetDecimal();
+            decimal sum = 0; foreach (var r in inv.EnumerateArray()) sum += r.GetProperty("库存数量").GetDecimal();
             Assert.Equal(70m, sum);
         }
         finally
@@ -180,7 +180,7 @@ public class P5ApiIntegrationTests(DbFixture fx)
         string? ck = null, pd = null;
         async Task<decimal> Inv() {
             var inv = await client.GetFromJsonAsync<JsonElement>($"/api/finished-inventory?{Uri.EscapeDataString("仓库")}={Uri.EscapeDataString(P5TestData.仓库)}");
-            decimal s = 0; foreach (var r in inv.EnumerateArray()) s += r.GetProperty("库存").GetDecimal(); return s;
+            decimal s = 0; foreach (var r in inv.EnumerateArray()) s += r.GetProperty("库存数量").GetDecimal(); return s;
         }
         try
         {
@@ -235,7 +235,7 @@ public class P5ApiIntegrationTests(DbFixture fx)
         string? cd = null;
         async Task<decimal> Inv(string wh) {
             var inv = await client.GetFromJsonAsync<JsonElement>($"/api/finished-inventory?{Uri.EscapeDataString("仓库")}={Uri.EscapeDataString(wh)}");
-            decimal s = 0; foreach (var r in inv.EnumerateArray()) s += r.GetProperty("库存").GetDecimal(); return s;
+            decimal s = 0; foreach (var r in inv.EnumerateArray()) s += r.GetProperty("库存数量").GetDecimal(); return s;
         }
         try
         {
@@ -274,7 +274,7 @@ public class P5ApiIntegrationTests(DbFixture fx)
         string? th = null;
         async Task<decimal> Inv() {
             var inv = await client.GetFromJsonAsync<JsonElement>($"/api/finished-inventory?{Uri.EscapeDataString("仓库")}={Uri.EscapeDataString(P5TestData.仓库)}");
-            decimal s = 0; foreach (var r in inv.EnumerateArray()) s += r.GetProperty("库存").GetDecimal(); return s;
+            decimal s = 0; foreach (var r in inv.EnumerateArray()) s += r.GetProperty("库存数量").GetDecimal(); return s;
         }
         try
         {
@@ -309,7 +309,7 @@ public class P5ApiIntegrationTests(DbFixture fx)
         string? tc = null;
         async Task<decimal> Inv() {
             var inv = await client.GetFromJsonAsync<JsonElement>($"/api/finished-inventory?{Uri.EscapeDataString("仓库")}={Uri.EscapeDataString(P5TestData.仓库)}");
-            decimal s = 0; foreach (var r in inv.EnumerateArray()) s += r.GetProperty("库存").GetDecimal(); return s;
+            decimal s = 0; foreach (var r in inv.EnumerateArray()) s += r.GetProperty("库存数量").GetDecimal(); return s;
         }
         try
         {

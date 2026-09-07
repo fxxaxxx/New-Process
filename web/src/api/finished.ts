@@ -23,7 +23,8 @@ export interface FSHeader { id: number; 单号?: string; 仓库?: string; 日期
 export interface FSDetail { 单头: FSHeader | null; 明细: { id: number; 款号?: string; 色号?: string; 颜色?: string; 尺码?: string; 系统数量?: number; 盘点数量?: number; 盈亏数量?: number }[] }
 
 // ---- 库存 ----
-export interface FinishedStockRow { 款号: string; 款式?: string; 色号?: string; 颜色?: string; 尺码?: string; 库存: number }
+export interface FinishedStockRow { 配件编号: string; 客户?: string | null; 产品货号?: string | null; 产品名称?: string | null; 产品装配名称?: string | null; 库存数量: number }
+export interface FinishedStockLedgerRow { 日期?: string | null; 单号?: string | null; 类型: string; 入库数量?: number | null; 出库数量?: number | null }
 
 const enc = encodeURIComponent;
 export const finishedReceiptApi = {
@@ -66,6 +67,8 @@ export const finishedStocktakeApi = {
 };
 export const finishedInventoryApi = {
   list: (仓库: string) => api.get<FinishedStockRow[]>("/finished-inventory", { params: { 仓库 } }).then(r => r.data),
+  ledger: (仓库: string, 配件编号: string) =>
+    api.get<FinishedStockLedgerRow[]>("/finished-inventory/ledger", { params: { 仓库, 配件编号 } }).then(r => r.data),
 };
 
 // ---- 调拨 ----

@@ -21,6 +21,11 @@ public sealed class PlasticIssueHeaderDto
     public string? 收件人 { get; set; }
     public string? 电脑单号 { get; set; }
     public string? 领料备注 { get; set; }
+    // 三级流转:主管审核 → 经理审核 → 塑胶仓出库(审核='1')
+    public string? 主管审核 { get; set; }
+    public string? 主管审核人 { get; set; }
+    public string? 经理审核 { get; set; }
+    public string? 经理审核人 { get; set; }
 }
 
 public sealed class PlasticIssueLineDto

@@ -4,6 +4,7 @@ using ErpApi.Engines.DocumentNumber;
 using ErpApi.Engines.Posting;
 using ErpApi.Features.Plastics.PlasticPurchaseOrder;
 using ErpApi.Infrastructure.Db;
+using ErpApi.Integrations.Paiji;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Xunit;
@@ -17,7 +18,10 @@ public class PlasticPurchaseOrderServiceDbTests(DbFixture fx)
             new Dictionary<string, string?> { ["Erp:ConnectionStringEnvVar"] = "ERP_TEST_DB" }).Build();
         return new SqlConnectionFactory(cfg);
     }
-    private PlasticPurchaseOrderService Svc() => new(Factory(), new DocumentNumberGenerator());
+    // 排产推送在测试环境未配置凭证(整体跳过),传空配置即可
+    private PlasticPurchaseOrderService Svc() => new(Factory(), new DocumentNumberGenerator(),
+        new PaijiPushService(new HttpClient(), Microsoft.Extensions.Options.Options.Create(new PaijiOptions()),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<PaijiPushService>.Instance));
 
     private static void Seed(SqlConnection c)
     {
@@ -110,6 +114,37 @@ public class PlasticPurchaseOrderServiceDbTests(DbFixture fx)
             var 单号 = await Svc().CreateAsync(MakeDto(), "tester");
             Assert.True(await engine.ApproveAsync("塑胶采购订单", 单号, "tester"));
             await Assert.ThrowsAsync<InvalidOperationException>(() => Svc().DeleteAsync(单号));
+        }
+        finally { Clean(c); }
+    }
+
+    [SkippableFact]
+    public async Task Update_unapproved_replaces_lines_approved_blocked()
+    {
+        using var c = fx.Open(); Seed(c);
+        var engine = new PostingEngine(Factory(), new AuditLogger());
+        try
+        {
+            var 单号 = await Svc().CreateAsync(MakeDto(), "tester");
+
+            // 未审核：可改，明细整组替换(2行→1行)，单头同步
+            var dto = MakeDto();
+            dto.客户名称 = "PO测试客户-改";
+            dto.明细.RemoveAt(1);
+            dto.明细[0].数量 = 9;
+            Assert.True(await Svc().UpdateAsync(单号, dto, "tester2"));
+            var d = await Svc().GetAsync(单号);
+            Assert.Equal("PO测试客户-改", d!.单头!.客户名称);
+            Assert.Equal(9m, d.单头.数量);
+            var l = Assert.Single(d.明细);
+            Assert.Equal(9m, l.数量);
+
+            // 已审核：拒绝修改
+            Assert.True(await engine.ApproveAsync("塑胶采购订单", 单号, "tester"));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => Svc().UpdateAsync(单号, MakeDto(), "tester"));
+
+            // 不存在：false
+            Assert.False(await Svc().UpdateAsync("SP-NOPE", MakeDto(), "tester"));
         }
         finally { Clean(c); }
     }

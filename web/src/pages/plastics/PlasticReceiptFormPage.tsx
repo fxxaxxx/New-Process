@@ -166,8 +166,13 @@ export default function PlasticReceiptFormPage({ cfg }: { cfg: PlasticReceiptFor
     } finally { setSaving(false); }
   };
 
+  // 审核/反审核返回 {警告}(如排产推送失败)时用警告提示,否则维持原成功提示
   const act = async (fn: () => Promise<unknown>, ok: string) => {
-    try { await fn(); message.success(ok); loadRows(); }
+    try {
+      const r = await fn() as { 警告?: string } | undefined;
+      if (r?.警告) message.warning(r.警告); else message.success(ok);
+      loadRows();
+    }
     catch (e) { message.error((e as { response?: { data?: { 消息?: string } } }).response?.data?.消息 ?? "操作失败"); }
   };
 

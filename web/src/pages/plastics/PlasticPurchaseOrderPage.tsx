@@ -25,10 +25,11 @@ export default function PlasticPurchaseOrderPage() {
   const [lines, setLines] = useState<PPOLine[]>([]);
   const [rows, setRows] = useState<PPOHeader[]>([]);
   const [opened, setOpened] = useState<string | null>(null);
+  const [openedAudit, setOpenedAudit] = useState(false);   // 打开的单据是否已审核(已审核只读,未审核可编辑)
   const [saving, setSaving] = useState(false);
   const [supplierOpen, setSupplierOpen] = useState(false);
   const [prodOpen, setProdOpen] = useState(false);
-  const readOnly = opened !== null;
+  const readOnly = opened !== null && openedAudit;
 
   const loadRows = useCallback(async () => {
     try { setRows((await plasticPurchaseOrderApi.list(1, 50, "")).items); }
@@ -39,7 +40,7 @@ export default function PlasticPurchaseOrderPage() {
   const reset = useCallback(() => {
     form.resetFields();
     form.setFieldsValue({ 日期: today(), 操作员: currentUser() });
-    setLines([]); setOpened(null);
+    setLines([]); setOpened(null); setOpenedAudit(false);
   }, [form]);
   useEffect(() => { reset(); }, [reset]);
 
@@ -47,12 +48,25 @@ export default function PlasticPurchaseOrderPage() {
     if (!生产单号) return;
     try {
       const bom = await plasticPurchaseOrderApi.basis(生产单号);
-      setLines(bom.map(b => ({
+      // 喷油下单(供应商名含「喷油」)：只带入 加工内容含「喷油」 的物料(加工内容优先取塑胶物料资料)
+      const 喷油单 = ((form.getFieldValue("供应商名称") as string) ?? "").includes("喷油");
+      const rows = 喷油单 ? bom.filter(b => (b.加工内容 ?? "").includes("喷油")) : bom;
+      if (喷油单 && rows.length === 0) {
+        message.warning(`生产单 ${生产单号} 没有需要喷油的物料(塑胶物料资料.加工内容 未标「喷油」)`);
+        return;
+      }
+      // 默认订购数量=计划数量×用量(与塑胶采购分析抽屉口径一致);编号=生产通知单.合同号(客户合同号即PO号)
+      setLines(rows.map(b => ({
         生产单号: b.生产单号, 款号: b.款号, 物料编号: b.物料编号, 物料名称: b.物料名称,
         模具编号: b.模具编号, 用量: b.用量 ?? undefined, 套数: b.套数 ?? undefined,
-        数量: 0, 颜色: b.颜色, 色粉号: b.色粉号, 用料名称: b.用料名称,
+        数量: b.计划数量 != null && b.用量 != null
+          ? Math.round(Number(b.计划数量) * Number(b.用量) * 100) / 100
+          : 0,
+        颜色: b.颜色, 色粉号: b.色粉号, 用料名称: b.用料名称,
       })));
-      message.success(`已调入生产单 ${生产单号} 的 BOM 明细`);
+      const po = rows[0]?.合同号;
+      if (po && !(form.getFieldValue("编号") as string)) form.setFieldsValue({ 编号: po });
+      message.success(`已调入生产单 ${生产单号} 的 ${喷油单 ? "喷油" : "BOM"}明细 ${rows.length} 行`);
     } catch { message.error("调入清单失败"); }
   };
 
@@ -66,12 +80,12 @@ export default function PlasticPurchaseOrderPage() {
         日期: h.日期?.slice(0, 10),
         交货日期: h.交货日期 ? dayjs(h.交货日期) : undefined,
       });
-      setLines(d.明细 ?? []); setOpened(单号);
+      setLines(d.明细 ?? []); setOpened(单号); setOpenedAudit(h.审核 === "1");
     } catch { message.error("打开单据失败"); }
   };
 
   const save = async () => {
-    if (readOnly) { message.info("查看模式:请先「新建」再录入"); return; }
+    if (readOnly) { message.info("已审核单据为只读:请先「反审核」再修改"); return; }
     let v: Record<string, unknown>;
     try { v = await form.validateFields(); } catch { return; }
     const ok = lines.filter(l => l.物料编号 && Number(l.数量) > 0);
@@ -79,15 +93,26 @@ export default function PlasticPurchaseOrderPage() {
     const 交货日期 = v.交货日期 ? (v.交货日期 as dayjs.Dayjs).format("YYYY-MM-DD") : null;
     setSaving(true);
     try {
-      await plasticPurchaseOrderApi.create({ ...v, 交货日期, 明细: ok });
-      message.success("塑胶采购订单已创建"); reset(); loadRows();
+      if (opened) {
+        // 未审核单编辑保存(整单更新)
+        await plasticPurchaseOrderApi.update(opened, { ...v, 交货日期, 明细: ok });
+        message.success("已保存修改"); loadRows();
+      } else {
+        await plasticPurchaseOrderApi.create({ ...v, 交货日期, 明细: ok });
+        message.success("塑胶采购订单已创建"); reset(); loadRows();
+      }
     } catch (e) {
-      message.error((e as { response?: { data?: { 消息?: string } } }).response?.data?.消息 ?? "创建失败");
+      message.error((e as { response?: { data?: { 消息?: string } } }).response?.data?.消息 ?? "保存失败");
     } finally { setSaving(false); }
   };
 
+  // 审核/反审核返回 {警告}(如排产推送失败)时用警告提示,否则维持原成功提示
   const act = async (fn: () => Promise<unknown>, ok: string) => {
-    try { await fn(); message.success(ok); loadRows(); }
+    try {
+      const r = await fn() as { 警告?: string } | undefined;
+      if (r?.警告) message.warning(r.警告); else message.success(ok);
+      loadRows();
+    }
     catch (e) { message.error((e as { response?: { data?: { 消息?: string } } }).response?.data?.消息 ?? "操作失败"); }
   };
 
@@ -158,7 +183,7 @@ export default function PlasticPurchaseOrderPage() {
   }
 
   return (
-    <Card title={`塑胶采购订单${readOnly ? `（查看 ${opened}）` : "（新建）"}`} variant="borderless"
+    <Card title={`塑胶采购订单${opened ? (readOnly ? `（查看 ${opened}）` : `（编辑 ${opened}）`) : "（新建）"}`} variant="borderless"
       extra={
         <Space wrap>
           <Button onClick={reset}>新建</Button>

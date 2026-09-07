@@ -154,6 +154,7 @@ export const MENU_TREE: MenuGroup[] = [
     M("成品入仓单", "/finished-receipts", "成品入仓"),
     // 装配部开领料单(仓库=成品仓,返工领出)→成品仓在这里审核=出库过账(同领料单页,出库即扣成品库存)
     M("领料出库", "/materials/material-issues", "领料单"),
+    M("成品库存", "/finished-inventory", "成品库存"),
     // 外部系统(RR-Portal)
     X("船务管理系统", "/shipping/"),
   ]},

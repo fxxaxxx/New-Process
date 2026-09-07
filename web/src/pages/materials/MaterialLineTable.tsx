@@ -7,8 +7,9 @@ import MaterialPicker from "./MaterialPicker";
 import ProductionPicker from "./ProductionPicker";
 import { purchaseOrderApi, type PurchaseOrderProgressRow } from "../../api/purchaseOrders";
 import { productionApi } from "../../api/production";
-import { semiReceiptApi } from "../../api/semi";
-import { finishedReceiptApi } from "../../api/finished";
+import { semiReceiptApi, semiInventoryApi } from "../../api/semi";
+import { finishedReceiptApi, finishedInventoryApi } from "../../api/finished";
+import { materialInventoryApi } from "../../api/materialInventory";
 import type { MaterialRow } from "../../api/materialMaster";
 import type { ProductionTrackingRow } from "../../api/productionReports";
 
@@ -59,6 +60,27 @@ export default function MaterialLineTable({ value, onChange, hidePriceCols, enab
   const [rcptRows, setRcptRows] = useState<RcptRow[]>([]);
   const [rcptKw, setRcptKw] = useState("");
   const [rcptLoading, setRcptLoading] = useState(false);
+
+  // 库存列(领料/退料)：按表头仓库整仓拉一次库存，行内按物料编号(成品仓按配件编号=物料编号)查现存
+  const [stockMap, setStockMap] = useState<Record<string, number>>({});
+  useEffect(() => {
+    if (!usageCols || !仓库) { setStockMap({}); return; }
+    let dead = false;
+    (async () => {
+      try {
+        const m: Record<string, number> = {};
+        if (仓库.includes("半成品")) {
+          for (const r of await semiInventoryApi.list(仓库)) m[r.物料编号] = (m[r.物料编号] ?? 0) + Number(r.库存 ?? 0);
+        } else if (仓库.includes("成品")) {
+          for (const r of await finishedInventoryApi.list(仓库)) m[r.配件编号] = (m[r.配件编号] ?? 0) + Number(r.库存数量 ?? 0);
+        } else {
+          for (const r of await materialInventoryApi.list(仓库)) m[r.物料编号] = Number(r.库存数量 ?? 0);
+        }
+        if (!dead) setStockMap(m);
+      } catch { /* 库存列加载失败则留空,不影响录单 */ }
+    })();
+    return () => { dead = true; };
+  }, [usageCols, 仓库]);
 
   const loadReceipts = async (kind: "半成品" | "成品", kw = "") => {
     setRcptLoading(true);
@@ -267,6 +289,15 @@ export default function MaterialLineTable({ value, onChange, hidePriceCols, enab
     { title: "材料", dataIndex: "物料类别", width: 84, render: (v: string) => ro(v) },
     colColor,
     { title: "单位", dataIndex: "单位", width: 64, render: (v: string) => ro(v) },
+    {
+      title: "库存", key: "_stock", width: 84, align: "right" as const,
+      render: (_: unknown, r: DocLine) => {
+        if (!r.物料编号) return "";
+        const s = stockMap[r.物料编号] ?? 0;
+        // 库存不足标红提示(不拦截,实际能否出库由来料仓出库时判断)
+        return <span style={{ color: s < Number(r.数量 ?? 0) ? "#cf1322" : undefined }}>{s}</span>;
+      },
+    },
     colQty,
     {
       title: "备注", dataIndex: "备注", width: 140,
@@ -326,7 +357,7 @@ export default function MaterialLineTable({ value, onChange, hidePriceCols, enab
   return (
     <div>
       <Table size="small" rowKey={(_: DocLine, i?: number) => String(i)} pagination={false}
-        dataSource={value} columns={columns} scroll={{ x: "max-content" }} />
+        dataSource={value} columns={columns} scroll={{ x: "max-content", y: "calc(100vh - 480px)" }} />
       <Space style={{ marginTop: 12 }}>
         <Button icon={<PlusOutlined />} onClick={() => onChange(prev => [...prev, { 数量: 0 }])}>加一行</Button>
         {enableOrderPicker && <Button onClick={() => setWholeOpen(true)}>整单带入</Button>}

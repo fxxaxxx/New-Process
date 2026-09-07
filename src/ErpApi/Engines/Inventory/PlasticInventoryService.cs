@@ -76,7 +76,7 @@ public sealed class PlasticRawMaterialMonthlyRow
     public string? 物料类别 { get; set; }
 }
 
-// 塑胶库存(口径=塑胶):入仓(+) / 领料(−) / 退料(+) / 退仓(−) / 报废(−) / 盘点(±)。仅审核='1',按 物料编号×仓库 汇总。
+// 塑胶库存(口径=塑胶):入仓(+) / 领料(−) / 白件领料(发外喷油,固定塑胶仓 −) / 退料(+) / 退仓(−) / 报废(−) / 盘点(±)。仅审核='1',按 物料编号×仓库 汇总。
 // 单据不维护余额——库存是已审核明细单的实时聚合(镜像 MaterialInventoryService)。
 public sealed class PlasticInventoryService(ISqlConnectionFactory factory)
 {
@@ -86,6 +86,9 @@ SELECT d.[物料编号],d.[物料名称],d.[规格],d.[单位],d.[仓库], d.[�
 UNION ALL
 SELECT d.[物料编号],d.[物料名称],d.[规格],d.[单位],d.[仓库], d.[数量]*-1
     FROM [塑胶领料明细单] d JOIN [塑胶领料单] h ON h.[单号]=d.[单号] WHERE ISNULL(h.[审核],'0')='1'
+UNION ALL
+SELECT d.[物料编号],d.[物料名称],CAST(NULL AS nvarchar(20)) AS [规格],d.[单位],N'塑胶仓' AS [仓库], d.[数量]*-1
+    FROM [白件领料明细单] d JOIN [白件领料单] h ON h.[单号]=d.[单号] WHERE ISNULL(h.[审核],'0')='1'
 UNION ALL
 SELECT d.[物料编号],d.[物料名称],d.[规格],d.[单位],d.[仓库], d.[数量]
     FROM [塑胶退料明细单] d JOIN [塑胶退料单] h ON h.[单号]=d.[单号] WHERE ISNULL(h.[审核],'0')='1'
@@ -99,13 +102,16 @@ UNION ALL
 SELECT d.[物料编号],d.[物料名称],d.[规格],d.[单位],d.[仓库], d.[盈亏数量]
     FROM [塑胶盘点明细单] d JOIN [塑胶盘点单] h ON h.[单号]=d.[单号] WHERE ISNULL(h.[审核],'0')='1'";
 
-    // 带单据日期的签名台账(进出库统计用;仅审核='1')。与 LedgerUnion 同 6 支,多选 h.[日期]。
+    // 带单据日期的签名台账(进出库统计用;仅审核='1')。与 LedgerUnion 同 7 支,多选 h.[日期]。
     private const string LedgerUnionDated = @"
 SELECT h.[日期] AS 日期, d.[物料编号],d.[物料名称],d.[规格],d.[单位],d.[仓库], d.[数量] AS 数量
     FROM [塑胶入仓明细单] d JOIN [塑胶入仓单] h ON h.[单号]=d.[单号] WHERE ISNULL(h.[审核],'0')='1'
 UNION ALL
 SELECT h.[日期], d.[物料编号],d.[物料名称],d.[规格],d.[单位],d.[仓库], d.[数量]*-1
     FROM [塑胶领料明细单] d JOIN [塑胶领料单] h ON h.[单号]=d.[单号] WHERE ISNULL(h.[审核],'0')='1'
+UNION ALL
+SELECT h.[日期], d.[物料编号],d.[物料名称],CAST(NULL AS nvarchar(20)),d.[单位],N'塑胶仓', d.[数量]*-1
+    FROM [白件领料明细单] d JOIN [白件领料单] h ON h.[单号]=d.[单号] WHERE ISNULL(h.[审核],'0')='1'
 UNION ALL
 SELECT h.[日期], d.[物料编号],d.[物料名称],d.[规格],d.[单位],d.[仓库], d.[数量]
     FROM [塑胶退料明细单] d JOIN [塑胶退料单] h ON h.[单号]=d.[单号] WHERE ISNULL(h.[审核],'0')='1'
@@ -343,13 +349,16 @@ ORDER BY [原料编号]";
         return rows.AsList();
     }
 
-    // 带单据类型的签名台账(物料进出汇总用;仅审核='1')。数量一律为正,盘点支取盈亏数量(带符号)。
+    // 带单据类型的签名台账(物料进出汇总用;仅审核='1')。数量一律为正,盘点支取盈亏数量(带符号)。白件领料并入「领料」。
     private const string LedgerUnionTyped = @"
 SELECT h.[日期] AS 日期, N'入仓' AS 类型, d.[物料编号],d.[物料名称],d.[规格],d.[单位], d.[数量] AS 数量
     FROM [塑胶入仓明细单] d JOIN [塑胶入仓单] h ON h.[单号]=d.[单号] WHERE ISNULL(h.[审核],'0')='1'
 UNION ALL
 SELECT h.[日期], N'领料', d.[物料编号],d.[物料名称],d.[规格],d.[单位], d.[数量]
     FROM [塑胶领料明细单] d JOIN [塑胶领料单] h ON h.[单号]=d.[单号] WHERE ISNULL(h.[审核],'0')='1'
+UNION ALL
+SELECT h.[日期], N'领料', d.[物料编号],d.[物料名称],CAST(NULL AS nvarchar(20)),d.[单位], d.[数量]
+    FROM [白件领料明细单] d JOIN [白件领料单] h ON h.[单号]=d.[单号] WHERE ISNULL(h.[审核],'0')='1'
 UNION ALL
 SELECT h.[日期], N'退料', d.[物料编号],d.[物料名称],d.[规格],d.[单位], d.[数量]
     FROM [塑胶退料明细单] d JOIN [塑胶退料单] h ON h.[单号]=d.[单号] WHERE ISNULL(h.[审核],'0')='1'

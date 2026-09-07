@@ -17,6 +17,8 @@ export interface PPODetail { 单头?: PPOHeader; 明细: PPOLine[] }
 export interface PPOBasisRow {
   生产单号?: string; 款号?: string; 物料编号?: string; 物料名称?: string; 模具编号?: string;
   用量?: number | null; 套数?: number | null; 颜色?: string; 色粉号?: string; 用料名称?: string;
+  // 加工内容(物料资料优先,BOM 回落):喷油供应商调入清单时只保留含「喷油」的行
+  加工内容?: string;
   // 生产制单带出:计划数量(默认订购数量=计划数量×用量)/合同号(自动填入表头 编号)
   计划数量?: number | null; 合同号?: string;
   // 该生产单下此物料(含颜色匹配)已累计下单的数量，>0 即"已下单"（防重复下单）
@@ -30,7 +32,8 @@ export const plasticPurchaseOrderApi = {
   basis: (生产单号: string) => api.get<PPOBasisRow[]>(`${base}/basis`, { params: { 生产单号 } }).then(r => r.data),
   get: (单号: string) => api.get<PPODetail>(`${base}/${enc(单号)}`).then(r => r.data),
   create: (body: Record<string, unknown>) => api.post<{ 单号: string }>(base, body).then(r => r.data),
+  update: (单号: string, body: Record<string, unknown>) => api.put(`${base}/${enc(单号)}`, body).then(r => r.data),
   remove: (单号: string) => api.delete(`${base}/${enc(单号)}`),
-  approve: (单号: string) => api.post(`${base}/${enc(单号)}/approve`),
-  unapprove: (单号: string) => api.post(`${base}/${enc(单号)}/unapprove`),
+  approve: (单号: string) => api.post<{ 警告?: string }>(`${base}/${enc(单号)}/approve`).then(r => r.data),
+  unapprove: (单号: string) => api.post<{ 警告?: string }>(`${base}/${enc(单号)}/unapprove`).then(r => r.data),
 };

@@ -138,6 +138,37 @@ public class PlasticInventoryServiceDbTests(DbFixture fx)
     }
 
     [SkippableFact]
+    public async Task WhitePartIssue_minus_from_塑胶仓_after_approve()
+    {
+        using var c = fx.Open();
+        var engine = new PostingEngine(Factory(), new AuditLogger());
+        void Clean()
+        {
+            c.Execute("DELETE FROM [塑胶入仓明细单] WHERE [物料编号]=N'WPIP01'; DELETE FROM [塑胶入仓单] WHERE [单号]=N'SRWPI01'");
+            c.Execute("DELETE FROM [白件领料明细单] WHERE [物料编号]=N'WPIP01'; DELETE FROM [白件领料单] WHERE [单号]=N'BJLWPI01'");
+        }
+        Clean();
+        c.Execute("INSERT INTO [塑胶入仓单]([单号],[仓库],[审核]) VALUES(N'SRWPI01',N'塑胶仓','0')");
+        c.Execute("INSERT INTO [塑胶入仓明细单]([单号],[仓库],[物料编号],[数量]) VALUES(N'SRWPI01',N'塑胶仓',N'WPIP01',100)");
+        c.Execute("INSERT INTO [白件领料单]([单号],[审核]) VALUES(N'BJLWPI01','0')");
+        c.Execute("INSERT INTO [白件领料明细单]([单号],[物料编号],[数量]) VALUES(N'BJLWPI01',N'WPIP01',40)");
+        try
+        {
+            await engine.ApproveAsync("塑胶入仓单", "SRWPI01", "t");
+            Assert.Equal(100m, await Svc().StockOfAsync("WPIP01", null));
+            // 白件领料(发外喷油)审核 → 扣塑胶仓库存
+            await engine.ApproveAsync("白件领料单", "BJLWPI01", "t");
+            Assert.Equal(60m, await Svc().StockOfAsync("WPIP01", null));
+            var list = await Svc().ListAsync("塑胶仓", "WPIP01");
+            Assert.Contains(list, r => r.物料编号 == "WPIP01" && r.库存数量 == 60m && r.仓库 == "塑胶仓");
+            // 反审核回冲
+            Assert.True(await engine.UnapproveAsync("白件领料单", "BJLWPI01", "t"));
+            Assert.Equal(100m, await Svc().StockOfAsync("WPIP01", null));
+        }
+        finally { Clean(); }
+    }
+
+    [SkippableFact]
     public async Task List_brings_join_columns_and_filters_by_category()
     {
         using var c = fx.Open();

@@ -1,14 +1,44 @@
 using Dapper;
 using ErpApi.Engines.DocumentNumber;
 using ErpApi.Features.MasterData;
+using ErpApi.Features.Messages;
 using ErpApi.Infrastructure.Db;
 namespace ErpApi.Features.Plastics.PlasticIssue;
 
 // 塑胶领料单(库存−)。两层:塑胶领料单 + 塑胶领料明细单。审核后由 PlasticInventoryService 实时聚合(−)。
-public sealed class PlasticIssueService(ISqlConnectionFactory factory, IDocumentNumberGenerator docNo)
+// 三级流转产生消息:开单→主管(职称='主管')，主管审→经理，经理审→收件人(空则全体仓管)；
+// messages 可空(DI 注入;测试不传时不发消息)。对齐 MaterialIssueService 领料单 LL 的实现。
+public sealed class PlasticIssueService(ISqlConnectionFactory factory, IDocumentNumberGenerator docNo,
+    MessageService? messages = null)
 {
     public const string DocType = "塑胶领料单";
     public const string Prefix = "SLL";
+
+    // 按 领料部门+职称 找接收账号(账号=姓名;重名账号带(编号)后缀用 LIKE 兼容)
+    private async Task<IReadOnlyList<string>> RecipientsAsync(string? 领料部门, string 职称)
+    {
+        using var c = factory.Create();
+        return (await c.QueryAsync<string>(@"
+SELECT DISTINCT u.[用户] FROM [人事档案] p
+JOIN [部门信息] d ON d.[编号] = p.[部门编号]
+JOIN [sysfileuser] u ON u.[用户] = p.[姓名] OR u.[用户] LIKE p.[姓名] + N'(%'
+WHERE d.[部门] = @领料部门 AND p.[职称] = @职称", new { 领料部门, 职称 })).AsList();
+    }
+
+    private Task NotifyAsync(IEnumerable<string> 接收人, string? 单号, string 标题, string? 内容) =>
+        messages is null ? Task.CompletedTask : messages.SendAsync(接收人, "领料审批", 单号, 标题, 内容);
+
+    // 校验用户是否为 该部门指定职称(主管/经理)的人；admin(系统管理员)可代办
+    private async Task<bool> HasRoleAsync(string user, string? 领料部门, string 职称)
+    {
+        if (user.Equals("admin", StringComparison.OrdinalIgnoreCase)) return true;
+        using var c = factory.Create();
+        var n = await c.ExecuteScalarAsync<int>(@"
+SELECT COUNT(*) FROM [人事档案] p
+JOIN [部门信息] d ON d.[编号] = p.[部门编号]
+WHERE p.[姓名] = @user AND d.[部门] = @领料部门 AND p.[职称] = @职称", new { user, 领料部门, 职称 });
+        return n > 0;
+    }
 
     public async Task<string> CreateAsync(PlasticIssueCreateDto dto, string user)
     {
@@ -33,6 +63,9 @@ VALUES(@单号,@日期,@仓库,@装配采购,@生产单号,@款号,@物料编号
                 new { 单号, 日期 = now, dto.仓库, l.装配采购, l.生产单号, l.款号, l.物料编号, l.模具编号, l.物料名称, l.规格, l.颜色, l.色粉号, l.用料名称, l.仓位号, l.单位,
                       l.数量, 单价 = l.单价 ?? 0, 金额 = l.数量 * (l.单价 ?? 0), l.备注 }, tx);
         tx.Commit();
+        // 开单 → 消息给该部门主管(职称='主管')
+        await NotifyAsync(await RecipientsAsync(dto.领料部门, "主管"), 单号,
+            "新的塑胶领料单待主管审核", $"塑胶领料单 {单号}（{dto.领料部门}，共 {数量合计} 件）已提交，请审核。");
         return 单号;
     }
 
@@ -45,7 +78,7 @@ VALUES(@单号,@日期,@仓库,@装配采购,@生产单号,@款号,@物料编号
         using var c = factory.Create();
         using var multi = await c.QueryMultipleAsync(@"
 SELECT COUNT(*) FROM [塑胶领料单] WHERE @kw IS NULL OR [单号] LIKE @kw OR [领料人] LIKE @kw OR [备注] LIKE @kw;
-SELECT [ID],[单号],[日期],[领料部门],[领料人],[仓库],[数量],[金额],[操作员],[审核],[审核人],[备注]
+SELECT [ID],[单号],[日期],[领料部门],[领料人],[仓库],[数量],[金额],[操作员],[审核],[审核人],[备注],[主管审核],[主管审核人],[经理审核],[经理审核人]
 FROM [塑胶领料单] WHERE @kw IS NULL OR [单号] LIKE @kw OR [领料人] LIKE @kw OR [备注] LIKE @kw
 ORDER BY [ID] DESC OFFSET (@page-1)*@size ROWS FETCH NEXT @size ROWS ONLY;", new { kw, page, size });
         var total = await multi.ReadFirstAsync<int>();
@@ -57,7 +90,7 @@ ORDER BY [ID] DESC OFFSET (@page-1)*@size ROWS FETCH NEXT @size ROWS ONLY;", new
     {
         using var c = factory.Create();
         using var multi = await c.QueryMultipleAsync(@"
-SELECT [ID],[单号],[日期],[领料部门],[领料人],[仓库],[数量],[金额],[操作员],[审核],[审核人],[备注],[胶箱数],[纸箱数],[钙塑箱数],[卡板数],[收件人],[电脑单号],[领料备注]
+SELECT [ID],[单号],[日期],[领料部门],[领料人],[仓库],[数量],[金额],[操作员],[审核],[审核人],[备注],[胶箱数],[纸箱数],[钙塑箱数],[卡板数],[收件人],[电脑单号],[领料备注],[主管审核],[主管审核人],[经理审核],[经理审核人]
 FROM [塑胶领料单] WHERE [单号]=@单号;
 SELECT [ID],[装配采购],[生产单号],[款号],[物料编号],[模具编号],[物料名称],[规格],[颜色],[色粉号],[用料名称],[仓位号],[单位],[数量],[单价],[金额],[备注]
 FROM [塑胶领料明细单] WHERE [单号]=@单号 ORDER BY [ID];", new { 单号 });
@@ -120,6 +153,63 @@ WHERE h.[日期] >= @qi AND h.[日期] < @qe
 GROUP BY d.[生产单号], d.[款号], d.[物料编号], d.[颜色]
 ORDER BY d.[生产单号], d.[物料编号]", new { qi, qe, kw, cat });
         return rows.AsList();
+    }
+
+    // 三级流转：领料部门开单(未审核) → 主管审核 → 经理审核 → 塑胶仓出库(审核='1')。
+    // 出库必须 经理审核='1'(即经理审核完才"发到"塑胶仓);单据上显示 主管/经理 审核人。
+    public async Task SupervisorApproveAsync(string 单号, string user)
+    {
+        using var c = factory.Create();
+        var 部门 = await c.ExecuteScalarAsync<string?>("SELECT [领料部门] FROM [塑胶领料单] WHERE [单号]=@单号", new { 单号 });
+        if (部门 is null) throw new KeyNotFoundException($"塑胶领料单 {单号} 不存在。");
+        if (!await HasRoleAsync(user, 部门, "主管"))
+            throw new InvalidOperationException($"[{user}] 不是 {部门} 的主管，不能主管审核。");
+        var n = await c.ExecuteAsync(@"
+UPDATE [塑胶领料单] SET [主管审核]='1',[主管审核人]=@user,[主管审核日期]=SYSDATETIME()
+WHERE [单号]=@单号 AND ISNULL([主管审核],'0')<>'1' AND ISNULL([审核],'0')<>'1'", new { user, 单号 });
+        if (n == 0) throw new InvalidOperationException("主管审核失败：单不存在、已主管审核或已完成出库。");
+        // 主管审完 → 消息给该部门经理(职称='经理')
+        await NotifyAsync(await RecipientsAsync(部门, "经理"), 单号,
+            "塑胶领料单待经理审核", $"塑胶领料单 {单号} 已经主管 {user} 审核，请经理审核。");
+    }
+
+    public async Task ManagerApproveAsync(string 单号, string user)
+    {
+        using var c = factory.Create();
+        var 主管 = await c.ExecuteScalarAsync<string?>(
+            "SELECT ISNULL([主管审核],'0') FROM [塑胶领料单] WHERE [单号]=@单号", new { 单号 });
+        if (主管 is null) throw new KeyNotFoundException($"塑胶领料单 {单号} 不存在。");
+        if (主管 != "1") throw new InvalidOperationException("请先经部门主管审核，再由部门经理审核。");
+        var 部门 = await c.ExecuteScalarAsync<string?>("SELECT [领料部门] FROM [塑胶领料单] WHERE [单号]=@单号", new { 单号 });
+        if (!await HasRoleAsync(user, 部门, "经理"))
+            throw new InvalidOperationException($"[{user}] 不是 {部门} 的经理，不能经理审核。");
+        var n = await c.ExecuteAsync(@"
+UPDATE [塑胶领料单] SET [经理审核]='1',[经理审核人]=@user,[经理审核日期]=SYSDATETIME()
+WHERE [单号]=@单号 AND ISNULL([经理审核],'0')<>'1' AND ISNULL([审核],'0')<>'1'", new { user, 单号 });
+        if (n == 0) throw new InvalidOperationException("经理审核失败：已经理审核或已完成出库。");
+        // 经理审完 → 消息发给单据「收件人」对应账号(姓名匹配,重名带(编号)后缀用 LIKE 兼容);
+        // 收件人为空则发全体 职称=仓管 的人。收到后塑胶仓安排出库。
+        var doc = await c.QuerySingleAsync<(string? 部门, string? 收件人)>(
+            "SELECT [领料部门] AS 部门, [收件人] FROM [塑胶领料单] WHERE [单号]=@单号", new { 单号 });
+        IReadOnlyList<string> 收件人账号 = string.IsNullOrWhiteSpace(doc.收件人)
+            ? (await c.QueryAsync<string>(@"
+SELECT DISTINCT u.[用户] FROM [人事档案] p
+JOIN [sysfileuser] u ON u.[用户] = p.[姓名] OR u.[用户] LIKE p.[姓名] + N'(%'
+WHERE p.[职称] = N'仓管'")).AsList()
+            : (await c.QueryAsync<string>(
+                "SELECT [用户] FROM [sysfileuser] WHERE [用户]=@name OR [用户] LIKE @name + N'(%'",
+                new { name = doc.收件人 })).AsList();
+        await NotifyAsync(收件人账号, 单号,
+            "塑胶领料单待出库", $"塑胶领料单 {单号}（{doc.部门}）已主管、经理审核，请塑胶仓安排出库。");
+    }
+
+    // 出库门：审核(=塑胶仓出库)前必须 经理审核='1'。单不存在也返回 false(posting 会再兜「单不存在」)。
+    public async Task<bool> IsManagerApprovedAsync(string 单号)
+    {
+        using var c = factory.Create();
+        var v = await c.ExecuteScalarAsync<string?>(
+            "SELECT ISNULL([经理审核],'0') FROM [塑胶领料单] WHERE [单号]=@单号", new { 单号 });
+        return v == "1";
     }
 
     public async Task<bool> DeleteAsync(string 单号)

@@ -115,6 +115,48 @@ UPDATE [生产排期] SET [状态]=N'已走货', [操作员]=@user
 WHERE [状态]=N'在排' AND [货号]=@货号", new { 货号 = 货号.Trim(), user });
     }
 
+    // 领料出库联动排期：领料单备注含"走货"时按明细溯源——
+    // 有 生产单号 的行：生产制单.合同号=排期.PO号 + 生产制单货号.货号=排期.货号，只翻该 PO+货号 的在排行；
+    // 无 生产单号 的行：按 物料编号(即货号) 兜底，翻该货号全部在排行(同销售出货口径)。
+    // Excel 重导仍是权威源可回正；反审核不回退。
+    public async Task<int> MarkShippedForMaterialIssueAsync(string 单号, string user)
+    {
+        using var c = factory.Create();
+        var 备注 = await c.ExecuteScalarAsync<string?>(
+            "SELECT [备注] FROM [领料单] WHERE [单号]=@单号", new { 单号 });
+        if (备注 is null || !备注.Contains("走货")) return 0;
+        var lines = (await c.QueryAsync<MaterialIssueTraceRow>(
+            "SELECT [生产单号],[物料编号],[款号] FROM [领料明细单] WHERE [单号]=@单号", new { 单号 })).AsList();
+        var mos = lines.Select(l => (l.生产单号 ?? "").Trim()).Where(s => s.Length > 0).Distinct().ToArray();
+        var n = mos.Length > 0 ? await MarkShippedBy生产单号Async(mos, user) : 0;
+        foreach (var 货号 in lines.Where(l => string.IsNullOrWhiteSpace(l.生产单号))
+            .Select(l => (l.物料编号 ?? l.款号 ?? "").Trim()).Where(s => s.Length > 0).Distinct())
+            n += await MarkShippedBy货号Async(货号, user);
+        return n;
+    }
+
+    // 按生产单号溯源回写：生产制单(合同号→排期.PO号) × 生产制单货号(货号→排期.货号)
+    public async Task<int> MarkShippedBy生产单号Async(IReadOnlyList<string> 生产单号s, string user)
+    {
+        var mos = 生产单号s.Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s.Trim()).Distinct().ToArray();
+        if (mos.Length == 0) return 0;
+        using var c = factory.Create();
+        return await c.ExecuteAsync(@"
+UPDATE p SET [状态]=N'已走货', [操作员]=@user
+FROM [生产排期] p
+WHERE p.[状态]=N'在排' AND EXISTS (
+    SELECT 1 FROM [生产制单] h JOIN [生产制单货号] g ON g.[生产单号]=h.[生产单号]
+    WHERE h.[生产单号] IN @mos AND p.[PO号]=LTRIM(RTRIM(h.[合同号])) AND p.[货号]=g.[货号])",
+            new { mos, user });
+    }
+
+    private sealed class MaterialIssueTraceRow
+    {
+        public string? 生产单号 { get; set; }
+        public string? 物料编号 { get; set; }
+        public string? 款号 { get; set; }
+    }
+
     // 导入：同一事务内 建批次 → 逐行按自然键 更新或插入 → 回填批次计数
     public async Task<ScheduleImportResult> ImportAsync(ScheduleImportRequest req, string user)
     {

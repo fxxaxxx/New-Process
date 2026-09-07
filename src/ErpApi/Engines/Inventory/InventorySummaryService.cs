@@ -84,4 +84,129 @@ HAVING SUM(库存) <> 0;";
         var rows = await c.QueryAsync<SemiFinishedRow>(SemiSql, new { 仓 = warehouse });
         return rows.AsList();
     }
+
+    // 玩具模型口径：按 配件编号 聚合，来源与算法1相同（8 个来源 UNION ALL，仅 审核='1'）。
+    // 只有 成品入仓明细单 带玩具列(配件编号/客户/货号/名称/产品装配名称)，其余来源只有 款号；
+    // 故用 入仓映射(款号→配件编号) 归并：key=COALESCE(明细自带配件编号, 映射配件编号, 款号)。
+    // 非入仓来源描述列给 NULL，外层 GROUP BY key 后 MAX 取入仓行提供的描述。
+    private const string ByItemSql = @"
+WITH map AS (
+    SELECT [款号], MAX([配件编号]) AS [配件编号]
+    FROM [成品入仓明细单]
+    WHERE NULLIF(LTRIM(RTRIM([配件编号])), N'') IS NOT NULL
+    GROUP BY [款号]
+)
+SELECT t.[key] AS [配件编号], MAX(t.[客户]) AS [客户], MAX(t.[产品货号]) AS [产品货号],
+       MAX(t.[产品名称]) AS [产品名称], MAX(t.[产品装配名称]) AS [产品装配名称], SUM(t.[库存]) AS [库存数量]
+FROM (
+    SELECT COALESCE(NULLIF(LTRIM(RTRIM(d.[配件编号])),N''), m.[配件编号], d.[款号]) AS [key],
+           d.[客户], d.[货号] AS [产品货号], d.[名称] AS [产品名称], d.[产品装配名称], d.[数量] AS [库存]
+      FROM [成品入仓明细单] d LEFT JOIN map m ON m.[款号]=d.[款号]
+      WHERE d.[仓库]=@仓 AND ISNULL(d.[审核],'0')='1'
+    UNION ALL
+    SELECT COALESCE(m.[配件编号], d.[款号]), NULL, NULL, NULL, NULL, d.[数量]
+      FROM [成品退货明细单] d LEFT JOIN map m ON m.[款号]=d.[款号]
+      WHERE d.[仓库]=@仓 AND ISNULL(d.[审核],'0')='1'
+    UNION ALL
+    SELECT COALESCE(m.[配件编号], d.[款号]), NULL, NULL, NULL, NULL, d.[数量]*-1
+      FROM [成品出仓明细单] d LEFT JOIN map m ON m.[款号]=d.[款号]
+      WHERE d.[仓库]=@仓 AND ISNULL(d.[审核],'0')='1'
+    UNION ALL
+    SELECT COALESCE(m.[配件编号], d.[款号]), NULL, NULL, NULL, NULL, d.[数量]*-1
+      FROM [成品退仓明细单] d LEFT JOIN map m ON m.[款号]=d.[款号]
+      WHERE d.[仓库]=@仓 AND ISNULL(d.[审核],'0')='1'
+    UNION ALL
+    SELECT COALESCE(m.[配件编号], d.[款号]), NULL, NULL, NULL, NULL, d.[盈亏数量]
+      FROM [成品盘点明细单] d LEFT JOIN map m ON m.[款号]=d.[款号]
+      WHERE d.[仓库]=@仓 AND ISNULL(d.[审核],'0')='1'
+    UNION ALL
+    SELECT COALESCE(m.[配件编号], d.[款号]), NULL, NULL, NULL, NULL, d.[数量]
+      FROM [成品调拨明细单] d LEFT JOIN map m ON m.[款号]=d.[款号]
+      WHERE d.[目标仓库]=@仓 AND ISNULL(d.[审核],'0')='1'
+    UNION ALL
+    SELECT COALESCE(m.[配件编号], d.[款号]), NULL, NULL, NULL, NULL, d.[数量]*-1
+      FROM [成品调拨明细单] d LEFT JOIN map m ON m.[款号]=d.[款号]
+      WHERE d.[源仓库]=@仓 AND ISNULL(d.[审核],'0')='1'
+    UNION ALL
+    SELECT COALESCE(m.[配件编号], d.[款号]), NULL, NULL, NULL, NULL,
+           (CASE WHEN d.[已出数量] IS NOT NULL THEN d.[已出数量] ELSE d.[数量] END)*-1
+      FROM [领料明细单] d JOIN [领料单] h ON h.[单号]=d.[单号]
+      LEFT JOIN map m ON m.[款号]=d.[款号]
+      WHERE d.[仓库]=@仓 AND (ISNULL(d.[已出数量],0)>0 OR ISNULL(h.[审核],'0')='1')
+) t
+GROUP BY t.[key]
+HAVING SUM(t.[库存]) <> 0
+ORDER BY t.[key];";
+
+    public async Task<IReadOnlyList<FinishedItemStockRow>> FinishedGoodsByItemAsync(string warehouse)
+    {
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<FinishedItemStockRow>(ByItemSql, new { 仓 = warehouse });
+        return rows.AsList();
+    }
+
+    // 某配件编号在指定仓库的出入库流水，来源与汇总一致（8 个来源，仅 审核='1'）；
+    // 盘点盈亏 正计入库、负计出库（取绝对值）；领料的日期/单号取主单。按 日期,单号 排序，结存由前端累计。
+    private const string LedgerSql = @"
+WITH map AS (
+    SELECT [款号], MAX([配件编号]) AS [配件编号]
+    FROM [成品入仓明细单]
+    WHERE NULLIF(LTRIM(RTRIM([配件编号])), N'') IS NOT NULL
+    GROUP BY [款号]
+)
+SELECT t.[日期], t.[单号], t.[类型], t.[入库数量], t.[出库数量]
+FROM (
+    SELECT d.[日期], d.[单号], N'成品入仓' AS [类型], d.[数量] AS [入库数量], CAST(NULL AS decimal(18,4)) AS [出库数量],
+           COALESCE(NULLIF(LTRIM(RTRIM(d.[配件编号])),N''), m.[配件编号], d.[款号]) AS [key]
+      FROM [成品入仓明细单] d LEFT JOIN map m ON m.[款号]=d.[款号]
+      WHERE d.[仓库]=@仓 AND ISNULL(d.[审核],'0')='1'
+    UNION ALL
+    SELECT d.[日期], d.[单号], N'成品退货', d.[数量], NULL,
+           COALESCE(m.[配件编号], d.[款号])
+      FROM [成品退货明细单] d LEFT JOIN map m ON m.[款号]=d.[款号]
+      WHERE d.[仓库]=@仓 AND ISNULL(d.[审核],'0')='1'
+    UNION ALL
+    SELECT d.[日期], d.[单号], N'成品出仓', NULL, d.[数量],
+           COALESCE(m.[配件编号], d.[款号])
+      FROM [成品出仓明细单] d LEFT JOIN map m ON m.[款号]=d.[款号]
+      WHERE d.[仓库]=@仓 AND ISNULL(d.[审核],'0')='1'
+    UNION ALL
+    SELECT d.[日期], d.[单号], N'成品退仓', NULL, d.[数量],
+           COALESCE(m.[配件编号], d.[款号])
+      FROM [成品退仓明细单] d LEFT JOIN map m ON m.[款号]=d.[款号]
+      WHERE d.[仓库]=@仓 AND ISNULL(d.[审核],'0')='1'
+    UNION ALL
+    SELECT d.[日期], d.[单号], N'盘点盈亏',
+           CASE WHEN d.[盈亏数量] >= 0 THEN d.[盈亏数量] END,
+           CASE WHEN d.[盈亏数量] < 0 THEN d.[盈亏数量]*-1 END,
+           COALESCE(m.[配件编号], d.[款号])
+      FROM [成品盘点明细单] d LEFT JOIN map m ON m.[款号]=d.[款号]
+      WHERE d.[仓库]=@仓 AND ISNULL(d.[审核],'0')='1'
+    UNION ALL
+    SELECT d.[日期], d.[单号], N'调拨调入', d.[数量], NULL,
+           COALESCE(m.[配件编号], d.[款号])
+      FROM [成品调拨明细单] d LEFT JOIN map m ON m.[款号]=d.[款号]
+      WHERE d.[目标仓库]=@仓 AND ISNULL(d.[审核],'0')='1'
+    UNION ALL
+    SELECT d.[日期], d.[单号], N'调拨调出', NULL, d.[数量],
+           COALESCE(m.[配件编号], d.[款号])
+      FROM [成品调拨明细单] d LEFT JOIN map m ON m.[款号]=d.[款号]
+      WHERE d.[源仓库]=@仓 AND ISNULL(d.[审核],'0')='1'
+    UNION ALL
+    SELECT h.[日期], h.[单号], N'领料出库', NULL,
+           CASE WHEN d.[已出数量] IS NOT NULL THEN d.[已出数量] ELSE d.[数量] END,
+           COALESCE(m.[配件编号], d.[款号])
+      FROM [领料明细单] d JOIN [领料单] h ON h.[单号]=d.[单号]
+      LEFT JOIN map m ON m.[款号]=d.[款号]
+      WHERE d.[仓库]=@仓 AND (ISNULL(d.[已出数量],0)>0 OR ISNULL(h.[审核],'0')='1')
+) t
+WHERE t.[key] = @key
+ORDER BY t.[日期], t.[单号];";
+
+    public async Task<IReadOnlyList<FinishedItemLedgerRow>> FinishedGoodsLedgerAsync(string warehouse, string itemKey)
+    {
+        using var c = factory.Create();
+        var rows = await c.QueryAsync<FinishedItemLedgerRow>(LedgerSql, new { 仓 = warehouse, key = itemKey });
+        return rows.AsList();
+    }
 }

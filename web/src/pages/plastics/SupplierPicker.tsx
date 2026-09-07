@@ -19,7 +19,7 @@ export default function SupplierPicker({ open, onPick, onClose, withAssembly = f
 
   const load = useCallback(async () => {
     setLoading(true);
-    try { setRows((await masterApi("suppliers").list(1, 200, keyword.trim())).items as SupplierRow[]); }
+    try { setRows((await masterApi("suppliers").list(1, 500, keyword.trim())).items as SupplierRow[]); }
     catch { message.error("加载供应商资料失败"); }
     finally { setLoading(false); }
   }, [keyword]);

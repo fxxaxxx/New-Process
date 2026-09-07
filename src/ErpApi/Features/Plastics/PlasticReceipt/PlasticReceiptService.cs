@@ -2,10 +2,12 @@ using Dapper;
 using ErpApi.Engines.DocumentNumber;
 using ErpApi.Features.MasterData;
 using ErpApi.Infrastructure.Db;
+using ErpApi.Integrations.Paiji;
 namespace ErpApi.Features.Plastics.PlasticReceipt;
 
 // 塑胶入仓单。两层:塑胶入仓单 + 塑胶入仓明细单。审核后由 PlasticInventoryService 实时聚合入库存。
-public sealed class PlasticReceiptService(ISqlConnectionFactory factory, IDocumentNumberGenerator docNo)
+public sealed class PlasticReceiptService(ISqlConnectionFactory factory, IDocumentNumberGenerator docNo,
+    PaijiPushService paiji)
 {
     public const string DocType = "塑胶入仓单";
     public const string Prefix = "SR";   // 塑胶入仓单号 = SR + yyyyMMdd + 3位流水
@@ -150,5 +152,71 @@ ORDER BY d.[物料编号]", new { qi, qe, kw, cat });
         await c.ExecuteAsync("DELETE FROM [塑胶入仓单] WHERE [单号]=@单号", new { 单号 }, tx);
         tx.Commit();
         return true;
+    }
+
+    // ==================== AI注塑啤机排产系统 推送挂钩 ====================
+    // 审核成功后调用:把入仓明细逐行推送到排产系统入库单(排产端=warehouse-orders,车间按单头供应商映射)。
+    // 未配置排产凭证时整体跳过(返回 null);推送失败/部分失败只返回警告,不阻断审核。
+    public async Task<string?> ApprovePushAsync(string 单号)
+    {
+        if (!paiji.已配置) return null;
+        var 警告 = new List<string>();
+
+        using var c = factory.Create();
+        // 防回环:该单是排产系统反向同步生成的(有同步记录),审核时不再回推排产,避免生成重复记录
+        var 是同步单 = await c.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM [排产同步记录] WHERE [ERP单号]=@单号", new { 单号 }) > 0;
+        if (是同步单) return null;
+
+        // 幂等重推:已有推送记录先删远端再清记录
+        var 旧记录 = (await c.QueryAsync<(string 排产端, long Id)>(@"
+SELECT [排产端],[排产订单ID] AS Id FROM [排产推送记录] WHERE [单据类型]=N'入仓单' AND [单据号]=@单号", new { 单号 })).AsList();
+        if (旧记录.Count > 0)
+        {
+            警告.AddRange(await paiji.DeleteAsync(旧记录));
+            await c.ExecuteAsync("DELETE FROM [排产推送记录] WHERE [单据类型]=N'入仓单' AND [单据号]=@单号", new { 单号 });
+        }
+
+        var d = await GetAsync(单号);
+        if (d?.单头 is null) return "已审核，但推送排产系统失败：单据读取失败。";
+        var 有效行 = d.明细.Where(l => l.数量 > 0).ToList();
+        if (有效行.Count == 0) return 警告.Count > 0 ? string.Join("；", 警告) : null;
+
+        // 明细行无色粉号/套数/用料名称/出模数/啤重,按 物料编号 查塑胶物料资料补齐
+        var 物料表 = (await c.QueryAsync<PaijiMaterialInfo>(@"
+SELECT [物料编号],[整啤净重],[原胶件单净重],[套数],[出模数],[色粉号],[用料名称]
+FROM [塑胶物料资料] WHERE [物料编号] IN @codes",
+            new { codes = 有效行.Select(l => l.物料编号).Distinct().ToArray() }))
+            .ToDictionary(m => m.物料编号, m => m);
+
+        var workshop = PaijiMapper.车间(d.单头.供应商名称);
+        var rows = 有效行.Select(l => PaijiWarehouseMapper.BuildRow(workshop, d.单头, l,
+            l.物料编号 is not null && 物料表.TryGetValue(l.物料编号, out var m) ? m : null)).ToList();
+
+        var (ids, 失败) = await paiji.PushWarehouseAsync(rows);
+        foreach (var id in ids)
+            await c.ExecuteAsync(@"
+INSERT INTO [排产推送记录]([单据类型],[单据号],[排产订单ID],[排产端],[车间]) VALUES(N'入仓单',@单号,@id,N'warehouse-orders',@车间)",
+                new { 单号, id, 车间 = workshop });
+
+        if (失败.Count > 0)
+            警告.Add(ids.Count == 0
+                ? $"已审核，但推送排产系统失败：{string.Join("、", 失败)}"
+                : $"部分行推送失败：{string.Join("、", 失败)}");
+        return 警告.Count > 0 ? string.Join("；", 警告) : null;
+    }
+
+    // 反审核成功后调用:按推送记录删远端排产入库单(容忍远端已删),再清记录;失败只返回警告。
+    public async Task<string?> UnapprovePushAsync(string 单号)
+    {
+        using var c = factory.Create();
+        var 记录 = (await c.QueryAsync<(string 排产端, long Id)>(@"
+SELECT [排产端],[排产订单ID] AS Id FROM [排产推送记录] WHERE [单据类型]=N'入仓单' AND [单据号]=@单号", new { 单号 })).AsList();
+        if (记录.Count == 0) return null;
+        if (!paiji.已配置) return "排产系统未配置凭证，远端排产入库单未删除（推送记录已保留）。";
+
+        var 警告 = await paiji.DeleteAsync(记录);
+        await c.ExecuteAsync("DELETE FROM [排产推送记录] WHERE [单据类型]=N'入仓单' AND [单据号]=@单号", new { 单号 });
+        return 警告.Count > 0 ? string.Join("；", 警告) : null;
     }
 }

@@ -65,7 +65,9 @@ public sealed class PlasticReceiptController(
     {
         if (!await AllowAsync(PermissionAction.审核)) return Forbid();
         if (!await posting.ApproveAsync(Table, 单号, CurrentUser)) return Conflict(new { 消息 = "审核失败：单不存在或已审核。" });
-        return NoContent();
+        // 审核成功后推送排产系统入库单;失败只回警告,不阻断审核
+        var 警告 = await svc.ApprovePushAsync(单号);
+        return 警告 is null ? NoContent() : Ok(new { 警告 });
     }
 
     [HttpPost("{单号}/unapprove")]
@@ -73,6 +75,8 @@ public sealed class PlasticReceiptController(
     {
         if (!await AllowAsync(PermissionAction.反审核)) return Forbid();
         if (!await posting.UnapproveAsync(Table, 单号, CurrentUser)) return Conflict(new { 消息 = "反审核失败：单不存在或未审核。" });
-        return NoContent();
+        // 反审核成功后按推送记录删远端排产入库单;失败只回警告,不阻断反审核
+        var 警告 = await svc.UnapprovePushAsync(单号);
+        return 警告 is null ? NoContent() : Ok(new { 警告 });
     }
 }

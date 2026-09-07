@@ -4,6 +4,7 @@ using ErpApi.Features.Plastics.PlasticReceipt;
 using ErpApi.Infrastructure.Db;
 using Microsoft.Extensions.Configuration;
 using Xunit;
+using ErpApi.Integrations.Paiji;
 
 [Collection("db")]
 public class PlasticReceiptQueryServiceDbTests(DbFixture fx)
@@ -14,7 +15,9 @@ public class PlasticReceiptQueryServiceDbTests(DbFixture fx)
             new Dictionary<string, string?> { ["Erp:ConnectionStringEnvVar"] = "ERP_TEST_DB" }).Build();
         return new SqlConnectionFactory(cfg);
     }
-    private PlasticReceiptService Svc() => new(Factory(), new DocumentNumberGenerator());
+    private PlasticReceiptService Svc() => new(Factory(), new DocumentNumberGenerator(),
+        new PaijiPushService(new HttpClient(), Microsoft.Extensions.Options.Options.Create(new PaijiOptions()),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<PaijiPushService>.Instance));
 
     [SkippableFact]
     public async Task ReceiptQuery_detail_and_summary_join_filter()

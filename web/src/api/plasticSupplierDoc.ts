@@ -21,7 +21,7 @@ export function plasticSupplierDocApi(resource: string) {
     get: (单号: string) => api.get<PSDDetail>(`${base}/${enc(单号)}`).then(r => r.data),
     create: (body: Record<string, unknown>) => api.post<{ 单号: string }>(base, body).then(r => r.data),
     remove: (单号: string) => api.delete(`${base}/${enc(单号)}`),
-    approve: (单号: string) => api.post(`${base}/${enc(单号)}/approve`),
-    unapprove: (单号: string) => api.post(`${base}/${enc(单号)}/unapprove`),
+    approve: (单号: string) => api.post<{ 警告?: string }>(`${base}/${enc(单号)}/approve`).then(r => r.data),
+    unapprove: (单号: string) => api.post<{ 警告?: string }>(`${base}/${enc(单号)}/unapprove`).then(r => r.data),
   };
 }

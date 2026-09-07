@@ -50,6 +50,16 @@ public sealed class PlasticPurchaseOrderController(
         return CreatedAtAction(nameof(Get), new { 单号 }, new { 单号 });
     }
 
+    [HttpPut("{单号}")]
+    public async Task<IActionResult> Update(string 单号, [FromBody] PlasticPurchaseOrderCreateDto dto)
+    {
+        if (!await AllowAsync(PermissionAction.保存)) return Forbid();
+        try { if (!await svc.UpdateAsync(单号, dto, CurrentUser)) return NotFound(); }
+        catch (ArgumentException ex) { return BadRequest(new { 消息 = ex.Message }); }
+        catch (InvalidOperationException ex) { return Conflict(new { 消息 = ex.Message }); }
+        return NoContent();
+    }
+
     [HttpDelete("{单号}")]
     public async Task<IActionResult> Delete(string 单号)
     {
@@ -64,7 +74,9 @@ public sealed class PlasticPurchaseOrderController(
     {
         if (!await AllowAsync(PermissionAction.审核)) return Forbid();
         if (!await posting.ApproveAsync(Table, 单号, CurrentUser)) return Conflict(new { 消息 = "审核失败：单不存在或已审核。" });
-        return NoContent();
+        // 审核成功后推送排产系统;失败只回警告,不阻断审核
+        var 警告 = await svc.ApprovePushAsync(单号);
+        return 警告 is null ? NoContent() : Ok(new { 警告 });
     }
 
     [HttpPost("{单号}/unapprove")]
@@ -72,6 +84,8 @@ public sealed class PlasticPurchaseOrderController(
     {
         if (!await AllowAsync(PermissionAction.反审核)) return Forbid();
         if (!await posting.UnapproveAsync(Table, 单号, CurrentUser)) return Conflict(new { 消息 = "反审核失败：单不存在或未审核。" });
-        return NoContent();
+        // 反审核成功后按推送记录删远端排产订单;失败只回警告,不阻断反审核
+        var 警告 = await svc.UnapprovePushAsync(单号);
+        return 警告 is null ? NoContent() : Ok(new { 警告 });
     }
 }
