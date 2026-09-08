@@ -4,7 +4,7 @@ import type { Paged } from "./master";
 export interface PPOLine {
   id?: number;
   生产单号?: string; 款号?: string; 物料编号?: string; 物料名称?: string; 模具编号?: string;
-  用量?: number | null; 套数?: number | null; 数量?: number; 颜色?: string; 色粉号?: string; 用料名称?: string; 备注?: string;
+  用量?: number | null; 套数?: number | null; 数量?: number; 颜色?: string; 色粉号?: string; 用料名称?: string; 加工内容?: string; 备注?: string;
   // 详情/进度带出:已审核入仓数量 与 欠数=订购−入仓(新建录入行无此二值)
   入仓数量?: number | null; 欠数?: number | null;
 }

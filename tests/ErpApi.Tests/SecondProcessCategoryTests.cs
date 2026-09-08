@@ -15,6 +15,10 @@ public class SecondProcessCategoryTests
     // "喷油"视同"印喷"
     [InlineData("喷油", "植绒", "AF")]
     [InlineData("喷油", "植发", "AH")]
+    // "移印"视同"印喷"
+    [InlineData("移印", "植绒", "AF")]
+    [InlineData("移印", "电镀", "BD")]
+    [InlineData("移印", "植发", "AH")]
     // 带额外描述的文本按包含匹配
     [InlineData("电镀(挂镀)", "印喷色", "BD")]
     public void 推导后缀_三种映射与顺序容错(string 加工内容, string 二次加工内容, string 预期)
@@ -26,6 +30,8 @@ public class SecondProcessCategoryTests
     [InlineData("植绒", "植发")]
     [InlineData("电镀", "抛光")]
     [InlineData("喷油", "印喷")]   // 同一工序不算二次加工
+    [InlineData("移印", "喷油")]   // 归一后同为印喷
+    [InlineData("移印", "印喷")]
     [InlineData("抛光", "植绒")]
     public void 推导后缀_非二次加工组合返回空(string 加工内容, string 二次加工内容)
         => Assert.Null(SecondProcessCategory.推导后缀(加工内容, 二次加工内容));
@@ -43,8 +49,10 @@ public class SecondProcessCategoryTests
     [InlineData("BD", "电镀", "B")]
     [InlineData("BD", "印喷", "D")]
     [InlineData("BD", "喷油", "D")]
+    [InlineData("BD", "移印", "D")]   // 移印视同印喷
     // AF 类: 印喷=A, 植绒=F
     [InlineData("AF", "印喷", "A")]
+    [InlineData("AF", "移印", "A")]
     [InlineData("AF", "植绒", "F")]
     // AH 类: 印喷=A, 植发=H
     [InlineData("AH", "印喷", "A")]

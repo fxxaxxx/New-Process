@@ -52,6 +52,7 @@ export default function PlasticPurchaseOrderLineTable({ value, onChange, readOnl
     { title: "颜色", dataIndex: "颜色", width: 110, render: (_, r, i) => txt(r.颜色, s => setLine(i, { 颜色: s }), 68) },
     { title: "色粉号", dataIndex: "色粉号", width: 110, render: (_, r, i) => txt(r.色粉号, s => setLine(i, { 色粉号: s }), 98) },
     { title: "用料名称", dataIndex: "用料名称", width: 130, render: (_, r, i) => txt(r.用料名称, s => setLine(i, { 用料名称: s }), 118) },
+    { title: "加工内容", dataIndex: "加工内容", width: 90, render: (v: string) => ro(v) },
     { title: "备注", dataIndex: "备注", width: 130, render: (_, r, i) => txt(r.备注, s => setLine(i, { 备注: s }), 118) },
     // 收货进度(仅打开已有单据时后端带出;新建录入行留空)
     { title: "已入仓", dataIndex: "入仓数量", width: 90, align: "right" as const,

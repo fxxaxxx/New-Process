@@ -12,7 +12,7 @@ public static class SecondProcessCategory
     private const string 植绒 = "植绒";
     private const string 植发 = "植发";
 
-    // 把自由文本的加工内容归一到四种工序之一;"喷油"视同"印喷"。无法识别返回 null。
+    // 把自由文本的加工内容归一到四种工序之一;"喷油"/"移印"视同"印喷"(含「喷」或「印」即归印喷)。无法识别返回 null。
     private static string? 归一(string? 加工内容)
     {
         if (string.IsNullOrWhiteSpace(加工内容)) return null;
@@ -20,7 +20,7 @@ public static class SecondProcessCategory
         if (s.Contains(电镀)) return 电镀;
         if (s.Contains(植绒)) return 植绒;
         if (s.Contains(植发)) return 植发;
-        if (s.Contains(印喷) || s.Contains("喷油") || s.Contains('喷')) return 印喷;
+        if (s.Contains('喷') || s.Contains('印')) return 印喷;
         return null;
     }
 

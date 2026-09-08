@@ -32,6 +32,8 @@ public sealed class PlasticPurchaseOrderLineDto
     public string? 颜色 { get; set; }
     public string? 色粉号 { get; set; }
     public string? 用料名称 { get; set; }
+    // 加工内容(优先 塑胶物料资料，回落 塑胶共用物料表 BOM)：含「喷油」的行供喷油供应商下单时过滤带入
+    public string? 加工内容 { get; set; }
     public string? 备注 { get; set; }
     // 详情/进度带出(不入库):已审核入仓数量 与 欠数=订购−入仓
     public decimal? 入仓数量 { get; set; }
@@ -57,6 +59,7 @@ public sealed class PlasticPurchaseOrderCreateLineDto
     public string? 颜色 { get; set; }
     public string? 色粉号 { get; set; }
     public string? 用料名称 { get; set; }
+    public string? 加工内容 { get; set; }
     public string? 备注 { get; set; }
 }
 

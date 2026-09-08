@@ -147,6 +147,19 @@ builder.Services.AddHttpClient<ErpApi.Integrations.Paiji.PaijiPushService>((sp, 
 // 排产入库单→ERP塑胶入仓单 反向同步器(未配置凭证时内部直接退出)
 builder.Services.AddHostedService<ErpApi.Integrations.Paiji.PaijiSyncWorker>();
 
+// 喷油部排期系统(sprayplan-test):应用层账号走 SprayPlan__User/SprayPlan__Password;
+// nginx Basic 凭据复用排产 Paiji 节(同一台 nginx)。
+builder.Services.Configure<ErpApi.Integrations.SprayPlan.SprayPlanOptions>(builder.Configuration.GetSection("SprayPlan"));
+builder.Services.AddHttpClient<ErpApi.Integrations.SprayPlan.SprayPlanPushService>((sp, c) =>
+{
+    var o = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<ErpApi.Integrations.SprayPlan.SprayPlanOptions>>().Value;
+    var basic = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<ErpApi.Integrations.Paiji.PaijiOptions>>().Value;
+    c.BaseAddress = new Uri(o.BaseUrl.TrimEnd('/') + "/");
+    if (!string.IsNullOrWhiteSpace(basic.User))
+        c.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic",
+            Convert.ToBase64String(Encoding.UTF8.GetBytes($"{basic.User}:{basic.Password}")));
+});
+
 // JWT 认证（密钥来自环境变量，无硬编码）
 var jwtKey = Environment.GetEnvironmentVariable(JwtTokenService.KeyEnvVar)
     ?? throw new InvalidOperationException($"请设置环境变量 {JwtTokenService.KeyEnvVar}");

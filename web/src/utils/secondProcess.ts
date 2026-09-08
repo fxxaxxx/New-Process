@@ -5,14 +5,14 @@
 
 type 工序 = "电镀" | "印喷" | "植绒" | "植发";
 
-// 把自由文本的加工内容归一到四种工序之一;"喷油"视同"印喷"。无法识别返回 null。
+// 把自由文本的加工内容归一到四种工序之一;"喷油"/"移印"视同"印喷"(含「喷」或「印」即归印喷)。无法识别返回 null。
 function 归一(加工内容?: string | null): 工序 | null {
   const s = (加工内容 ?? "").trim();
   if (!s) return null;
   if (s.includes("电镀")) return "电镀";
   if (s.includes("植绒")) return "植绒";
   if (s.includes("植发")) return "植发";
-  if (s.includes("印喷") || s.includes("喷")) return "印喷";
+  if (s.includes("喷") || s.includes("印")) return "印喷";
   return null;
 }
 

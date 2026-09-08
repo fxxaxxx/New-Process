@@ -91,6 +91,8 @@ public abstract class MasterCrudController<T>(
     public async Task<IActionResult> Update(long id, [FromBody] T entity)
     {
         if (!await AllowAsync(PermissionAction.保存)) return Forbid();
+        // 路由 id 为准：表单体一般不带 ID(=0)，唯一性校验(如 物料编号 已存在 排除自身)依赖 e.ID，先回填
+        entity.ID = id;
         // 无"单价"权限者编辑:价格字段读取时被脱敏为 null，整实体覆盖会抹掉真实价格——从库回填原值保护
         if (PriceProps.Length > 0 && !await AllowAsync(PermissionAction.单价))
         {

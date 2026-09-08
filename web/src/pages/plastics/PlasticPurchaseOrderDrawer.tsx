@@ -69,6 +69,8 @@ export default function PlasticPurchaseOrderDrawer({ open, 生产单号, onClose
           ? Math.round(Number(b.计划数量) * Number(b.用量) * 100) / 100
           : 0,
         已订数量: b.已订数量 != null ? Number(b.已订数量) : undefined,
+        // 印喷类(喷油/移印/印喷)加工内容自动写进备注,供应商直接可见
+        备注: /[喷印]/.test(b.加工内容 ?? "") ? b.加工内容! : undefined,
       }));
       setRows(rs);
       // 已下单(已订数量>0)的行默认不勾选，防重复下单
@@ -104,6 +106,7 @@ export default function PlasticPurchaseOrderDrawer({ open, 生产单号, onClose
         颜色: r.颜色 || undefined,
         色粉号: r.色粉号 || undefined,
         用料名称: r.用料名称 || undefined,
+        加工内容: r.加工内容 || undefined,
         备注: r.备注?.trim() || undefined,
       }));
     if (lines.length === 0) { message.error("请至少录入一行数量>0的明细"); return; }
@@ -158,6 +161,7 @@ export default function PlasticPurchaseOrderDrawer({ open, 生产单号, onClose
     { title: "颜色", dataIndex: "颜色", width: 90, sorter: (a: EditRow, b: EditRow) => zhSort(a.颜色, b.颜色) },
     { title: "色粉号", dataIndex: "色粉号", width: 90 },
     { title: "用料名称", dataIndex: "用料名称", width: 110 },
+    { title: "加工内容", dataIndex: "加工内容", width: 90, render: (v?: string) => v ?? "" },
     {
       title: "用量", dataIndex: "用量", width: 80, align: "right" as const,
       render: (v?: number | null) => v ?? "",

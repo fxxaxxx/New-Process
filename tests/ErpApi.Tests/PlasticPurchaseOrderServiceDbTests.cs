@@ -5,6 +5,7 @@ using ErpApi.Engines.Posting;
 using ErpApi.Features.Plastics.PlasticPurchaseOrder;
 using ErpApi.Infrastructure.Db;
 using ErpApi.Integrations.Paiji;
+using ErpApi.Integrations.SprayPlan;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Xunit;
@@ -21,7 +22,10 @@ public class PlasticPurchaseOrderServiceDbTests(DbFixture fx)
     // 排产推送在测试环境未配置凭证(整体跳过),传空配置即可
     private PlasticPurchaseOrderService Svc() => new(Factory(), new DocumentNumberGenerator(),
         new PaijiPushService(new HttpClient(), Microsoft.Extensions.Options.Options.Create(new PaijiOptions()),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<PaijiPushService>.Instance));
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<PaijiPushService>.Instance),
+        new SprayPlanPushService(new HttpClient(), Microsoft.Extensions.Options.Options.Create(new SprayPlanOptions()),
+            Microsoft.Extensions.Options.Options.Create(new PaijiOptions()),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<SprayPlanPushService>.Instance));
 
     private static void Seed(SqlConnection c)
     {
@@ -29,7 +33,7 @@ public class PlasticPurchaseOrderServiceDbTests(DbFixture fx)
         c.Execute("IF NOT EXISTS(SELECT 1 FROM [款号总表] WHERE [款号]=N'K-PO') INSERT INTO [款号总表]([款号],[款式]) VALUES(N'K-PO',N'塑胶采购订单测试款')");
         c.Execute("INSERT INTO [生产制单]([生产单号],[款号],[日期],[计划数量]) VALUES(N'PO-MO',N'K-PO','2026-06-29',100)");
         c.Execute("INSERT INTO [生产制单货号]([生产单号],[货号]) VALUES(N'PO-MO',N'H-PO')");
-        c.Execute("INSERT INTO [塑胶共用物料表]([塑胶货号],[工模编号],[物料编号],[物料名称],[颜色],[色粉号],[用料名称],[用量],[套数]) VALUES(N'H-PO',N'GM-PO',N'POPM',N'ABS粒',N'黑',N'C1',N'用A',2,3)");
+        c.Execute("INSERT INTO [塑胶共用物料表]([塑胶货号],[工模编号],[物料编号],[物料名称],[颜色],[色粉号],[用料名称],[加工内容],[用量],[套数]) VALUES(N'H-PO',N'GM-PO',N'POPM',N'ABS粒',N'黑',N'C1',N'用A',N'移印',2,3)");
         c.Execute("INSERT INTO [塑胶物料资料]([物料编号],[物料名称],[单位]) VALUES(N'POPM',N'ABS粒',N'kg')");
     }
 
@@ -52,8 +56,8 @@ public class PlasticPurchaseOrderServiceDbTests(DbFixture fx)
         客户名称 = "PO测试客户",
         明细 =
         {
-            new() { 生产单号 = "PO-MO", 款号 = "K-PO", 物料编号 = "POPM", 物料名称 = "ABS粒", 模具编号 = "GM-PO", 用量 = 2, 套数 = 3, 数量 = 5, 颜色 = "黑", 色粉号 = "C1", 用料名称 = "用A" },
-            new() { 生产单号 = "PO-MO", 款号 = "K-PO", 物料编号 = "POPM", 物料名称 = "ABS粒", 模具编号 = "GM-PO", 用量 = 2, 套数 = 3, 数量 = 3, 颜色 = "黑", 色粉号 = "C1", 用料名称 = "用A" },
+            new() { 生产单号 = "PO-MO", 款号 = "K-PO", 物料编号 = "POPM", 物料名称 = "ABS粒", 模具编号 = "GM-PO", 用量 = 2, 套数 = 3, 数量 = 5, 颜色 = "黑", 色粉号 = "C1", 用料名称 = "用A", 加工内容 = "移印" },
+            new() { 生产单号 = "PO-MO", 款号 = "K-PO", 物料编号 = "POPM", 物料名称 = "ABS粒", 模具编号 = "GM-PO", 用量 = 2, 套数 = 3, 数量 = 3, 颜色 = "黑", 色粉号 = "C1", 用料名称 = "用A", 加工内容 = "移印" },
         }
     };
 
@@ -70,6 +74,7 @@ public class PlasticPurchaseOrderServiceDbTests(DbFixture fx)
             Assert.Equal("C1", b.色粉号);
             Assert.Equal("K-PO", b.款号);
             Assert.Equal("ABS粒", b.物料名称);
+            Assert.Equal("移印", b.加工内容);   // basis 带出 加工内容(BOM/物料资料)
 
             var 单号 = await Svc().CreateAsync(MakeDto(), "tester");
             Assert.StartsWith("SP", 单号);
@@ -81,6 +86,7 @@ public class PlasticPurchaseOrderServiceDbTests(DbFixture fx)
             Assert.Equal("POPM", d.明细[0].物料编号);
             Assert.Equal("GM-PO", d.明细[0].模具编号);
             Assert.Equal(5m, d.明细[0].数量);
+            Assert.Equal("移印", d.明细[0].加工内容);   // 加工内容随单保存
             Assert.Equal(3m, d.明细[1].数量);
         }
         finally { Clean(c); }

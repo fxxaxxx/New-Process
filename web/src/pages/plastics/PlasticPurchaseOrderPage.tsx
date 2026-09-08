@@ -48,11 +48,11 @@ export default function PlasticPurchaseOrderPage() {
     if (!生产单号) return;
     try {
       const bom = await plasticPurchaseOrderApi.basis(生产单号);
-      // 喷油下单(供应商名含「喷油」)：只带入 加工内容含「喷油」 的物料(加工内容优先取塑胶物料资料)
+      // 喷油下单(供应商名含「喷油」)：只带入印喷类物料——加工内容含「喷」或「印」(喷油/移印/印喷，优先取塑胶物料资料,BOM 回落)
       const 喷油单 = ((form.getFieldValue("供应商名称") as string) ?? "").includes("喷油");
-      const rows = 喷油单 ? bom.filter(b => (b.加工内容 ?? "").includes("喷油")) : bom;
+      const rows = 喷油单 ? bom.filter(b => /[喷印]/.test(b.加工内容 ?? "")) : bom;
       if (喷油单 && rows.length === 0) {
-        message.warning(`生产单 ${生产单号} 没有需要喷油的物料(塑胶物料资料.加工内容 未标「喷油」)`);
+        message.warning(`生产单 ${生产单号} 没有需要印喷的物料(塑胶物料资料.加工内容 未标「喷油/移印」)`);
         return;
       }
       // 默认订购数量=计划数量×用量(与塑胶采购分析抽屉口径一致);编号=生产通知单.合同号(客户合同号即PO号)
@@ -62,7 +62,9 @@ export default function PlasticPurchaseOrderPage() {
         数量: b.计划数量 != null && b.用量 != null
           ? Math.round(Number(b.计划数量) * Number(b.用量) * 100) / 100
           : 0,
-        颜色: b.颜色, 色粉号: b.色粉号, 用料名称: b.用料名称,
+        颜色: b.颜色, 色粉号: b.色粉号, 用料名称: b.用料名称, 加工内容: b.加工内容,
+        // 印喷类(喷油/移印/印喷)加工内容自动写进备注,供应商直接可见
+        备注: /[喷印]/.test(b.加工内容 ?? "") ? b.加工内容 : undefined,
       })));
       const po = rows[0]?.合同号;
       if (po && !(form.getFieldValue("编号") as string)) form.setFieldsValue({ 编号: po });

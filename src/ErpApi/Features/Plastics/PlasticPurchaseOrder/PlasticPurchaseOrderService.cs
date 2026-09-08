@@ -3,12 +3,13 @@ using ErpApi.Engines.DocumentNumber;
 using ErpApi.Features.MasterData;
 using ErpApi.Infrastructure.Db;
 using ErpApi.Integrations.Paiji;
+using ErpApi.Integrations.SprayPlan;
 namespace ErpApi.Features.Plastics.PlasticPurchaseOrder;
 
 // 塑胶采购订单。头 + 明细。审核 = 纯锁定(走通用过账引擎只翻 审核='1',不动库存)。
 // 明细按生产单号从塑胶共用物料表 BOM 调入(同 PlasticMaterialDocService.BasisAsync 口径)。
 public sealed class PlasticPurchaseOrderService(ISqlConnectionFactory factory, IDocumentNumberGenerator docNo,
-    PaijiPushService paiji)
+    PaijiPushService paiji, SprayPlanPushService spray)
 {
     public const string DocType = "塑胶采购订单";
     public const string Prefix = "SP";   // 塑胶采购订单号 = SP + yyyyMMdd + 3位流水
@@ -65,10 +66,10 @@ VALUES(@单号,@日期,@交货日期,@供应商编号,@供应商名称,@客户�
 
         foreach (var l in dto.明细)
             await c.ExecuteAsync(@"
-INSERT INTO [塑胶采购订单明细]([单号],[生产单号],[款号],[物料编号],[物料名称],[模具编号],[用量],[套数],[数量],[颜色],[色粉号],[用料名称],[备注])
-VALUES(@单号,@生产单号,@款号,@物料编号,@物料名称,@模具编号,@用量,@套数,@数量,@颜色,@色粉号,@用料名称,@备注)",
+INSERT INTO [塑胶采购订单明细]([单号],[生产单号],[款号],[物料编号],[物料名称],[模具编号],[用量],[套数],[数量],[颜色],[色粉号],[用料名称],[加工内容],[备注])
+VALUES(@单号,@生产单号,@款号,@物料编号,@物料名称,@模具编号,@用量,@套数,@数量,@颜色,@色粉号,@用料名称,@加工内容,@备注)",
                 new { 单号, l.生产单号, l.款号, l.物料编号, l.物料名称, l.模具编号, l.用量, l.套数,
-                      l.数量, l.颜色, l.色粉号, l.用料名称, l.备注 }, tx);
+                      l.数量, l.颜色, l.色粉号, l.用料名称, l.加工内容, l.备注 }, tx);
 
         tx.Commit();
         return 单号;
@@ -96,10 +97,10 @@ WHERE [单号]=@单号",
         await c.ExecuteAsync("DELETE FROM [塑胶采购订单明细] WHERE [单号]=@单号", new { 单号 }, tx);
         foreach (var l in dto.明细)
             await c.ExecuteAsync(@"
-INSERT INTO [塑胶采购订单明细]([单号],[生产单号],[款号],[物料编号],[物料名称],[模具编号],[用量],[套数],[数量],[颜色],[色粉号],[用料名称],[备注])
-VALUES(@单号,@生产单号,@款号,@物料编号,@物料名称,@模具编号,@用量,@套数,@数量,@颜色,@色粉号,@用料名称,@备注)",
+INSERT INTO [塑胶采购订单明细]([单号],[生产单号],[款号],[物料编号],[物料名称],[模具编号],[用量],[套数],[数量],[颜色],[色粉号],[用料名称],[加工内容],[备注])
+VALUES(@单号,@生产单号,@款号,@物料编号,@物料名称,@模具编号,@用量,@套数,@数量,@颜色,@色粉号,@用料名称,@加工内容,@备注)",
                 new { 单号, l.生产单号, l.款号, l.物料编号, l.物料名称, l.模具编号, l.用量, l.套数,
-                      l.数量, l.颜色, l.色粉号, l.用料名称, l.备注 }, tx);
+                      l.数量, l.颜色, l.色粉号, l.用料名称, l.加工内容, l.备注 }, tx);
 
         tx.Commit();
         return true;
@@ -128,7 +129,7 @@ ORDER BY [ID] DESC OFFSET (@page-1)*@size ROWS FETCH NEXT @size ROWS ONLY;", new
         using var multi = await c.QueryMultipleAsync(@"
 SELECT [ID],[单号],[日期],[交货日期],[供应商编号],[供应商名称],[客户名称],[交货地点],[编号],[数量],[操作员],[审核],[审核人],[备注]
 FROM [塑胶采购订单] WHERE [单号]=@单号;
-SELECT [ID],[生产单号],[款号],[物料编号],[物料名称],[模具编号],[用量],[套数],[数量],[颜色],[色粉号],[用料名称],[备注]
+SELECT [ID],[生产单号],[款号],[物料编号],[物料名称],[模具编号],[用量],[套数],[数量],[颜色],[色粉号],[用料名称],[加工内容],[备注]
 FROM [塑胶采购订单明细] WHERE [单号]=@单号 ORDER BY [ID];", new { 单号 });
         var header = await multi.ReadFirstOrDefaultAsync<PlasticPurchaseOrderHeaderDto>();
         if (header is null) return null;
@@ -164,28 +165,41 @@ WHERE d.[单号] = @单号", new { 单号 });
         return true;
     }
 
-    // ==================== AI注塑啤机排产系统 推送挂钩 ====================
-    // 审核成功后调用:把订单明细逐行推送到排产系统订单导入(排产端=orders,车间按单头供应商映射)。
-    // 未配置排产凭证时整体跳过(返回 null);推送失败/部分失败只返回警告,不阻断审核。
+    // ==================== 外部系统推送挂钩(排产 paiji + 喷油部 sprayplan) ====================
+    // 审核成功后调用:排产推送(所有供应商,车间按映射)与喷油排期推送(供应商含「喷油部」)并存,互不干扰。
+    // 未配置凭证的分支整体跳过;推送失败/部分失败只返回警告,不阻断审核。
     public async Task<string?> ApprovePushAsync(string 单号)
     {
-        if (!paiji.已配置) return null;
         var 警告 = new List<string>();
+        警告.AddRange(await ApprovePaijiPushAsync(单号));
+        警告.AddRange(await ApproveSprayPlanPushAsync(单号));
+        return 警告.Count > 0 ? string.Join("；", 警告) : null;
+    }
+
+    // 排产推送(排产端=orders):把订单明细逐行推送到排产系统订单导入,车间按单头供应商映射。
+    private async Task<List<string>> ApprovePaijiPushAsync(string 单号)
+    {
+        var 警告 = new List<string>();
+        if (!paiji.已配置) return 警告;
 
         using var c = factory.Create();
-        // 幂等重推:已有推送记录先删远端再清记录
+        // 幂等重推:已有推送记录先删远端再清记录(只清排产端,喷油排期记录由 sprayplan 分支处理)
         var 旧记录 = (await c.QueryAsync<(string 排产端, long Id)>(@"
-SELECT [排产端],[排产订单ID] AS Id FROM [排产推送记录] WHERE [单据类型]=N'采购订单' AND [单据号]=@单号", new { 单号 })).AsList();
+SELECT [排产端],[排产订单ID] AS Id FROM [排产推送记录]
+WHERE [单据类型]=N'采购订单' AND [单据号]=@单号 AND [排产端]<>N'sprayplan-test'", new { 单号 })).AsList();
         if (旧记录.Count > 0)
         {
             警告.AddRange(await paiji.DeleteAsync(旧记录));
-            await c.ExecuteAsync("DELETE FROM [排产推送记录] WHERE [单据类型]=N'采购订单' AND [单据号]=@单号", new { 单号 });
+            await c.ExecuteAsync(
+                "DELETE FROM [排产推送记录] WHERE [单据类型]=N'采购订单' AND [单据号]=@单号 AND [排产端]<>N'sprayplan-test'", new { 单号 });
         }
 
         var d = await GetAsync(单号);
-        if (d?.单头 is null) return "已审核，但推送排产系统失败：单据读取失败。";
+        if (d?.单头 is null) { 警告.Add("已审核，但推送排产系统失败：单据读取失败。"); return 警告; }
+        // 喷油部的单只推喷油排期系统,不推排产(由 ApproveSprayPlanPushAsync 负责)
+        if (SprayPlanMapper.要推送(d.单头.供应商名称)) return 警告;
         var 有效行 = d.明细.Where(l => l.数量 > 0).ToList();
-        if (有效行.Count == 0) return 警告.Count > 0 ? string.Join("；", 警告) : null;
+        if (有效行.Count == 0) return 警告;
 
         // 啤重G换算所需的物料资料(整啤净重,回落原胶件单净重)
         var 物料表 = (await c.QueryAsync<PaijiMaterialInfo>(@"
@@ -207,20 +221,80 @@ INSERT INTO [排产推送记录]([单据类型],[单据号],[排产订单ID],[�
             警告.Add(ids.Count == 0
                 ? $"已审核，但推送排产系统失败：{string.Join("、", 失败)}"
                 : $"部分行推送失败：{string.Join("、", 失败)}");
-        return 警告.Count > 0 ? string.Join("；", 警告) : null;
+        return 警告;
     }
 
-    // 反审核成功后调用:按推送记录删远端排产订单(容忍远端已删),再清记录;失败只返回警告。
+    // 喷油部排期推送(排产端=sprayplan-test,车间='喷油部'):供应商名称含「喷油部」时按款号分组,一款号一张订单。
+    private async Task<List<string>> ApproveSprayPlanPushAsync(string 单号)
+    {
+        var 警告 = new List<string>();
+        using var c = factory.Create();
+        // 幂等重推:已有喷油排期记录先删远端再清记录
+        var 旧记录 = (await c.QueryAsync<long>(@"
+SELECT [排产订单ID] FROM [排产推送记录]
+WHERE [单据类型]=N'采购订单' AND [单据号]=@单号 AND [排产端]=N'sprayplan-test'", new { 单号 })).AsList();
+        var 供应商 = await c.ExecuteScalarAsync<string?>(
+            "SELECT [供应商名称] FROM [塑胶采购订单] WHERE [单号]=@单号", new { 单号 });
+        if (!SprayPlanMapper.要推送(供应商))
+            return 警告;   // 非喷油部供应商:不推;旧记录理论上也只可能是喷油部单留下,这里一并忽略
+        if (旧记录.Count > 0)
+        {
+            if (spray.已配置) 警告.AddRange(await spray.DeleteOrdersAsync(旧记录));
+            await c.ExecuteAsync(
+                "DELETE FROM [排产推送记录] WHERE [单据类型]=N'采购订单' AND [单据号]=@单号 AND [排产端]=N'sprayplan-test'", new { 单号 });
+        }
+        if (!spray.已配置) return 警告;
+
+        var d = await GetAsync(单号);
+        if (d?.单头 is null) { 警告.Add("已审核，但推送喷油排期系统失败：单据读取失败。"); return 警告; }
+        var 有效行 = d.明细.Where(l => l.数量 > 0).ToList();
+        if (有效行.Count == 0) return 警告;
+
+        var drafts = SprayPlanMapper.BuildDrafts(d.单头, 有效行);
+        var (ids, 失败) = await spray.PushOrdersAsync(drafts);
+        foreach (var id in ids)
+            await c.ExecuteAsync(@"
+INSERT INTO [排产推送记录]([单据类型],[单据号],[排产订单ID],[排产端],[车间]) VALUES(N'采购订单',@单号,@id,N'sprayplan-test',N'喷油部')",
+                new { 单号, id });
+
+        if (失败.Count > 0)
+            警告.Add(ids.Count == 0
+                ? $"已审核，但推送喷油排期系统失败：{string.Join("、", 失败)}"
+                : $"喷油排期部分款号推送失败：{string.Join("、", 失败)}");
+        return 警告;
+    }
+
+    // 反审核成功后调用:按推送记录删远端(排产端=orders 走排产,sprayplan-test 走喷油排期;容忍远端已删),再清记录;失败只返回警告。
     public async Task<string?> UnapprovePushAsync(string 单号)
     {
         using var c = factory.Create();
         var 记录 = (await c.QueryAsync<(string 排产端, long Id)>(@"
 SELECT [排产端],[排产订单ID] AS Id FROM [排产推送记录] WHERE [单据类型]=N'采购订单' AND [单据号]=@单号", new { 单号 })).AsList();
         if (记录.Count == 0) return null;
-        if (!paiji.已配置) return "排产系统未配置凭证，远端排产订单未删除（推送记录已保留）。";
 
-        var 警告 = await paiji.DeleteAsync(记录);
-        await c.ExecuteAsync("DELETE FROM [排产推送记录] WHERE [单据类型]=N'采购订单' AND [单据号]=@单号", new { 单号 });
+        var 警告 = new List<string>();
+        var 排产记录 = 记录.Where(r => r.排产端 != "sprayplan-test").ToList();
+        var 喷油记录 = 记录.Where(r => r.排产端 == "sprayplan-test").Select(r => r.Id).ToList();
+        if (排产记录.Count > 0)
+        {
+            if (!paiji.已配置) 警告.Add("排产系统未配置凭证，远端排产订单未删除（推送记录已保留）。");
+            else
+            {
+                警告.AddRange(await paiji.DeleteAsync(排产记录));
+                await c.ExecuteAsync(
+                    "DELETE FROM [排产推送记录] WHERE [单据类型]=N'采购订单' AND [单据号]=@单号 AND [排产端]<>N'sprayplan-test'", new { 单号 });
+            }
+        }
+        if (喷油记录.Count > 0)
+        {
+            if (!spray.已配置) 警告.Add("喷油排期系统未配置凭证，远端订单未删除（推送记录已保留）。");
+            else
+            {
+                警告.AddRange(await spray.DeleteOrdersAsync(喷油记录));
+                await c.ExecuteAsync(
+                    "DELETE FROM [排产推送记录] WHERE [单据类型]=N'采购订单' AND [单据号]=@单号 AND [排产端]=N'sprayplan-test'", new { 单号 });
+            }
+        }
         return 警告.Count > 0 ? string.Join("；", 警告) : null;
     }
 

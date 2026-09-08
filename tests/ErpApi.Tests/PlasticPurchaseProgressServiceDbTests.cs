@@ -2,6 +2,7 @@ using Dapper;
 using ErpApi.Engines.DocumentNumber;
 using ErpApi.Features.Plastics.PlasticPurchaseOrder;
 using ErpApi.Integrations.Paiji;
+using ErpApi.Integrations.SprayPlan;
 using ErpApi.Infrastructure.Db;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
@@ -20,7 +21,10 @@ public class PlasticPurchaseProgressServiceDbTests(DbFixture fx)
     }
     private PlasticPurchaseOrderService Svc() => new(Factory(), new DocumentNumberGenerator(),
         new PaijiPushService(new HttpClient(), Microsoft.Extensions.Options.Options.Create(new PaijiOptions()),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<PaijiPushService>.Instance));
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<PaijiPushService>.Instance),
+        new SprayPlanPushService(new HttpClient(), Microsoft.Extensions.Options.Options.Create(new SprayPlanOptions()),
+            Microsoft.Extensions.Options.Options.Create(new PaijiOptions()),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<SprayPlanPushService>.Instance));
 
     private static void Clean(SqlConnection c)
     {
