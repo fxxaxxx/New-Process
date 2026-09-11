@@ -1,6 +1,7 @@
 // 物料档案 Excel 导入弹窗:选 xlsx/csv → 解析预览 → 确认导入 → 显示结果(来料/塑胶两页共用)
+// modes: 额外文件版式模式(如排模表/外购件清单),选中后用专用解析器整簿解析
 import { useState } from "react";
-import { Alert, Button, Modal, Space, Table, Upload, message } from "antd";
+import { Alert, Button, Modal, Select, Space, Table, Upload, message } from "antd";
 import { UploadOutlined } from "@ant-design/icons";
 import type * as XLSXT from "xlsx";
 import type { ImportResult } from "../api/importResult";
@@ -9,28 +10,51 @@ import {
   parseMaterialGrid, type MaterialImportParsedRow, type MaterialImportSpec,
 } from "../utils/materialImport";
 
+export interface ImportMode {
+  key: string;
+  label: string;
+  parse: (wb: XLSXT.WorkBook, XLSX: typeof XLSXT) => MaterialImportParsedRow[];
+}
+
 interface Props {
   open: boolean;
   title: string;
   spec: MaterialImportSpec;
+  modes?: ImportMode[];
   onImport: (rows: Record<string, unknown>[]) => Promise<ImportResult>;
   onClose: () => void;
   onDone: () => void; // 导入成功后刷新列表/类别树
 }
 
-export default function MaterialImportModal({ open, title, spec, onImport, onClose, onDone }: Props) {
+export default function MaterialImportModal({ open, title, spec, modes, onImport, onClose, onDone }: Props) {
+  const [mode, setMode] = useState("standard");
   const [fileName, setFileName] = useState("");
   const [rows, setRows] = useState<MaterialImportParsedRow[]>([]);
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
 
   const reset = () => { setFileName(""); setRows([]); setResult(null); };
-  const handleClose = () => { reset(); onClose(); };
+  const handleClose = () => { reset(); setMode("standard"); onClose(); };
 
   const readFile = async (file: File) => {
     reset();
     try {
       const buf = await file.arrayBuffer();
+      const active = modes?.find(m => m.key === mode);
+      if (active) {
+        // 专用版式:整簿解析(多 sheet/两段式)
+        const XLSX: typeof XLSXT = await import("xlsx");
+        const wb = XLSX.read(buf);
+        const parsed = active.parse(wb, XLSX);
+        if (parsed.length === 0) {
+          message.error(`未解析到数据(不是${active.label}版式)`);
+          return;
+        }
+        setFileName(file.name);
+        setRows(parsed);
+        setResult(null);
+        return;
+      }
       let grid: unknown[][];
       if (file.name.toLowerCase().endsWith(".csv")) {
         grid = splitDelimited(decodeCsvBuffer(buf));
@@ -50,7 +74,7 @@ export default function MaterialImportModal({ open, title, spec, onImport, onClo
       setRows(parsed.rows);
       setResult(null);
     } catch {
-      message.error("文件解析失败,请确认是 xlsx 或 csv 文件");
+      message.error("文件解析失败,请确认是 Excel(xlsx/xls/xlsm/xlsb) 或 csv 文件");
     }
   };
 
@@ -94,11 +118,21 @@ export default function MaterialImportModal({ open, title, spec, onImport, onClo
       <style>{".material-import-row-error > td { background: #fff1f0; }"}</style>
       <Space direction="vertical" size={8} style={{ width: "100%" }}>
         <Space wrap>
+          {modes && modes.length > 0 && (
+            <Select
+              value={mode} style={{ minWidth: 220 }}
+              onChange={v => { setMode(v); reset(); }}
+              options={[
+                { value: "standard", label: "标准模板(物料编号列表头)" },
+                ...modes.map(m => ({ value: m.key, label: m.label })),
+              ]}
+            />
+          )}
           <Upload
-            accept=".xlsx,.csv" showUploadList={false}
+            accept=".xlsx,.xls,.xlsm,.xlsb,.csv" showUploadList={false}
             beforeUpload={file => { void readFile(file); return false; }}
           >
-            <Button icon={<UploadOutlined />}>选择 xlsx / csv 文件</Button>
+            <Button icon={<UploadOutlined />}>选择 Excel(xlsx/xls/xlsm/xlsb) / csv 文件</Button>
           </Upload>
           {fileName && <span style={{ color: "#888" }}>{fileName}</span>}
           {rows.length > 0 && (
