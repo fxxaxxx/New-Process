@@ -13,6 +13,7 @@ import type { PlasticMoldRow } from "../../api/plasticMold";
 import PlasticMoldPicker from "./PlasticMoldPicker";
 import MaterialImportModal from "../../components/MaterialImportModal";
 import { PLASTIC_IMPORT_SPEC } from "../../utils/materialImport";
+import { parsePaimobiaoWorkbook } from "../../utils/engineeringImport";
 
 const MENU = "塑胶物料资料";
 const ALL = "__ALL__";
@@ -392,6 +393,9 @@ export default function PlasticMaterialMasterPage() {
 
       <MaterialImportModal
         open={importOpen} title="导入塑胶物料表格" spec={PLASTIC_IMPORT_SPEC}
+        modes={[
+          { key: "paimobiao", label: "排模表(工模+零件两段式)", parse: parsePaimobiaoWorkbook },
+        ]}
         onImport={rows => plasticMaterialMasterApi.importRows(rows)}
         onClose={() => setImportOpen(false)}
         onDone={() => { void loadCats(); void loadRows(1); setPage(1); }}

@@ -12,6 +12,7 @@ import { toDocCurrency, useFeatureSettings } from "../../auth/featureSettings";
 import MaterialImportModal from "../../components/MaterialImportModal";
 import BarcodePrintModal from "../../components/scan/BarcodePrintModal";
 import { MATERIAL_IMPORT_SPEC } from "../../utils/materialImport";
+import { parseWaigouWorkbook } from "../../utils/engineeringImport";
 
 const MENU = "物料资料";
 const CAT_MENU = "物料类别";
@@ -313,6 +314,9 @@ export default function MaterialMasterPage() {
 
       <MaterialImportModal
         open={importOpen} title="导入物料表格" spec={MATERIAL_IMPORT_SPEC}
+        modes={[
+          { key: "waigou", label: "外购件清单(多sheet按动物/款分)", parse: parseWaigouWorkbook },
+        ]}
         onImport={rows => materialMasterApi.importRows(rows)}
         onClose={() => setImportOpen(false)}
         onDone={() => { void loadCats(); void loadRows(1); setPage(1); }}
